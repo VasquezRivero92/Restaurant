@@ -268,10 +268,6 @@ export default function App() {
       handleLogout();
       return;
     }
-    if (!isAuthenticated) {
-      setCurrentScreen('pin-lock');
-      return;
-    }
     if (currentRole === 'cocina' && screen !== 'cocina-kds') {
       return;
     }
@@ -1169,13 +1165,31 @@ export default function App() {
   };
 
   // Staff unlock with role hierarchy (Autenticación estricta con PIN de 6 dígitos)
-  const handleUnlock = (role: AppRole, name: string) => {
+  const handleUnlock = (role: AppRole, name: string, targetScreen?: ScreenType) => {
     setIsAuthenticated(true);
     setCurrentRole(role);
     setStaffUser({
       name,
       role: role === 'mesero' ? 'mesero' : 'admin'
     });
+
+    if (role === 'admin_sede') {
+      const foundAdmin = admins.find((a) => a.name.toLowerCase() === name.toLowerCase() || a.roleKey === 'admin_sede');
+      if (foundAdmin?.brandId) setActiveChainId(foundAdmin.brandId);
+      if (foundAdmin?.assignedBranchIds && foundAdmin.assignedBranchIds.length > 0) {
+        setActiveBranchId(foundAdmin.assignedBranchIds[0]);
+      } else if (foundAdmin?.branchId) {
+        setActiveBranchId(foundAdmin.branchId);
+      }
+    }
+
+    if (targetScreen) {
+      setCurrentScreen(targetScreen);
+      if (targetScreen === 'carta-sede') {
+        setCartaInitialTab('carta');
+      }
+      return;
+    }
 
     if (role === 'cocina') {
       setCurrentScreen('cocina-kds');
@@ -1185,21 +1199,9 @@ export default function App() {
       setCurrentScreen('saas-console');
       return;
     }
-    if (role === 'admin_general') {
+    if (role === 'admin_general' || role === 'admin_sede') {
       setCurrentScreen('carta-sede');
       setCartaInitialTab('carta');
-      return;
-    }
-    // Set appropriate active branch and chain if it's a sede admin
-    if (role === 'admin_sede') {
-      const foundAdmin = admins.find((a) => a.name.toLowerCase() === name.toLowerCase() || a.roleKey === 'admin_sede');
-      if (foundAdmin?.brandId) setActiveChainId(foundAdmin.brandId);
-      if (foundAdmin?.assignedBranchIds && foundAdmin.assignedBranchIds.length > 0) {
-        setActiveBranchId(foundAdmin.assignedBranchIds[0]);
-      } else if (foundAdmin?.branchId) {
-        setActiveBranchId(foundAdmin.branchId);
-      }
-      setCurrentScreen('carta-sede');
       return;
     }
 

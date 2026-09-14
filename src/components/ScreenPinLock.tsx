@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { ScreenType, AppRole, StaffMember, AdminUser } from '../types';
 
 interface ScreenPinLockProps {
-  onUnlock: (role: AppRole, name: string) => void;
-  onNavigate: (screen: ScreenType) => void;
+  onUnlock: (role: AppRole, name: string, targetScreen?: ScreenType) => void;
+  onNavigate?: (screen: ScreenType) => void;
   staffMembers?: StaffMember[];
   admins?: AdminUser[];
 }
@@ -16,6 +16,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
 }) => {
   const [pin, setPin] = useState<string>('');
   const [errorShake, setErrorShake] = useState(false);
+  const isVerifyingRef = React.useRef(false);
   const [selectedStaff, setSelectedStaff] = useState<{ name: string; role: string; pin: string }>({
     name: 'Ing. Alejandro Vega',
     role: 'Admin Global',
@@ -23,65 +24,90 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
   });
 
   const handleKeyPress = (num: string) => {
-    if (pin.length < 6) {
-      const newPin = pin + num;
-      setPin(newPin);
-      if (newPin.length === 6) {
-        verifyPin(newPin);
+    if (isVerifyingRef.current) return;
+    setPin((prev) => {
+      if (prev.length >= 6) return prev;
+      const nextPin = prev + num;
+      if (nextPin.length === 6) {
+        isVerifyingRef.current = true;
+        setTimeout(() => {
+          verifyPin(nextPin);
+        }, 40);
       }
-    }
+      return nextPin;
+    });
   };
 
   const handleBackspace = () => {
+    if (isVerifyingRef.current) return;
     setPin((prev) => prev.slice(0, -1));
+    setErrorShake(false);
+  };
+
+  const handleClear = () => {
+    isVerifyingRef.current = false;
+    setPin('');
+    setErrorShake(false);
   };
 
   const verifyPin = (enteredPin: string) => {
+    const cleanEntered = String(enteredPin || '').trim();
+    const matchesPin = (p?: string | number) => {
+      if (p === undefined || p === null) return false;
+      return String(p).trim() === cleanEntered;
+    };
+
     // 1. Buscar en lista dinámica de administradores
-    const foundAdmin = admins.find((a) => a.active !== false && a.pin === enteredPin);
+    const foundAdmin = admins.find((a) => a.active !== false && matchesPin(a.pin));
     if (foundAdmin) {
-      onUnlock(foundAdmin.roleKey, foundAdmin.name);
-      if (foundAdmin.roleKey === 'admin_global') {
-        onNavigate('saas-console');
-      } else {
-        onNavigate('carta-sede');
-      }
+      isVerifyingRef.current = false;
+      setPin('');
+      const targetScreen: ScreenType = foundAdmin.roleKey === 'admin_global' ? 'saas-console' : 'carta-sede';
+      onUnlock(foundAdmin.roleKey, foundAdmin.name, targetScreen);
       return;
     }
 
     // 2. Buscar en lista dinámica de colaboradores / mozos / cocina
-    const foundStaff = staffMembers.find((s) => s.active && s.pin === enteredPin);
+    const foundStaff = staffMembers.find((s) => s.active !== false && matchesPin(s.pin));
     if (foundStaff) {
       const isCocina =
         foundStaff.role.toLowerCase().includes('cocina') ||
         foundStaff.role.toLowerCase().includes('chef');
       const role: AppRole = isCocina ? 'cocina' : 'mesero';
-      onUnlock(role, foundStaff.name);
-      onNavigate(isCocina ? 'cocina-kds' : 'mesas');
+      const targetScreen: ScreenType = isCocina ? 'cocina-kds' : 'mesas';
+      isVerifyingRef.current = false;
+      setPin('');
+      onUnlock(role, foundStaff.name, targetScreen);
       return;
     }
 
     // 3. Códigos PIN por defecto de 6 dígitos (presets de fábrica)
-    if (enteredPin === '123456') {
-      onUnlock('mesero', 'Carlos Mendoza');
-      onNavigate('mesas');
-    } else if (enteredPin === '555555') {
-      onUnlock('cocina', 'Chef Mario Quispe');
-      onNavigate('cocina-kds');
-    } else if (enteredPin === '999999' || enteredPin === '000000') {
-      onUnlock('admin_global', 'Ing. Alejandro Vega');
-      onNavigate('saas-console');
-    } else if (enteredPin === '888888') {
-      onUnlock('admin_general', 'Roberto Morales');
-      onNavigate('carta-sede');
-    } else if (enteredPin === '777777') {
-      onUnlock('admin_sede', 'Lucía Ramos');
-      onNavigate('carta-sede');
+    if (cleanEntered === '123456') {
+      isVerifyingRef.current = false;
+      setPin('');
+      onUnlock('mesero', 'Carlos Mendoza', 'mesas');
+    } else if (cleanEntered === '555555') {
+      isVerifyingRef.current = false;
+      setPin('');
+      onUnlock('cocina', 'Chef Mario Quispe', 'cocina-kds');
+    } else if (cleanEntered === '999999' || cleanEntered === '000000') {
+      isVerifyingRef.current = false;
+      setPin('');
+      onUnlock('admin_global', 'Ing. Alejandro Vega', 'saas-console');
+    } else if (cleanEntered === '888888') {
+      isVerifyingRef.current = false;
+      setPin('');
+      onUnlock('admin_general', 'Roberto Morales', 'carta-sede');
+    } else if (cleanEntered === '777777') {
+      isVerifyingRef.current = false;
+      setPin('');
+      onUnlock('admin_sede', 'Lucía Ramos', 'carta-sede');
     } else {
       setErrorShake(true);
       setTimeout(() => {
         setPin('');
         setErrorShake(false);
+        isVerifyingRef.current = false;
       }, 700);
     }
   };
@@ -94,13 +120,12 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
       } else if (e.key === 'Backspace') {
         handleBackspace();
       } else if (e.key === 'Escape') {
-        setPin('');
-        setErrorShake(false);
+        handleClear();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pin]);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 bg-[#071626] text-white flex flex-col items-center justify-between p-6 select-none">
@@ -174,10 +199,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
         ))}
 
         <button
-          onClick={() => {
-            setPin('');
-            setErrorShake(false);
-          }}
+          onClick={handleClear}
           className="h-16 rounded-2xl bg-white/5 hover:bg-white/10 active:scale-95 text-slate-300 font-bold text-xs flex flex-col items-center justify-center border border-white/5 transition-all cursor-pointer"
         >
           <span>Limpiar</span>
@@ -209,7 +231,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
           <div
             onClick={() => {
               setSelectedStaff({ name: 'Ing. Alejandro Vega', role: 'Admin Global', pin: '999999' });
-              setPin('');
+              handleClear();
             }}
             className="p-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-200 text-xs border border-purple-500/25 transition-all cursor-pointer flex flex-col"
             title="Seleccionar perfil (debes teclear 999999)"
@@ -224,7 +246,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
           <div
             onClick={() => {
               setSelectedStaff({ name: 'Roberto Morales', role: 'Admin General', pin: '888888' });
-              setPin('');
+              handleClear();
             }}
             className="p-2 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-200 text-xs border border-teal-500/25 transition-all cursor-pointer flex flex-col"
             title="Seleccionar perfil (debes teclear 888888)"
@@ -239,7 +261,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
           <div
             onClick={() => {
               setSelectedStaff({ name: 'Lucía Ramos', role: 'Admin Sede', pin: '777777' });
-              setPin('');
+              handleClear();
             }}
             className="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-200 text-xs border border-amber-500/25 transition-all cursor-pointer flex flex-col"
             title="Seleccionar perfil (debes teclear 777777)"
@@ -254,7 +276,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
           <div
             onClick={() => {
               setSelectedStaff({ name: 'Carlos Mendoza', role: 'Mozo Salón', pin: '123456' });
-              setPin('');
+              handleClear();
             }}
             className="p-2 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-200 text-xs border border-sky-500/25 transition-all cursor-pointer flex flex-col"
             title="Seleccionar perfil (debes teclear 123456)"
@@ -269,7 +291,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
           <div
             onClick={() => {
               setSelectedStaff({ name: 'Chef Mario Quispe', role: 'Chef KDS', pin: '555555' });
-              setPin('');
+              handleClear();
             }}
             className="col-span-2 p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-200 text-xs border border-red-500/25 transition-all cursor-pointer flex flex-col"
             title="Seleccionar perfil (debes teclear 555555)"
