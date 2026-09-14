@@ -141,6 +141,15 @@ export interface BranchLocation {
   managerPhone?: string;
 }
 
+export interface MasterCarta {
+  id: string;
+  name: string;
+  description: string;
+  dishes: MenuItem[];
+  createdAt?: string;
+  assignedChainIds?: string[];
+}
+
 export interface ChainBrand {
   id: string;
   name: string;
@@ -153,6 +162,7 @@ export interface ChainBrand {
   adminPhone: string;
   locationsCount: number;
   locations: BranchLocation[];
+  assignedCartaId?: string; // ID de la carta maestra asignada a este restaurante
 }
 
 export type AppRole = 'admin_global' | 'admin_general' | 'admin_sede' | 'mesero' | 'cocina';

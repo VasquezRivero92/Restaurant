@@ -12,6 +12,7 @@ interface HeaderTopProps {
   onOpenDrinksTray?: () => void;
   onOpenRoleSwitcher?: () => void;
   activeBranchName?: string;
+  isCloudConnected?: boolean;
 }
 
 export const HeaderTop: React.FC<HeaderTopProps> = ({
@@ -24,7 +25,8 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
   pendingDrinksCount = 0,
   onOpenDrinksTray,
   onOpenRoleSwitcher,
-  activeBranchName = 'Sede Miraflores'
+  activeBranchName = 'Sede Miraflores',
+  isCloudConnected = true
 }) => {
   const getSubTitle = () => {
     switch (currentScreen) {
@@ -60,23 +62,31 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
       case 'admin_global':
         return 'Admin Global';
       default:
-        return 'Operativo';
+        return 'Personal';
     }
   };
 
-  const isGlobal = currentRole === 'admin_global';
   const isCocina = currentRole === 'cocina';
+  const isGlobal = currentRole === 'admin_global';
 
   return (
-    <header className="sticky top-0 z-40 bg-surface/95 backdrop-blur-xl shadow-[0_1px_8px_rgba(10,37,64,0.06)] border-b border-outline-variant/30">
-      <div className="h-14 sm:h-16 px-3 sm:px-4 max-w-7xl mx-auto flex items-center justify-between gap-2">
-        {/* Left: Brand logo & Sede Context */}
-        <div 
-          onClick={() => onNavigate(isGlobal ? 'saas-console' : isCocina ? 'cocina-kds' : 'mesas')} 
-          className="flex items-center gap-2 sm:gap-2.5 min-w-0 cursor-pointer group"
+    <header className="sticky top-0 z-40 bg-surface/95 backdrop-blur-md border-b border-outline-variant/30 px-3 sm:px-4 py-2 sm:py-2.5 transition-all shadow-xs">
+      <div className="flex items-center justify-between gap-2 max-w-7xl mx-auto">
+        {/* Left: Brand Identity & Subtitle */}
+        <div
+          onClick={() => onNavigate(isGlobal ? 'saas-console' : isCocina ? 'cocina-kds' : 'mesas')}
+          className="flex items-center gap-2 sm:gap-2.5 cursor-pointer select-none group min-w-0"
         >
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-primary flex items-center justify-center text-white shrink-0 shadow-sm border border-secondary/30">
-            <span className="material-symbols-outlined text-[18px] sm:text-[20px] text-secondary-container">
+          <div
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105 ${
+              isGlobal
+                ? 'bg-purple-900 text-purple-200'
+                : isCocina
+                ? 'bg-amber-500 text-amber-950'
+                : 'bg-primary text-on-primary'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[20px] sm:text-[22px]">
               {isGlobal ? 'public' : isCocina ? 'soup_kitchen' : 'phishing'}
             </span>
           </div>
@@ -89,10 +99,23 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
                 {isGlobal ? 'SaaS' : 'Sabrisimo'}
               </span>
             </div>
-            <div className="flex items-center gap-1 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-              <span className="text-[11px] sm:text-xs text-on-surface-variant truncate font-medium">
-                {isGlobal ? 'Multi-Restaurante' : activeBranchName} • {getSubTitle()}
+            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+              <span className="flex items-center gap-1">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isCloudConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`}></span>
+                <span className="text-[11px] sm:text-xs text-on-surface-variant truncate font-medium">
+                  {isGlobal ? 'Multi-Restaurante' : activeBranchName} • {getSubTitle()}
+                </span>
+              </span>
+              <span
+                className={`hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-black tracking-wider uppercase ${
+                  isCloudConnected
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                }`}
+                title="Conectado en tiempo real a Firebase Realtime Database: restaurant-4e0ee-default-rtdb"
+              >
+                <span className="material-symbols-outlined text-[11px]">cloud_done</span>
+                <span>Firebase RTDB</span>
               </span>
             </div>
           </div>

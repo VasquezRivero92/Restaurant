@@ -6,7 +6,8 @@ import {
   AdminUser,
   BranchLocation,
   AppRole,
-  StaffMember
+  StaffMember,
+  MasterCarta
 } from '../types';
 
 interface ScreenCartaSedeProps {
@@ -14,10 +15,14 @@ interface ScreenCartaSedeProps {
   onToggleItemAvailability: (itemId: number) => void;
   onUpdateMenuItem?: (item: MenuItem) => void;
   onAddMenuItem?: (item: MenuItem) => void;
+  onDeleteMenuItem?: (itemId: number) => void;
+  onRestoreMenuItem?: (itemId: number) => void;
+  onResetBranchMenu?: () => void;
   onNavigate: (screen: ScreenType) => void;
   chains?: ChainBrand[];
   admins?: AdminUser[];
   staff?: StaffMember[];
+  masterCartas?: MasterCarta[];
   onAddStaff?: (staff: StaffMember) => void;
   onUpdateStaff?: (staff: StaffMember) => void;
   onDeleteStaff?: (staffId: string) => void;
@@ -47,10 +52,14 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   onToggleItemAvailability,
   onUpdateMenuItem,
   onAddMenuItem,
+  onDeleteMenuItem,
+  onRestoreMenuItem,
+  onResetBranchMenu,
   onNavigate,
   chains = [],
   admins = [],
   staff = [],
+  masterCartas = [],
   onAddStaff,
   onUpdateStaff,
   onDeleteStaff,
@@ -107,6 +116,19 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   const [dishSearchQuery, setDishSearchQuery] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
   const [onlyShowPausedDishes, setOnlyShowPausedDishes] = useState(false);
+
+  // Branch dish delete & restore state
+  const [dishToDelete, setDishToDelete] = useState<MenuItem | null>(null);
+  const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
+
+  // Identify assigned master carta
+  const assignedMasterCarta = masterCartas.find((c) => c.id === currentChain?.assignedCartaId) ||
+    masterCartas.find((c) => c.id === 'carta-la-barra');
+
+  // Compute dishes present in assigned master carta but deleted from this specific branch
+  const deletedDishesFromBranch: MenuItem[] = assignedMasterCarta
+    ? assignedMasterCarta.dishes.filter((masterItem) => !menuItems.some((m) => m.id === masterItem.id))
+    : [];
 
   // Filter in Personal
   const [staffFilterMode, setStaffFilterMode] = useState<'current_sede' | 'all_managed'>('current_sede');
@@ -730,6 +752,40 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
       {/* ======================================================================= */}
       {activeTab === 'carta' && (
         <div className="flex flex-col gap-3">
+          {/* Base Carta Matriz Info Banner */}
+          <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-teal-500/10 border border-primary/20 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-lg bg-primary text-on-primary flex items-center justify-center shrink-0 shadow-xs">
+                <span className="material-symbols-outlined text-[20px]">menu_book</span>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-black text-primary truncate">
+                    Carta Matriz: {assignedMasterCarta?.name || 'Carta Oficial'}
+                  </span>
+                  <span className="px-2 py-0.2 rounded-full bg-primary/10 text-primary font-extrabold text-[10px]">
+                    {assignedMasterCarta?.dishes.length || 38} platos base
+                  </span>
+                </div>
+                <span className="text-[11px] text-on-surface-variant">
+                  Asignada desde el Panel Global • Cada sede puede desactivar, retirar o sumar platos propios
+                </span>
+              </div>
+            </div>
+
+            {onResetBranchMenu && (
+              <button
+                type="button"
+                onClick={() => setShowResetConfirmModal(true)}
+                className="px-2.5 py-1.5 rounded-lg border border-primary/30 text-primary hover:bg-primary/10 text-xs font-extrabold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer self-end sm:self-center"
+                title="Restablecer toda la carta de esta sede al menú base asignado por el Admin Global"
+              >
+                <span className="material-symbols-outlined text-[16px]">restart_alt</span>
+                <span>Restablecer Carta Matriz</span>
+              </button>
+            )}
+          </div>
+
           {/* Master Toggle: Carta Status for this Branch */}
           <div className="bg-surface-container-lowest rounded-xl p-4 shadow-sm border border-outline-variant/30 flex flex-col gap-3">
             <div className="flex items-start justify-between">
@@ -955,6 +1011,17 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                   >
                     {item.available ? 'Pausar' : 'Activar'}
                   </button>
+
+                  {/* Delete Dish from this Sede Button */}
+                  {onDeleteMenuItem && (
+                    <button
+                      onClick={() => setDishToDelete(item)}
+                      title="Retirar plato de esta sede"
+                      className="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 transition-all cursor-pointer flex items-center justify-center border border-red-200"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -978,6 +1045,65 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
               </div>
             )}
           </div>
+
+          {/* Platos Retirados de esta Sede (Recuperables desde la Carta Matriz) */}
+          {deletedDishesFromBranch.length > 0 && (
+            <div className="mt-4 bg-amber-50/60 border border-amber-200/80 rounded-2xl p-4 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-amber-700 text-[20px]">inventory_2</span>
+                  <h4 className="text-xs font-extrabold text-amber-950 uppercase tracking-wide">
+                    Platos retirados de esta sede ({deletedDishesFromBranch.length})
+                  </h4>
+                </div>
+                <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                  Carta Matriz
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-900 leading-relaxed">
+                Estos platos pertenecen a la Carta Matriz asignada ({assignedMasterCarta?.name}), pero han sido retirados de {currentBranch?.name || 'esta sede'}. Puedes volver a incorporarlos en cualquier momento:
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {deletedDishesFromBranch.map((delDish) => (
+                  <div
+                    key={delDish.id}
+                    className="bg-white rounded-xl p-2.5 border border-amber-200/60 shadow-xs flex items-center justify-between gap-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <img
+                        src={delDish.image}
+                        alt={delDish.name}
+                        className="w-10 h-10 rounded-lg object-cover grayscale opacity-70 shrink-0 border border-amber-200"
+                      />
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-extrabold text-on-surface truncate">
+                          {delDish.name}
+                        </span>
+                        <span className="text-[10px] text-primary font-bold">
+                          Desde S/ {delDish.price.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {onRestoreMenuItem && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onRestoreMenuItem(delDish.id);
+                          triggerToast(`Plato "${delDish.name}" restaurado a la carta de esta sede`);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1 shrink-0 transition-colors shadow-xs cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">add</span>
+                        <span>Restaurar</span>
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -2341,6 +2467,100 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CONFIRMAR RETIRAR/ELIMINAR PLATO DE ESTA SEDE */}
+      {dishToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-outline-variant/30 flex flex-col gap-4 animate-in fade-in zoom-in-95">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-700 flex items-center justify-center mx-auto">
+              <span className="material-symbols-outlined text-[28px]">delete_forever</span>
+            </div>
+
+            <div className="text-center">
+              <h3 className="font-black text-base text-on-surface">
+                ¿Retirar plato de esta sede?
+              </h3>
+              <p className="text-xs text-on-surface-variant mt-1">
+                Estás a punto de retirar <strong className="text-on-surface">"{dishToDelete.name}"</strong> únicamente de <span className="font-bold text-primary">{currentBranch?.name}</span>.
+              </p>
+              <div className="mt-2.5 p-2.5 bg-surface-container-low rounded-xl text-[11px] text-on-surface-variant text-left flex items-start gap-2 border border-outline-variant/20">
+                <span className="material-symbols-outlined text-teal-700 text-[16px] shrink-0 mt-0.5">info</span>
+                <span>Las demás sedes de la cadena mantendrán este plato intacto en su carta. Podrás volver a agregarlo en cualquier momento desde la Carta Matriz.</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant/20">
+              <button
+                type="button"
+                onClick={() => setDishToDelete(null)}
+                className="flex-1 py-2 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDeleteMenuItem && dishToDelete) {
+                    onDeleteMenuItem(dishToDelete.id);
+                    triggerToast(`Plato "${dishToDelete.name}" retirado de ${currentBranch?.name || 'esta sede'}`);
+                  }
+                  setDishToDelete(null);
+                }}
+                className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black text-xs transition-colors shadow-sm cursor-pointer"
+              >
+                Retirar Plato
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CONFIRMAR RESTABLECER A CARTA MATRIZ */}
+      {showResetConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-outline-variant/30 flex flex-col gap-4 animate-in fade-in zoom-in-95">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto">
+              <span className="material-symbols-outlined text-[28px]">restart_alt</span>
+            </div>
+
+            <div className="text-center">
+              <h3 className="font-black text-base text-on-surface">
+                ¿Restablecer Carta Matriz?
+              </h3>
+              <p className="text-xs text-on-surface-variant mt-1">
+                Se sincronizará el menú completo de <strong className="text-on-surface">{currentBranch?.name}</strong> con la Carta Matriz oficial <span className="font-bold text-primary">"{assignedMasterCarta?.name || 'Oficial'}"</span> ({assignedMasterCarta?.dishes.length || 38} platos).
+              </p>
+              <div className="mt-2.5 p-2.5 bg-amber-50 rounded-xl text-[11px] text-amber-900 text-left flex items-start gap-2 border border-amber-200">
+                <span className="material-symbols-outlined text-amber-700 text-[16px] shrink-0 mt-0.5">warning</span>
+                <span>Se recuperarán todos los platos retirados y los platos pausados volverán a estar disponibles.</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant/20">
+              <button
+                type="button"
+                onClick={() => setShowResetConfirmModal(false)}
+                className="flex-1 py-2 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onResetBranchMenu) {
+                    onResetBranchMenu();
+                    triggerToast(`Carta de ${currentBranch?.name || 'la sede'} restablecida a la Carta Matriz`);
+                  }
+                  setShowResetConfirmModal(false);
+                }}
+                className="flex-1 py-2 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-black text-xs transition-colors shadow-sm cursor-pointer"
+              >
+                Restablecer
+              </button>
+            </div>
           </div>
         </div>
       )}

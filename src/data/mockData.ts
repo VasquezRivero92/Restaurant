@@ -1,4 +1,4 @@
-import { TableItem, MenuItem, KDSTicket, ChainBrand, AdminUser, StaffMember } from '../types';
+import { TableItem, MenuItem, KDSTicket, ChainBrand, AdminUser, StaffMember, MasterCarta } from '../types';
 
 export const INITIAL_TABLES: TableItem[] = [
   {
@@ -350,16 +350,14 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     id: 101,
     name: 'Sudados (Cabrilla, Tramboyo o Pintadilla)',
     category: 'calientes',
-    price: 22.0, // Precio mínimo por defecto
-    description: 'Sudado de cabrilla • Sudado de tramboyo • Sudado de pintadilla con chicha de jora, tomate, cebolla y yuca.',
+    price: 30.0,
+    description: 'Sudado de cabrilla • Sudado de tramboyo • Sudado de pintadilla.',
     tag: 'Especial Marino',
     image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 18,
     sizes: [
-      { name: 'Personal', price: 22.0 },
-      { name: 'Mediano', price: 30.0 },
-      { name: 'Familiar', price: 42.0 }
+      { name: 'Porción Completa', price: 30.0 }
     ],
     customization: {
       picante: 'Moderado',
@@ -371,43 +369,40 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 102,
-    name: 'Parihuela Mixta',
+    name: 'Parihuela mixta',
     category: 'calientes',
-    price: 20.0, // Precio mínimo por defecto
-    description: 'Sustancioso concentrado de mariscos surtidos, cangrejo y pescado fresco en punto aromático.',
+    price: 30.0,
+    description: 'Concentrado sustancioso de mariscos surtidos, cangrejo y pescado fresco en punto aromático.',
     tag: 'Levanta Muertos',
     image: 'https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 22,
     sizes: [
-      { name: 'Personal', price: 20.0 },
-      { name: 'Especial', price: 30.0 },
-      { name: 'Familiar', price: 40.0 }
+      { name: 'Porción Completa', price: 30.0 }
     ]
   },
   {
     id: 103,
-    name: 'Chilcano de Pescado (Especial)',
+    name: 'Chilcano',
     category: 'calientes',
-    price: 5.0, // Precio mínimo por defecto
-    description: 'Chilcano caliente servido con cancha serrana, limón fresco y cebollita china.',
-    tag: 'Entrada Caliente',
+    price: 8.0,
+    description: 'Chilcano especial caliente servido con cancha serrana, limón y cebollita china.',
+    tag: 'Especial',
     image: 'https://images.unsplash.com/photo-1548946526-f69e2424cf45?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 35,
     sizes: [
-      { name: 'Vaso Chico', price: 5.0 },
-      { name: 'Tazón Especial', price: 8.0 }
+      { name: 'Especial', price: 8.0 }
     ]
   },
 
-  // --- 2. BEBIDAS (Servicio directo por mesero - NO van a cocina) ---
+  // --- 2. BEBIDAS ---
   {
     id: 201,
-    name: 'Refresco Natural (Chicha Morada / Maracuyá)',
+    name: 'Refresco (Natural)',
     category: 'bebidas',
-    price: 2.0, // Precio mínimo por defecto (Vaso)
-    description: 'Bebida natural de maíz morado o maracuyá fresca. Atendida inmediatamente por el mesero.',
+    price: 2.0,
+    description: 'Chicha morada o maracuyá fresca natural. Servida al instante por el mesero.',
     tag: 'Entrega por Mozo',
     isDrink: true,
     image: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=600&auto=format&fit=crop&q=80',
@@ -415,16 +410,16 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     portionCount: 45,
     sizes: [
       { name: 'Vaso', price: 2.0 },
-      { name: 'Medio Litro (1/2 lt)', price: 4.0 },
-      { name: 'Litro (1 lt)', price: 8.0 }
+      { name: 'Medio litro', price: 4.0 },
+      { name: 'Litro', price: 8.0 }
     ]
   },
   {
     id: 202,
-    name: 'Gaseosas (Inca Kola / Coca Cola)',
+    name: 'Gaseosas',
     category: 'bebidas',
-    price: 3.0, // Precio mínimo por defecto (Personal)
-    description: 'Gaseosa helada o al tiempo. Servida directamente del cooler por el mesero.',
+    price: 3.0,
+    description: 'Inca Kola o Coca Cola helada o al tiempo. Servida directamente por el mesero.',
     tag: 'Entrega por Mozo',
     isDrink: true,
     image: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80',
@@ -432,32 +427,31 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     portionCount: 60,
     sizes: [
       { name: 'Personal', price: 3.0 },
-      { name: 'Medio Litro (1/2 lt)', price: 5.0 },
-      { name: '1 Litro', price: 8.0 },
-      { name: '1 Litro y Medio (1.5 lt)', price: 10.0 }
+      { name: '1/2 lt', price: 5.0 },
+      { name: '1 litro', price: 8.0 },
+      { name: '1 litro y medio', price: 10.0 }
     ]
   },
   {
     id: 203,
-    name: 'Cerveza Cusqueña (Trigo o Negra)',
+    name: 'Cervezas Cusqueña (trigo o negra)',
     category: 'bebidas',
-    price: 8.0, // Precio mínimo por defecto (Personal 330ml)
-    description: 'Cerveza helada servida de inmediato por el mesero.',
+    price: 12.0,
+    description: 'Cerveza Cusqueña helada servida de inmediato por el mesero.',
     tag: 'Entrega por Mozo',
     isDrink: true,
     image: 'https://images.unsplash.com/photo-1608270195230-058f964dc0b0?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 30,
     sizes: [
-      { name: 'Personal 330ml', price: 8.0 },
-      { name: 'Botella 620ml', price: 12.0 }
+      { name: 'Botella', price: 12.0 }
     ]
   },
   {
     id: 204,
-    name: 'Cerveza Pilsen Callao',
+    name: 'Cerveza Pilsen',
     category: 'bebidas',
-    price: 7.0, // Precio mínimo por defecto (Personal 330ml)
+    price: 10.0,
     description: 'Pilsen helada servida al instante en mesa por el mozo.',
     tag: 'Entrega por Mozo',
     isDrink: true,
@@ -465,8 +459,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     available: true,
     portionCount: 40,
     sizes: [
-      { name: 'Personal 330ml', price: 7.0 },
-      { name: 'Botella 630ml', price: 10.0 }
+      { name: 'Botella', price: 10.0 }
     ]
   },
 
@@ -475,104 +468,95 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     id: 301,
     name: 'Combinado Clásico',
     category: 'combinados',
-    price: 12.0, // Precio mínimo por defecto
-    description: 'Pescado, mariscos, chicharrón crocante, lechuga, choclo desgranado y canchita.',
+    price: 12.0,
+    description: 'Pescado, mariscos, chicharrón, lechuga, choclo y canchita.',
     tag: 'Popular',
     image: 'https://images.unsplash.com/photo-1535400255456-984241443b29?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 35,
     sizes: [
-      { name: 'Personal', price: 12.0 },
-      { name: 'Mediano', price: 18.0 },
-      { name: 'Familiar', price: 26.0 }
+      { name: 'Porción Completa', price: 12.0 }
     ]
   },
   {
     id: 302,
     name: 'Combinado Naomi',
     category: 'combinados',
-    price: 15.0, // Precio mínimo por defecto
+    price: 15.0,
     description: 'Tallarín, chicharrón, ceviche, arroz con mariscos y pollo.',
-    tag: 'Sabor Criollo Marino',
+    tag: 'Criollo Marino',
     image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 28,
     sizes: [
-      { name: 'Personal', price: 15.0 },
-      { name: 'Mediano', price: 22.0 },
-      { name: 'Familiar', price: 30.0 }
+      { name: 'Porción Completa', price: 15.0 }
     ]
   },
   {
     id: 303,
     name: 'Combinado Súper Nélida',
     category: 'combinados',
-    price: 22.0, // Precio mínimo por defecto
+    price: 30.0,
     description: 'Ceviche, arroz con mariscos, chicharrón, huancaína, arroz con pollo, causa, chicharrón mixto y pescado.',
     tag: 'Plato Bandera',
     image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 20,
     sizes: [
-      { name: 'Mediano', price: 22.0 },
-      { name: 'Familiar', price: 30.0 },
-      { name: 'Mega Fuente', price: 45.0 }
+      { name: 'Gran Fuente', price: 30.0 }
     ]
   },
   {
     id: 304,
-    name: 'Tallarín Rojo con Huancaína',
+    name: 'Tallarín Rojo',
     category: 'combinados',
-    price: 12.0, // Precio mínimo por defecto
-    description: 'Tallarín criollo bañado en cremosa huancaína tradicional.',
+    price: 12.0,
+    description: 'Tallarín a la huancaína tradicional.',
     image: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 25,
     sizes: [
-      { name: 'Personal', price: 12.0 },
-      { name: 'Fuente', price: 18.0 }
+      { name: 'Porción', price: 12.0 }
     ]
   },
   {
     id: 305,
-    name: 'Arroz con Pollo y Huancaína',
+    name: 'Arroz con Pollo',
     category: 'combinados',
-    price: 15.0, // Precio mínimo por defecto
-    description: 'Arroz con culantro aromático, presa de pollo y salsa a la huancaína.',
+    price: 15.0,
+    description: 'Arroz con pollo y huancaína aromático con culantro criollo.',
     image: 'https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 24,
     sizes: [
-      { name: 'Personal', price: 15.0 },
-      { name: 'Fuente', price: 22.0 }
+      { name: 'Porción', price: 15.0 }
     ]
   },
   {
     id: 306,
-    name: 'Causa Sola',
+    name: 'Causa sola',
     category: 'combinados',
-    price: 7.0, // Precio mínimo por defecto
+    price: 7.0,
     description: 'Masa de papa amarilla sazonada con ají amarillo y limón.',
     image: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 30,
     sizes: [
       { name: 'Personal', price: 7.0 },
-      { name: 'Fuente', price: 15.0 }
+      { name: 'Familiar', price: 15.0 }
     ]
   },
   {
     id: 307,
-    name: 'Tallarín Solo',
+    name: 'Tallarín solo',
     category: 'combinados',
-    price: 10.0, // Precio mínimo por defecto
-    description: 'Porción de tallarines en salsa criolla especial.',
+    price: 15.0,
+    description: 'Porción de tallarines criollos en salsa especial.',
     image: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 20,
     sizes: [
-      { name: 'Personal', price: 10.0 },
-      { name: 'Mediano', price: 15.0 },
+      { name: 'Personal', price: 15.0 },
       { name: 'Fuente', price: 20.0 }
     ]
   },
@@ -582,16 +566,14 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     id: 401,
     name: 'Ceviche de Pescado',
     category: 'ceviches',
-    price: 16.0, // Precio mínimo por defecto (Personal)
-    description: 'Ceviche tradicional con pesca fresca del día, camote, choclo y canchita.',
+    price: 20.0,
+    description: 'Pesca fresca del día con limón norteño, choclo, camote y canchita.',
     tag: 'Clásico La Barra',
     image: 'https://images.unsplash.com/photo-1535400255456-984241443b29?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 40,
     sizes: [
-      { name: 'Personal', price: 16.0 },
-      { name: 'Mediano', price: 22.0 },
-      { name: 'Fuente Familiar', price: 32.0 }
+      { name: 'Porción', price: 20.0 }
     ],
     customization: {
       picante: 'Moderado',
@@ -605,148 +587,133 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     id: 402,
     name: 'Ceviche Mixto',
     category: 'ceviches',
-    price: 20.0, // Precio mínimo por defecto (Personal)
-    description: 'Pesca del día con mixtura de mariscos (calamar, pulpo y langostino).',
+    price: 25.0,
+    description: 'Pesca del día y mariscos seleccionados bañados en leche de tigre.',
     tag: 'Favorito',
     image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 35,
     sizes: [
-      { name: 'Personal', price: 20.0 },
-      { name: 'Mediano', price: 28.0 },
-      { name: 'Fuente Familiar', price: 38.0 }
+      { name: 'Porción', price: 25.0 }
     ]
   },
   {
     id: 403,
-    name: 'Ceviche de Pota',
+    name: 'Ceviche Pota',
     category: 'ceviches',
-    price: 14.0, // Precio mínimo por defecto (Personal)
-    description: 'Pota fresca en dados, marinada al momento en leche de tigre.',
+    price: 20.0,
+    description: 'Pota fresca marinada en zumo de limón y ají limo recién cortado.',
     image: 'https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 30,
     sizes: [
-      { name: 'Personal', price: 14.0 },
-      { name: 'Mediano', price: 20.0 },
-      { name: 'Fuente', price: 28.0 }
+      { name: 'Porción', price: 20.0 }
     ]
   },
   {
     id: 404,
-    name: 'Ceviche de Pulpo',
+    name: 'Ceviche Pulpo',
     category: 'ceviches',
-    price: 20.0, // Precio mínimo por defecto (Personal)
-    description: 'Láminas tiernas de pulpo marinadas con limón norteño y ají limo.',
+    price: 25.0,
+    description: 'Tiras tiernas de pulpo marinadas al momento con camote y choclo.',
     image: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 20,
     sizes: [
-      { name: 'Personal', price: 20.0 },
-      { name: 'Mediano', price: 28.0 },
-      { name: 'Fuente Familiar', price: 38.0 }
+      { name: 'Porción', price: 25.0 }
     ]
   },
   {
     id: 405,
     name: 'Ceviche Mixtura',
     category: 'ceviches',
-    price: 24.0, // Precio mínimo por defecto (Personal)
-    description: 'Generosa selección de mariscos frescos seleccionados.',
+    price: 30.0,
+    description: 'Gran mixtura de mariscos frescos seleccionados.',
     image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 25,
     sizes: [
-      { name: 'Personal', price: 24.0 },
-      { name: 'Mediano', price: 32.0 },
-      { name: 'Fuente Familiar', price: 44.0 }
+      { name: 'Porción', price: 30.0 }
     ]
   },
   {
     id: 406,
-    name: 'Ceviche de Conchas Negras',
+    name: 'Ceviche Conchas Negras',
     category: 'ceviches',
-    price: 25.0, // Precio mínimo por defecto (Personal)
-    description: 'Conchas negras de Tumbes abiertas al momento, con cebolla en brunoise.',
+    price: 30.0,
+    description: 'Conchas negras de Tumbes abiertas al instante.',
     tag: 'Afrodisíaco',
     image: 'https://images.unsplash.com/photo-1548946526-f69e2424cf45?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 15,
     sizes: [
-      { name: 'Personal', price: 25.0 },
-      { name: 'Especial / Fuente', price: 35.0 }
+      { name: 'Porción', price: 30.0 }
     ]
   },
   {
     id: 407,
-    name: 'Ceviche Conchas Negras Mixtas',
+    name: 'Ceviche conchas negras mixtas',
     category: 'ceviches',
-    price: 28.0, // Precio mínimo por defecto (Personal)
+    price: 35.0,
     description: 'Conchas negras combinadas con pescado fresco y mariscos surtidos.',
     tag: 'Premium',
     image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 12,
     sizes: [
-      { name: 'Personal', price: 28.0 },
-      { name: 'Especial / Fuente', price: 40.0 }
+      { name: 'Porción', price: 35.0 }
     ]
   },
   {
     id: 408,
     name: 'Ceviche de Almejas',
     category: 'ceviches',
-    price: 20.0, // Precio mínimo por defecto (Personal)
-    description: 'Almejas frescas seleccionadas con jugo de limón y ají limo.',
+    price: 25.0,
+    description: 'Almejas marinas frescas seleccionadas en zumo de limón y ají limo.',
     image: 'https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 18,
     sizes: [
-      { name: 'Personal', price: 20.0 },
-      { name: 'Mediano', price: 28.0 }
+      { name: 'Porción', price: 25.0 }
     ]
   },
   {
     id: 409,
-    name: 'Ceviche de Langostinos',
+    name: 'Ceviche de Langostino',
     category: 'ceviches',
-    price: 24.0, // Precio mínimo por defecto (Personal)
-    description: 'Colas de langostinos en punto exacto con leche de tigre clásica.',
+    price: 30.0,
+    description: 'Colas de langostinos en su punto exacto con leche de tigre clásica.',
     image: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 22,
     sizes: [
-      { name: 'Personal', price: 24.0 },
-      { name: 'Mediano', price: 32.0 },
-      { name: 'Fuente Familiar', price: 42.0 }
+      { name: 'Porción', price: 30.0 }
     ]
   },
   {
     id: 410,
     name: 'Ceviche de Conchas de Abanico',
     category: 'ceviches',
-    price: 24.0, // Precio mínimo por defecto (Personal)
-    description: 'Frescas conchas de abanico con su coral en jugo acevichado.',
+    price: 30.0,
+    description: 'Conchas de abanico con su coral en jugo acevichado y canchita.',
     image: 'https://images.unsplash.com/photo-1535400255456-984241443b29?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 16,
     sizes: [
-      { name: 'Personal', price: 24.0 },
-      { name: 'Fuente Especial', price: 36.0 }
+      { name: 'Porción', price: 30.0 }
     ]
   },
   {
     id: 411,
-    name: 'Ceviche en Tinta de Huancaína',
+    name: 'Ceviche en tinta de Huancaína',
     category: 'ceviches',
-    price: 20.0, // Precio mínimo por defecto (Personal)
+    price: 25.0,
     description: 'Pescado fresco bañado en fusión de crema huancaína y leche de tigre.',
     image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 20,
     sizes: [
-      { name: 'Personal', price: 20.0 },
-      { name: 'Mediano', price: 28.0 }
+      { name: 'Porción', price: 25.0 }
     ]
   },
 
@@ -755,71 +722,66 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     id: 501,
     name: 'Leche de Pescado',
     category: 'leches',
-    price: 8.0, // Precio mínimo por defecto (Copa Clásica)
-    description: 'Copa concentrada con trozos de pescado, chicharrón, canchita y choclo.',
+    price: 10.0,
+    description: 'Copa concentrada con pescado fresco, chicharrón, canchita y choclo.',
     image: 'https://images.unsplash.com/photo-1535400255456-984241443b29?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 30,
     sizes: [
-      { name: 'Copa Clásica', price: 8.0 },
-      { name: 'Copa Gigante', price: 14.0 }
+      { name: 'Copa', price: 10.0 }
     ]
   },
   {
     id: 502,
     name: 'Leche Mixta',
     category: 'leches',
-    price: 12.0, // Precio mínimo por defecto (Copa Clásica)
-    description: 'Con pescado y mixtura de mariscos en copa helada con canchita.',
+    price: 15.0,
+    description: 'Pescado y mixtura de mariscos en copa helada con chicharrón crocante.',
     image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 25,
     sizes: [
-      { name: 'Copa Clásica', price: 12.0 },
-      { name: 'Copa Gigante', price: 18.0 }
+      { name: 'Copa', price: 15.0 }
     ]
   },
   {
     id: 503,
     name: 'Leche de Pota',
     category: 'leches',
-    price: 12.0, // Precio mínimo por defecto (Copa Clásica)
+    price: 20.0,
     description: 'Pota marinada con zumo cítrico, ají limo y camote glaseado.',
     image: 'https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 20,
     sizes: [
-      { name: 'Copa Clásica', price: 12.0 },
-      { name: 'Copa Gigante', price: 18.0 }
+      { name: 'Copa', price: 20.0 }
     ]
   },
   {
     id: 504,
     name: 'Leche de Pantera',
     category: 'leches',
-    price: 18.0, // Precio mínimo por defecto (Copa Clásica)
+    price: 25.0,
     description: 'Elaborada a base de conchas negras norteñas, vigorosa y potente.',
     tag: 'Fuerza Marina',
     image: 'https://images.unsplash.com/photo-1548946526-f69e2424cf45?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 15,
     sizes: [
-      { name: 'Copa Clásica', price: 18.0 },
-      { name: 'Copa Gigante', price: 26.0 }
+      { name: 'Copa', price: 25.0 }
     ]
   },
   {
     id: 505,
     name: 'Leche de Pantera Mixta',
     category: 'leches',
-    price: 22.0, // Precio mínimo por defecto (Copa Clásica)
+    price: 30.0,
     description: 'Conchas negras de Tumbes con pescado, langostinos y calamar crocante.',
     image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 14,
     sizes: [
-      { name: 'Copa Clásica', price: 22.0 },
-      { name: 'Copa Gigante', price: 32.0 }
+      { name: 'Copa', price: 30.0 }
     ]
   },
 
@@ -828,61 +790,53 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     id: 601,
     name: 'Arroz con Mariscos',
     category: 'arroces',
-    price: 18.0, // Precio mínimo por defecto (Personal)
-    description: 'Arroz norteño meloso con mariscos flameados al vino y sarza criolla.',
+    price: 20.0,
+    description: 'Arroz meloso con mariscos flameados al vino y sarza criolla.',
     image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 35,
     sizes: [
-      { name: 'Personal', price: 18.0 },
-      { name: 'Mediano', price: 25.0 },
-      { name: 'Familiar', price: 35.0 }
+      { name: 'Porción', price: 20.0 }
     ]
   },
   {
     id: 602,
     name: 'Arroz con Mariscos + Ceviche',
     category: 'arroces',
-    price: 22.0, // Precio mínimo por defecto (Personal)
-    description: 'El clásico dúo marino: arroz caliente con mariscos y ceviche de pescado fresco.',
+    price: 25.0,
+    description: 'El clásico dúo marino: arroz caliente con mariscos y ceviche fresco.',
     tag: 'Dúo Preferido',
     image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 30,
     sizes: [
-      { name: 'Personal', price: 22.0 },
-      { name: 'Mediano', price: 30.0 },
-      { name: 'Familiar', price: 42.0 }
+      { name: 'Dúo', price: 25.0 }
     ]
   },
   {
     id: 603,
     name: 'Arroz Chaufa de Mariscos',
     category: 'arroces',
-    price: 14.0, // Precio mínimo por defecto (Personal)
+    price: 15.0,
     description: 'Salteado al wok al estilo chifa con mariscos, cebollita china y sillao.',
     image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 32,
     sizes: [
-      { name: 'Personal', price: 14.0 },
-      { name: 'Mediano', price: 20.0 },
-      { name: 'Familiar', price: 28.0 }
+      { name: 'Porción', price: 15.0 }
     ]
   },
   {
     id: 604,
     name: 'Arroz Chaufa de Mariscos + Ceviche',
     category: 'arroces',
-    price: 18.0, // Precio mínimo por defecto (Personal)
-    description: 'Chaufa marino al wok acompañado de ceviche fresco.',
+    price: 20.0,
+    description: 'Chaufa marino al wok acompañado de ceviche de pescado fresco.',
     image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 28,
     sizes: [
-      { name: 'Personal', price: 18.0 },
-      { name: 'Mediano', price: 26.0 },
-      { name: 'Familiar', price: 36.0 }
+      { name: 'Dúo', price: 20.0 }
     ]
   },
 
@@ -891,8 +845,8 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     id: 701,
     name: 'Trío Marino',
     category: 'trios',
-    price: 15.0, // Precio mínimo por defecto (Personal)
-    description: 'Arroz con mariscos, ceviche de pescado o leche de tigre, y chicharrón crocante.',
+    price: 15.0,
+    description: 'Arroz con mariscos, ceviche o leche, y chicharrón crocante.',
     tag: 'El Más Pedido',
     image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
     available: true,
@@ -907,8 +861,8 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     id: 702,
     name: 'Trío Oriental',
     category: 'trios',
-    price: 15.0, // Precio mínimo por defecto (Personal)
-    description: 'Arroz chaufa, tallarín saltado, chicharrón de pescado o leche de tigre.',
+    price: 15.0,
+    description: 'Arroz chaufa, tallarín, chicharrón o leche.',
     image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 30,
@@ -922,8 +876,8 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     id: 703,
     name: 'Trío Criollo',
     category: 'trios',
-    price: 15.0, // Precio mínimo por defecto (Personal)
-    description: 'Arroz con pollo, ceviche de pescado o leche de tigre, y papa a la huancaína.',
+    price: 15.0,
+    description: 'Arroz con pollo, ceviche o leche de tigre, y papa a la huancaína.',
     image: 'https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 25,
@@ -939,31 +893,27 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     id: 801,
     name: 'Jalea de Pescado',
     category: 'jaleas',
-    price: 20.0, // Precio mínimo por defecto (Personal)
-    description: 'Filetes de pescado crocantes y dorados, acompañados de yucas fritas y sarza criolla.',
+    price: 25.0,
+    description: 'Filetes de pescado crocantes y dorados con yucas fritas y sarza criolla.',
     image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 22,
     sizes: [
-      { name: 'Personal', price: 20.0 },
-      { name: 'Mediana', price: 28.0 },
-      { name: 'Familiar', price: 40.0 }
+      { name: 'Porción Completa', price: 25.0 }
     ]
   },
   {
     id: 802,
     name: 'Jalea Mixta',
     category: 'jaleas',
-    price: 24.0, // Precio mínimo por defecto (Personal)
+    price: 30.0,
     description: 'Pescado, calamar, langostinos y conchas crocantes con sarza criolla y tártara.',
     tag: 'Mega Crocante',
     image: 'https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&auto=format&fit=crop&q=80',
     available: true,
     portionCount: 25,
     sizes: [
-      { name: 'Personal', price: 24.0 },
-      { name: 'Mediana', price: 34.0 },
-      { name: 'Familiar', price: 48.0 }
+      { name: 'Porción Completa', price: 30.0 }
     ]
   }
 ];
@@ -1079,6 +1029,33 @@ export const INITIAL_KDS_TICKETS: KDSTicket[] = [
   }
 ];
 
+export const INITIAL_MASTER_CARTAS: MasterCarta[] = [
+  {
+    id: 'carta-la-barra',
+    name: 'Carta Oficial Cevichería La Barra Sabrisimo',
+    description: 'Carta matriz oficial con 38 especialidades: Calientes, Ceviches, Leches de Tigre, Arroces, Combinados, Tríos, Jaleas y Bebidas.',
+    dishes: INITIAL_MENU_ITEMS,
+    createdAt: '13/09/2026',
+    assignedChainIds: ['la-barra']
+  },
+  {
+    id: 'carta-puerto-azul',
+    name: 'Carta Tradición Marina Puerto Azul',
+    description: 'Carta clásica norteña y criolla marina para locales y sedes con barra tradicional.',
+    dishes: INITIAL_MENU_ITEMS.filter((_, idx) => idx % 2 === 0),
+    createdAt: '10/09/2026',
+    assignedChainIds: ['puerto-azul']
+  },
+  {
+    id: 'carta-express',
+    name: 'Carta Marina Express & Al Paso',
+    description: 'Carta ágil con los combinados, tríos, leches de tigre y bebidas de más alta rotación.',
+    dishes: INITIAL_MENU_ITEMS.filter((d) => ['combinados', 'trios', 'leches', 'bebidas'].includes(d.category)),
+    createdAt: '12/09/2026',
+    assignedChainIds: []
+  }
+];
+
 export const INITIAL_CHAINS: ChainBrand[] = [
   {
     id: 'la-barra',
@@ -1087,6 +1064,7 @@ export const INITIAL_CHAINS: ChainBrand[] = [
     ruc: '20608945231',
     plan: 'Enterprise',
     status: 'Activa',
+    assignedCartaId: 'carta-la-barra',
     adminName: 'Roberto Morales',
     adminEmail: 'roberto@labarrasabrisimo.pe',
     adminPhone: '+51 987 654 321',
@@ -1143,6 +1121,7 @@ export const INITIAL_CHAINS: ChainBrand[] = [
     ruc: '20554912044',
     plan: 'Pro',
     status: 'Activa',
+    assignedCartaId: 'carta-puerto-azul',
     adminName: 'Giancarlo Rossi',
     adminEmail: 'giancarlo@puertoazul.pe',
     adminPhone: '+51 998 334 112',

@@ -11,7 +11,8 @@ import {
   BranchLocation,
   AppRole,
   StaffMember,
-  CartItem
+  CartItem,
+  MasterCarta
 } from './types';
 import {
   INITIAL_TABLES,
@@ -19,7 +20,8 @@ import {
   INITIAL_KDS_TICKETS,
   INITIAL_CHAINS,
   INITIAL_ADMINS,
-  INITIAL_STAFF
+  INITIAL_STAFF,
+  INITIAL_MASTER_CARTAS
 } from './data/mockData';
 import { HeaderTop } from './components/HeaderTop';
 import { BottomNav } from './components/BottomNav';
@@ -32,11 +34,48 @@ import { ScreenCartaSede } from './components/ScreenCartaSede';
 import { ScreenSaaSConsole } from './components/ScreenSaaSConsole';
 import { ScreenPinLock } from './components/ScreenPinLock';
 import { ModalBandejaBebidas } from './components/ModalBandejaBebidas';
+import {
+  initRTDBSeedIfEmpty,
+  subscribeToTables,
+  subscribeToChains,
+  subscribeToMasterCartas,
+  subscribeToBranchMenus,
+  subscribeToKDSTickets,
+  subscribeToStaff,
+  subscribeToAdmins,
+  syncTablesToRTDB,
+  syncKDSTicketsToRTDB,
+  syncBranchMenusToRTDB,
+  syncMasterCartasToRTDB,
+  syncChainsToRTDB,
+  syncStaffToRTDB,
+  syncAdminsToRTDB,
+  resetAllDataInRTDB
+} from './services/rtdbService';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('mesas');
   const [tables, setTables] = useState<TableItem[]>(INITIAL_TABLES);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS);
+  
+  // Master Cartas SaaS Catalog
+  const [masterCartas, setMasterCartas] = useState<MasterCarta[]>(INITIAL_MASTER_CARTAS);
+
+  // Chains & Branches
+  const [chains, setChains] = useState<ChainBrand[]>(INITIAL_CHAINS);
+
+  // Independent Menu per Branch: Record<branchId, MenuItem[]>
+  const [branchMenus, setBranchMenus] = useState<Record<string, MenuItem[]>>(() => {
+    const initialBranchMap: Record<string, MenuItem[]> = {};
+    INITIAL_CHAINS.forEach((chain) => {
+      const assignedCarta = INITIAL_MASTER_CARTAS.find((c) => c.id === chain.assignedCartaId) || INITIAL_MASTER_CARTAS[0];
+      const baseDishes = assignedCarta ? [...assignedCarta.dishes] : [...INITIAL_MENU_ITEMS];
+      chain.locations.forEach((loc) => {
+        initialBranchMap[loc.id] = JSON.parse(JSON.stringify(baseDishes));
+      });
+    });
+    return initialBranchMap;
+  });
+
   const [cart, setCart] = useState<{ [cartKey: string]: CartItem }>({
     '401__Personal': {
       id: '401__Personal',
@@ -44,16 +83,16 @@ export default function App() {
       dishName: 'Ceviche de Pescado',
       category: 'ceviches',
       selectedSize: 'Personal',
-      price: 16.0, // Precio mínimo por defecto
+      price: 20.0, // Exact menu price
       qty: 1
     },
-    '701__Personal': {
-      id: '701__Personal',
+    '701__Trío': {
+      id: '701__Trío',
       dishId: 701,
       dishName: 'Trío Marino',
       category: 'trios',
-      selectedSize: 'Personal',
-      price: 15.0, // Precio mínimo por defecto
+      selectedSize: 'Trío',
+      price: 15.0, // Exact menu price (S/ 15, S/ 20, S/ 25)
       qty: 1
     },
     '201__Vaso': {
@@ -63,12 +102,11 @@ export default function App() {
       category: 'bebidas',
       isDrink: true,
       selectedSize: 'Vaso',
-      price: 2.0, // Precio mínimo por defecto
+      price: 2.0, // Exact menu price (Vaso S/ 2, 1/2 lt S/ 4, Litro S/ 8)
       qty: 1
     }
   });
   const [kdsTickets, setKdsTickets] = useState<KDSTicket[]>(INITIAL_KDS_TICKETS);
-  const [chains, setChains] = useState<ChainBrand[]>(INITIAL_CHAINS);
   const [admins, setAdmins] = useState<AdminUser[]>(INITIAL_ADMINS);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>(INITIAL_STAFF);
   const [selectedTableId, setSelectedTableId] = useState<string>('mesa-05');
@@ -85,6 +123,114 @@ export default function App() {
   
   // Toggle device simulation frame (Mobile mockup vs Full fluid)
   const [isMobileFrame, setIsMobileFrame] = useState(false);
+
+  const [isCloudConnected, setIsCloudConnected] = useState(true);
+
+  // Synchronize with Firebase Realtime Database in real time
+  React.useEffect(() => {
+    // 1. Check if database is empty; if so, populate with initial data
+    initRTDBSeedIfEmpty().catch((err) => console.error('Error init seed:', err));
+
+    // 2. Subscribe to real-time changes
+    const unsubTables = subscribeToTables((cloudTables) => {
+      if (cloudTables && cloudTables.length > 0) {
+        setTables(cloudTables);
+        setIsCloudConnected(true);
+      }
+    });
+
+    const unsubChains = subscribeToChains((cloudChains) => {
+      if (cloudChains && cloudChains.length > 0) {
+        setChains(cloudChains);
+        setIsCloudConnected(true);
+      }
+    });
+
+    const unsubCartas = subscribeToMasterCartas((cloudCartas) => {
+      if (cloudCartas && cloudCartas.length > 0) {
+        setMasterCartas(cloudCartas);
+        setIsCloudConnected(true);
+      }
+    });
+
+    const unsubMenus = subscribeToBranchMenus((cloudMenus) => {
+      if (cloudMenus && Object.keys(cloudMenus).length > 0) {
+        setBranchMenus(cloudMenus);
+        setIsCloudConnected(true);
+      }
+    });
+
+    const unsubTickets = subscribeToKDSTickets((cloudTickets) => {
+      if (cloudTickets) {
+        setKdsTickets(cloudTickets);
+        setIsCloudConnected(true);
+      }
+    });
+
+    const unsubStaff = subscribeToStaff((cloudStaff) => {
+      if (cloudStaff && cloudStaff.length > 0) {
+        setStaffMembers(cloudStaff);
+        setIsCloudConnected(true);
+      }
+    });
+
+    const unsubAdmins = subscribeToAdmins((cloudAdmins) => {
+      if (cloudAdmins && cloudAdmins.length > 0) {
+        setAdmins(cloudAdmins);
+        setIsCloudConnected(true);
+      }
+    });
+
+    return () => {
+      unsubTables();
+      unsubChains();
+      unsubCartas();
+      unsubMenus();
+      unsubTickets();
+      unsubStaff();
+      unsubAdmins();
+    };
+  }, []);
+
+  // Sync state mutations to Firebase Realtime Database
+  const isInitialMount = React.useRef(true);
+  React.useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    syncTablesToRTDB(tables);
+  }, [tables]);
+
+  React.useEffect(() => {
+    if (isInitialMount.current) return;
+    syncKDSTicketsToRTDB(kdsTickets);
+  }, [kdsTickets]);
+
+  React.useEffect(() => {
+    if (isInitialMount.current) return;
+    syncBranchMenusToRTDB(branchMenus);
+  }, [branchMenus]);
+
+  React.useEffect(() => {
+    if (isInitialMount.current) return;
+    syncMasterCartasToRTDB(masterCartas);
+  }, [masterCartas]);
+
+  React.useEffect(() => {
+    if (isInitialMount.current) return;
+    syncChainsToRTDB(chains);
+  }, [chains]);
+
+  React.useEffect(() => {
+    if (isInitialMount.current) return;
+    syncStaffToRTDB(staffMembers);
+  }, [staffMembers]);
+
+  React.useEffect(() => {
+    if (isInitialMount.current) return;
+    syncAdminsToRTDB(admins);
+  }, [admins]);
 
   // Role switching handler with synchronized user profile and destination screen
   const handleSwitchRole = (role: AppRole) => {
@@ -177,7 +323,7 @@ export default function App() {
     customization?: CartItem['customization'],
     notes?: string
   ) => {
-    const dish = menuItems.find((d) => d.id === dishId);
+    const dish = currentBranchDishes.find((d) => d.id === dishId);
     if (!dish) return;
 
     // Default to the first size (minimum price) if no size is explicitly provided
@@ -773,16 +919,143 @@ export default function App() {
     }
   };
 
-  // Availability toggle
+  // Active branch menu: isolated per branch location
+  const currentBranchDishes: MenuItem[] = branchMenus[activeBranchId] || INITIAL_MENU_ITEMS;
+
+  // Availability toggle per branch
   const handleToggleItemAvailability = (itemId: number) => {
-    setMenuItems((prev) =>
-      prev.map((item) => (item.id === itemId ? { ...item, available: !item.available } : item))
+    setBranchMenus((prev) => {
+      const currentList = prev[activeBranchId] || INITIAL_MENU_ITEMS;
+      const updatedList = currentList.map((item) =>
+        item.id === itemId ? { ...item, available: !item.available } : item
+      );
+      return {
+        ...prev,
+        [activeBranchId]: updatedList
+      };
+    });
+  };
+
+  // Branch dish handlers: Add, Update, Delete, Restore, Reset
+  const handleAddMenuItem = (newItem: MenuItem) => {
+    setBranchMenus((prev) => {
+      const currentList = prev[activeBranchId] || INITIAL_MENU_ITEMS;
+      return {
+        ...prev,
+        [activeBranchId]: [newItem, ...currentList]
+      };
+    });
+  };
+
+  const handleUpdateMenuItem = (updatedItem: MenuItem) => {
+    setBranchMenus((prev) => {
+      const currentList = prev[activeBranchId] || INITIAL_MENU_ITEMS;
+      return {
+        ...prev,
+        [activeBranchId]: currentList.map((item) =>
+          item.id === updatedItem.id ? updatedItem : item
+        )
+      };
+    });
+  };
+
+  const handleDeleteDishFromBranch = (itemId: number) => {
+    setBranchMenus((prev) => {
+      const currentList = prev[activeBranchId] || INITIAL_MENU_ITEMS;
+      return {
+        ...prev,
+        [activeBranchId]: currentList.filter((item) => item.id !== itemId)
+      };
+    });
+  };
+
+  const handleRestoreDishInBranch = (itemId: number) => {
+    const chain = chains.find((c) => c.id === activeChainId);
+    const assignedCarta = masterCartas.find((c) => c.id === chain?.assignedCartaId) ||
+      masterCartas.find((c) => c.id === 'carta-la-barra');
+    const dishToRestore = assignedCarta?.dishes.find((d) => d.id === itemId);
+
+    if (dishToRestore) {
+      setBranchMenus((prev) => {
+        const currentList = prev[activeBranchId] || INITIAL_MENU_ITEMS;
+        if (currentList.some((d) => d.id === itemId)) return prev;
+        return {
+          ...prev,
+          [activeBranchId]: [...currentList, { ...dishToRestore, available: true }]
+        };
+      });
+    }
+  };
+
+  const handleResetBranchMenu = () => {
+    const chain = chains.find((c) => c.id === activeChainId);
+    const assignedCarta = masterCartas.find((c) => c.id === chain?.assignedCartaId) ||
+      masterCartas.find((c) => c.id === 'carta-la-barra');
+    if (assignedCarta) {
+      setBranchMenus((prev) => ({
+        ...prev,
+        [activeBranchId]: JSON.parse(JSON.stringify(assignedCarta.dishes))
+      }));
+    }
+  };
+
+  // SaaS Master Cartas handlers
+  const handleAddMasterCarta = (newCarta: MasterCarta) => {
+    setMasterCartas((prev) => [newCarta, ...prev]);
+  };
+
+  const handleAssignCartaToChain = (chainId: string, cartaId: string) => {
+    // 1. Update chain assignedCartaId
+    setChains((prev) =>
+      prev.map((c) => (c.id === chainId ? { ...c, assignedCartaId: cartaId } : c))
     );
+
+    // 2. Update master cartas assignment list
+    setMasterCartas((prev) =>
+      prev.map((carta) => {
+        const currentAssigned = carta.assignedChainIds || [];
+        if (carta.id === cartaId) {
+          return {
+            ...carta,
+            assignedChainIds: Array.from(new Set([...currentAssigned, chainId]))
+          };
+        } else {
+          return {
+            ...carta,
+            assignedChainIds: currentAssigned.filter((id) => id !== chainId)
+          };
+        }
+      })
+    );
+
+    // 3. Propagate dishes to ALL branches of this restaurant chain
+    const targetCarta = masterCartas.find((c) => c.id === cartaId);
+    const targetChain = chains.find((c) => c.id === chainId);
+    if (targetCarta && targetChain) {
+      setBranchMenus((prev) => {
+        const updated = { ...prev };
+        targetChain.locations.forEach((loc) => {
+          updated[loc.id] = JSON.parse(JSON.stringify(targetCarta.dishes));
+        });
+        return updated;
+      });
+    }
   };
 
   // SaaS brand addition (Administrador Global)
   const handleAddChain = (newChain: ChainBrand) => {
     setChains((prev) => [newChain, ...prev]);
+
+    // Initialize branch menus for new locations
+    const assignedCarta = masterCartas.find((c) => c.id === newChain.assignedCartaId) || masterCartas[0];
+    const baseDishes = assignedCarta ? [...assignedCarta.dishes] : [...INITIAL_MENU_ITEMS];
+    setBranchMenus((prev) => {
+      const updated = { ...prev };
+      newChain.locations.forEach((loc) => {
+        updated[loc.id] = JSON.parse(JSON.stringify(baseDishes));
+      });
+      return updated;
+    });
 
     // Automatically register the General Admin in the multi-tier directory
     const genAdmin: AdminUser = {
@@ -835,6 +1108,15 @@ export default function App() {
           : c
       )
     );
+
+    // Initialize branch menu for this new location
+    const chain = chains.find((c) => c.id === chainId);
+    const assignedCarta = masterCartas.find((c) => c.id === chain?.assignedCartaId) || masterCartas[0];
+    const baseDishes = assignedCarta ? [...assignedCarta.dishes] : [...INITIAL_MENU_ITEMS];
+    setBranchMenus((prev) => ({
+      ...prev,
+      [newLocation.id]: JSON.parse(JSON.stringify(baseDishes))
+    }));
 
     if (managerAdmin) {
       setAdmins((prev) => [managerAdmin, ...prev]);
@@ -908,17 +1190,6 @@ export default function App() {
     setStaffMembers((prev) => prev.filter((s) => s.id !== staffId));
   };
 
-  // Menu items handlers (Sede-specific editing & creation)
-  const handleAddMenuItem = (newItem: MenuItem) => {
-    setMenuItems((prev) => [newItem, ...prev]);
-  };
-
-  const handleUpdateMenuItem = (updatedItem: MenuItem) => {
-    setMenuItems((prev) =>
-      prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
-    );
-  };
-
   // Admin branch assignment handler (Sede Admin managing multiple sedes)
   const handleUpdateAdminBranches = (adminId: string, branchIds: string[]) => {
     setAdmins((prev) =>
@@ -936,12 +1207,25 @@ export default function App() {
 
   // Reset demo data
   const handleResetData = () => {
+    resetAllDataInRTDB().catch((e) => console.error('Error resetting RTDB:', e));
     setTables(INITIAL_TABLES);
-    setMenuItems(INITIAL_MENU_ITEMS);
+    setMasterCartas(INITIAL_MASTER_CARTAS);
+    setChains(INITIAL_CHAINS);
     setKdsTickets(INITIAL_KDS_TICKETS);
     setStaffMembers(INITIAL_STAFF);
     setAdmins(INITIAL_ADMINS);
-    setChains(INITIAL_CHAINS);
+    
+    // Reset branch menus
+    const initialBranchMap: Record<string, MenuItem[]> = {};
+    INITIAL_CHAINS.forEach((chain) => {
+      const assignedCarta = INITIAL_MASTER_CARTAS.find((c) => c.id === chain.assignedCartaId) || INITIAL_MASTER_CARTAS[0];
+      const baseDishes = assignedCarta ? [...assignedCarta.dishes] : [...INITIAL_MENU_ITEMS];
+      chain.locations.forEach((loc) => {
+        initialBranchMap[loc.id] = JSON.parse(JSON.stringify(baseDishes));
+      });
+    });
+    setBranchMenus(initialBranchMap);
+
     setCart({
       '401__Personal': {
         id: '401__Personal',
@@ -949,15 +1233,15 @@ export default function App() {
         dishName: 'Ceviche de Pescado',
         category: 'ceviches',
         selectedSize: 'Personal',
-        price: 16.0,
+        price: 20.0,
         qty: 1
       },
-      '701__Personal': {
-        id: '701__Personal',
+      '701__Trío': {
+        id: '701__Trío',
         dishId: 701,
         dishName: 'Trío Marino',
         category: 'trios',
-        selectedSize: 'Personal',
+        selectedSize: 'Trío',
         price: 15.0,
         qty: 1
       },
@@ -1037,6 +1321,7 @@ export default function App() {
               onOpenDrinksTray={() => setIsDrinksTrayOpen(true)}
               onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
               activeBranchName={currentBranch?.name || 'Sede Miraflores'}
+              isCloudConnected={isCloudConnected}
             />
 
             {/* Viewport content */}
@@ -1056,7 +1341,7 @@ export default function App() {
 
               {currentScreen === 'tomar-pedido' && (
                 <ScreenTomarPedido
-                  menuItems={menuItems}
+                  menuItems={currentBranchDishes}
                   cart={cart}
                   onUpdateQty={handleUpdateQty}
                   onSendComanda={handleSendComanda}
@@ -1103,14 +1388,18 @@ export default function App() {
 
               {currentScreen === 'carta-sede' && (
                 <ScreenCartaSede
-                  menuItems={menuItems}
+                  menuItems={currentBranchDishes}
                   onToggleItemAvailability={handleToggleItemAvailability}
                   onUpdateMenuItem={handleUpdateMenuItem}
                   onAddMenuItem={handleAddMenuItem}
+                  onDeleteMenuItem={handleDeleteDishFromBranch}
+                  onRestoreMenuItem={handleRestoreDishInBranch}
+                  onResetBranchMenu={handleResetBranchMenu}
                   onNavigate={handleNavigate}
                   chains={chains}
                   admins={admins}
                   staff={staffMembers}
+                  masterCartas={masterCartas}
                   onAddStaff={handleAddStaff}
                   onUpdateStaff={handleUpdateStaff}
                   onDeleteStaff={handleDeleteStaff}
@@ -1130,6 +1419,7 @@ export default function App() {
                 <ScreenSaaSConsole
                   chains={chains}
                   admins={admins}
+                  masterCartas={masterCartas}
                   onAddChain={handleAddChain}
                   onAddLocationToChain={handleAddLocationToChain}
                   onToggleLocation={handleToggleLocation}
@@ -1137,6 +1427,8 @@ export default function App() {
                   onSelectChainAndBranch={handleSelectChainAndBranch}
                   currentRole={currentRole}
                   onSwitchRole={handleSwitchRole}
+                  onAddMasterCarta={handleAddMasterCarta}
+                  onAssignCartaToChain={handleAssignCartaToChain}
                 />
               )}
             </main>

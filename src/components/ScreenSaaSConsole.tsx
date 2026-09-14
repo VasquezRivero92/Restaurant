@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { ChainBrand, AdminUser, ScreenType, BranchLocation, AppRole } from '../types';
+import { ChainBrand, AdminUser, ScreenType, BranchLocation, AppRole, MasterCarta, MenuItem } from '../types';
 
 interface ScreenSaaSConsoleProps {
   chains: ChainBrand[];
   admins: AdminUser[];
+  masterCartas?: MasterCarta[];
   onAddChain: (newChain: ChainBrand) => void;
   onAddLocationToChain: (chainId: string, newLocation: BranchLocation, managerAdmin?: AdminUser) => void;
   onToggleLocation: (chainId: string, locationId: string) => void;
@@ -11,18 +12,23 @@ interface ScreenSaaSConsoleProps {
   onSelectChainAndBranch?: (chainId: string, branchId: string, screen?: ScreenType) => void;
   currentRole?: AppRole;
   onSwitchRole?: (role: AppRole) => void;
+  onAddMasterCarta?: (newCarta: MasterCarta) => void;
+  onAssignCartaToChain?: (chainId: string, cartaId: string) => void;
 }
 
 export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
   chains,
   admins,
+  masterCartas = [],
   onAddChain,
   onAddLocationToChain,
   onToggleLocation,
   onNavigate,
   onSelectChainAndBranch,
   currentRole = 'admin_global',
-  onSwitchRole
+  onSwitchRole,
+  onAddMasterCarta,
+  onAssignCartaToChain
 }) => {
   // Modals state
   const [showModalNewChain, setShowModalNewChain] = useState(false);
@@ -33,6 +39,134 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [adminTab, setAdminTab] = useState<'todos' | 'admin_global' | 'admin_general' | 'admin_sede'>('todos');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Main View Navigation Tabs
+  const [mainViewTab, setMainViewTab] = useState<'restaurantes' | 'cartas' | 'admins'>('restaurantes');
+
+  // Modal: Assign Carta to Restaurant
+  const [showModalAssignCarta, setShowModalAssignCarta] = useState(false);
+  const [selectedChainForCarta, setSelectedChainForCarta] = useState<string>(chains[0]?.id || '');
+  const [selectedCartaToAssign, setSelectedCartaToAssign] = useState<string>(masterCartas[0]?.id || 'carta-la-barra');
+
+  // Modal: New Master Carta
+  const [showModalNewCarta, setShowModalNewCarta] = useState(false);
+  const [newCartaName, setNewCartaName] = useState('');
+  const [newCartaDesc, setNewCartaDesc] = useState('');
+  const [newCartaCloneSource, setNewCartaCloneSource] = useState<string>(masterCartas[0]?.id || 'carta-la-barra');
+  const [customDishesForNewCarta, setCustomDishesForNewCarta] = useState<MenuItem[]>([]);
+  const [dishNameInput, setDishNameInput] = useState('');
+  const [dishCategoryInput, setDishCategoryInput] = useState<MenuItem['category']>('ceviches');
+  const [dishPriceInput, setDishPriceInput] = useState<number>(20.0);
+  const [dishSizesInput, setDishSizesInput] = useState<{ name: string; price: number }[]>([
+    { name: 'Personal', price: 20.0 },
+    { name: 'Mediano', price: 28.0 },
+    { name: 'Familiar', price: 38.0 }
+  ]);
+  const [sizeNameInput, setSizeNameInput] = useState('');
+  const [sizePriceInput, setSizePriceInput] = useState<number>(20.0);
+
+  // Modal: Preview Master Carta dishes
+  const [previewCarta, setPreviewCarta] = useState<MasterCarta | null>(null);
+
+  const handleOpenAssignModal = (chainId?: string, cartaId?: string) => {
+    if (chainId) setSelectedChainForCarta(chainId);
+    if (cartaId) setSelectedCartaToAssign(cartaId);
+    setShowModalAssignCarta(true);
+  };
+
+  const handleConfirmAssignCarta = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedChainForCarta || !selectedCartaToAssign) {
+      showToast('Selecciona el restaurante y la carta a asignar');
+      return;
+    }
+    const targetChain = chains.find((c) => c.id === selectedChainForCarta);
+    const targetCarta = masterCartas.find((c) => c.id === selectedCartaToAssign);
+    if (onAssignCartaToChain) {
+      onAssignCartaToChain(selectedChainForCarta, selectedCartaToAssign);
+    }
+    setShowModalAssignCarta(false);
+    showToast(
+      `¡Carta "${targetCarta?.name || 'Asignada'}" vinculada a "${targetChain?.name}"! Sus ${targetChain?.locations.length || 0} sedes ahora cuentan con estos platos.`
+    );
+  };
+
+  const handleAddSizeToNewCartaDish = () => {
+    if (!sizeNameInput.trim() || sizePriceInput <= 0) {
+      showToast('Ingresa un nombre y precio válido para el tamaño');
+      return;
+    }
+    const updated = [...dishSizesInput, { name: sizeNameInput.trim(), price: Number(sizePriceInput) }].sort(
+      (a, b) => a.price - b.price
+    );
+    setDishSizesInput(updated);
+    setDishPriceInput(updated[0].price);
+    setSizeNameInput('');
+    showToast(`Tamaño agregado (S/ ${updated[0].price.toFixed(2)})`);
+  };
+
+  const handleRemoveSizeFromNewCartaDish = (idx: number) => {
+    const updated = dishSizesInput.filter((_, i) => i !== idx).sort((a, b) => a.price - b.price);
+    setDishSizesInput(updated);
+    if (updated.length > 0) setDishPriceInput(updated[0].price);
+  };
+
+  const handleAddDishToNewCartaList = () => {
+    if (!dishNameInput.trim()) {
+      showToast('Ingresa el nombre del plato');
+      return;
+    }
+    const sortedSizes = dishSizesInput.length > 0 ? [...dishSizesInput].sort((a, b) => a.price - b.price) : undefined;
+    const basePrice = sortedSizes && sortedSizes.length > 0 ? sortedSizes[0].price : Number(dishPriceInput) || 20.0;
+    const newDish: MenuItem = {
+      id: Date.now() + Math.floor(Math.random() * 1000),
+      name: dishNameInput.trim(),
+      category: dishCategoryInput,
+      price: basePrice,
+      sizes: sortedSizes,
+      description: 'Especialidad culinaria preparada con insumos frescos seleccionados.',
+      available: true,
+      image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+      isDrink: dishCategoryInput === 'bebidas'
+    };
+    setCustomDishesForNewCarta((prev) => [newDish, ...prev]);
+    setDishNameInput('');
+    showToast(`Plato "${newDish.name}" añadido a la lista (${sortedSizes ? sortedSizes.length : 1} precios)`);
+  };
+
+  const handleCreateMasterCarta = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCartaName.trim()) {
+      showToast('Ingresa un nombre para la nueva Carta Maestra');
+      return;
+    }
+    let baseDishes: MenuItem[] = [];
+    if (newCartaCloneSource !== 'empty') {
+      const sourceCarta = masterCartas.find((c) => c.id === newCartaCloneSource);
+      if (sourceCarta) {
+        baseDishes = JSON.parse(JSON.stringify(sourceCarta.dishes));
+      }
+    }
+    const combinedDishes = [...customDishesForNewCarta, ...baseDishes];
+
+    const newCarta: MasterCarta = {
+      id: `carta-${Date.now()}`,
+      name: newCartaName.trim(),
+      description: newCartaDesc.trim() || 'Carta maestra oficial para restaurantes de la plataforma',
+      dishes: combinedDishes,
+      createdAt: new Date().toLocaleDateString('es-PE'),
+      assignedChainIds: []
+    };
+
+    if (onAddMasterCarta) {
+      onAddMasterCarta(newCarta);
+    }
+    setShowModalNewCarta(false);
+    setNewCartaName('');
+    setNewCartaDesc('');
+    setCustomDishesForNewCarta([]);
+    showToast(`¡Carta Maestra "${newCarta.name}" creada con ${combinedDishes.length} platos!`);
+  };
 
   // Form state: New Restaurant / Chain
   const [chainForm, setChainForm] = useState({
@@ -398,20 +532,62 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
           </div>
         </div>
 
-        {/* Filter & Search Bar */}
-        <div className="bg-surface-container-lowest p-3 sm:p-4 rounded-xl shadow-sm border border-outline-variant/30 mb-6 flex flex-col md:flex-row items-center gap-3 justify-between">
-          <div className="relative flex-1 w-full">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-on-surface-variant">
-              search
-            </span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar por restaurante, RUC, administrador o distrito de sede..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-surface-container-low text-xs sm:text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:bg-surface-container border border-outline-variant/20"
-            />
-          </div>
+        {/* Global SaaS Main View Tabs */}
+        <div className="flex items-center gap-2 mb-6 bg-surface-container-low p-1.5 rounded-2xl border border-outline-variant/30">
+          <button
+            onClick={() => setMainViewTab('restaurantes')}
+            className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              mainViewTab === 'restaurantes'
+                ? 'bg-surface-container-lowest text-primary shadow-sm ring-1 ring-primary/20'
+                : 'text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[18px]">corporate_fare</span>
+            <span>Restaurantes & Sedes ({chains.length})</span>
+          </button>
+
+          <button
+            onClick={() => setMainViewTab('cartas')}
+            className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              mainViewTab === 'cartas'
+                ? 'bg-surface-container-lowest text-amber-700 shadow-sm ring-1 ring-amber-500/30'
+                : 'text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[18px] text-amber-600">restaurant_menu</span>
+            <span>Cartas Maestras & Asignación ({masterCartas.length})</span>
+          </button>
+
+          <button
+            onClick={() => setMainViewTab('admins')}
+            className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              mainViewTab === 'admins'
+                ? 'bg-surface-container-lowest text-primary shadow-sm ring-1 ring-primary/20'
+                : 'text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[18px]">badge</span>
+            <span>Directorio de Admins ({admins.length})</span>
+          </button>
+        </div>
+
+        {/* TAB 1: RESTAURANTES & SEDES */}
+        {mainViewTab === 'restaurantes' && (
+          <>
+            {/* Filter & Search Bar */}
+            <div className="bg-surface-container-lowest p-3 sm:p-4 rounded-xl shadow-sm border border-outline-variant/30 mb-6 flex flex-col md:flex-row items-center gap-3 justify-between">
+              <div className="relative flex-1 w-full">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-on-surface-variant">
+                  search
+                </span>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar por restaurante, RUC, administrador o distrito de sede..."
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-surface-container-low text-xs sm:text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:bg-surface-container border border-outline-variant/20"
+                />
+              </div>
 
           <div className="flex items-center gap-2 w-full md:w-auto shrink-0 justify-end">
             <button
@@ -538,6 +714,43 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                       </button>
                     </div>
                   </div>
+
+                  {/* Carta Asignada a este Restaurante (Multi-Sede Sync) */}
+                  {(() => {
+                    const assignedCarta = masterCartas.find((c) => c.id === chain.assignedCartaId) || masterCartas[0];
+                    return (
+                      <div className="bg-amber-500/10 rounded-xl p-3.5 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-800 flex items-center justify-center font-bold text-sm shrink-0">
+                            <span className="material-symbols-outlined text-[22px] text-amber-700">restaurant_menu</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="px-2 py-0.2 rounded bg-amber-500 text-slate-950 font-extrabold text-[10px] uppercase tracking-wider">
+                                CARTA ASIGNADA
+                              </span>
+                              <span className="text-xs text-amber-900 font-extrabold">
+                                {assignedCarta ? `${assignedCarta.name} (${assignedCarta.dishes.length} platos)` : 'Sin carta asignada'}
+                              </span>
+                            </div>
+                            <span className="text-xs text-on-surface-variant mt-0.5">
+                              Distribuida a todas sus {chain.locations.length} sedes. Cada sede puede agregar, eliminar o pausar platos.
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => handleOpenAssignModal(chain.id, chain.assignedCartaId)}
+                            className="h-9 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">swap_horiz</span>
+                            <span>Asignar / Cambiar Carta</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Branches (Sedes) Section for this Restaurant */}
                   <div className="flex flex-col gap-3">
@@ -785,15 +998,276 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                   <span className="text-teal-600 font-bold">2. Admin General:</span>
                   <span>Administra su restaurante, sus sedes y designa admins de cada sede.</span>
                 </li>
-                <li className="flex items-start gap-1.5">
-                  <span className="text-amber-600 font-bold">3. Admin de Sede:</span>
-                  <span>Administra su local asignado, carta del día, mesas y cuadraturas.</span>
-                </li>
               </ul>
             </div>
           </div>
         </div>
+      </>
+    )}
+
+    {/* TAB 2: CARTAS MAESTRAS & ASIGNACIÓN A RESTAURANTES */}
+    {mainViewTab === 'cartas' && (
+      <div className="flex flex-col gap-6 mb-12">
+        <div className="bg-surface-container-lowest p-5 sm:p-6 rounded-2xl border border-outline-variant/30 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-13 h-13 rounded-2xl bg-amber-500/15 text-amber-800 flex items-center justify-center shrink-0 border border-amber-500/25">
+              <span className="material-symbols-outlined text-[30px]">restaurant_menu</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-900 font-extrabold text-[11px] uppercase tracking-wider">
+                  MÓDULO GLOBAL • CARTAS MAESTRAS
+                </span>
+                <span className="text-xs text-on-surface-variant font-bold">
+                  {masterCartas.length} cartas registradas
+                </span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-extrabold text-primary mt-1">
+                Gestión Central de Cartas & Asignación
+              </h2>
+              <p className="text-xs sm:text-sm text-on-surface-variant mt-0.5 max-w-3xl">
+                Crea cartas maestras con soporte de <strong>1, 2, 3 o más precios/tamaños por plato</strong> y asígnalas a los restaurantes. Al asignarla, <strong>todas las sedes de ese restaurante heredarán automáticamente la carta</strong>, y luego cada sede podrá agregar, eliminar o pausar platos localmente.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                setNewCartaName('');
+                setNewCartaDesc('');
+                setCustomDishesForNewCarta([]);
+                setShowModalNewCarta(true);
+              }}
+              className="h-11 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-md active:scale-95 transition-all cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[20px]">add_circle</span>
+              <span>+ Nueva Carta Maestra</span>
+            </button>
+
+            <button
+              onClick={() => handleOpenAssignModal()}
+              className="h-11 px-4 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm active:scale-95 transition-all cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[20px]">swap_horiz</span>
+              <span>Asignar a Restaurante</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Master Cartas Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {masterCartas.map((carta) => {
+            const assignedChains = chains.filter((c) => c.assignedCartaId === carta.id);
+            const totalSedes = assignedChains.reduce((sum, c) => sum + c.locations.length, 0);
+
+            return (
+              <div
+                key={carta.id}
+                className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-5 sm:p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-between gap-5 relative overflow-hidden"
+              >
+                <div className="h-1.5 w-full bg-gradient-to-r from-amber-500 via-orange-500 to-teal-500 absolute top-0 left-0"></div>
+
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-800 border border-amber-500/20 flex items-center justify-center font-bold text-lg shrink-0">
+                      <span className="material-symbols-outlined text-[26px]">menu_book</span>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 font-extrabold text-xs flex items-center gap-1 border border-amber-200">
+                      <span className="material-symbols-outlined text-[14px]">set_meal</span>
+                      {carta.dishes.length} platos
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="font-extrabold text-base sm:text-lg text-primary leading-snug">
+                      {carta.name}
+                    </h3>
+                    <p className="text-xs text-on-surface-variant line-clamp-2 mt-1 leading-relaxed">
+                      {carta.description}
+                    </p>
+                  </div>
+
+                  {/* Assigned Restaurants Box */}
+                  <div className="bg-surface-container-low rounded-xl p-3 border border-outline-variant/20 flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between text-[11px] font-extrabold uppercase tracking-wider text-on-surface-variant">
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px] text-teal-600">store</span>
+                        <span>Restaurantes Asignados ({assignedChains.length}):</span>
+                      </span>
+                      <span className="text-teal-700 font-bold">{totalSedes} sedes en total</span>
+                    </div>
+
+                    {assignedChains.length > 0 ? (
+                      <div className="flex flex-col gap-1 mt-1">
+                        {assignedChains.map((ac) => (
+                          <div
+                            key={ac.id}
+                            className="px-2.5 py-1.5 rounded-lg bg-teal-50/80 border border-teal-200/80 text-[11px] flex items-center justify-between gap-1 text-teal-950"
+                          >
+                            <span className="font-bold truncate">{ac.name}</span>
+                            <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-teal-200 text-teal-900">
+                              {ac.locations.length} sedes
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-on-surface-variant italic py-1">
+                        Sin restaurantes asignados. Haz clic en "Asignar" para desplegarla.
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Categories Breakdown */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {Array.from(new Set(carta.dishes.map((d) => d.category))).map((cat) => (
+                      <span
+                        key={cat}
+                        className="px-2 py-0.5 rounded-md bg-surface-container text-[10px] font-bold text-on-surface capitalize border border-outline-variant/20"
+                      >
+                        {cat}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Card Bottom Actions */}
+                <div className="pt-3 border-t border-outline-variant/20 flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => setPreviewCarta(carta)}
+                    className="h-9 px-3 rounded-xl bg-surface-container hover:bg-surface-container-high text-primary font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">visibility</span>
+                    <span>Ver Platos ({carta.dishes.length})</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleOpenAssignModal(undefined, carta.id)}
+                    className="h-9 px-3.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-sm active:scale-95"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">hub</span>
+                    <span>Asignar a Cadena</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
+    )}
+
+    {/* TAB 3: DIRECTORIO COMPLETO DE ADMINISTRADORES */}
+    {mainViewTab === 'admins' && (
+      <div className="flex flex-col gap-6 mb-12">
+        <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline-variant/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-purple-500/15 text-purple-700 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[28px]">badge</span>
+            </div>
+            <div>
+              <h2 className="text-lg sm:text-xl font-extrabold text-primary">
+                Directorio Global de Usuarios & Administradores
+              </h2>
+              <p className="text-xs sm:text-sm text-on-surface-variant mt-0.5">
+                Audita y gestiona a todos los Administradores Globales, Generales y de Sede de cada restaurante.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 bg-surface-container p-1 rounded-xl">
+            {[
+              { key: 'todos', label: 'Todos' },
+              { key: 'admin_global', label: 'Global' },
+              { key: 'admin_general', label: 'Generales' },
+              { key: 'admin_sede', label: 'Sedes' }
+            ].map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setAdminTab(t.key as typeof adminTab)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  adminTab === t.key
+                    ? 'bg-surface-container-lowest text-primary shadow-sm'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Full Admins Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredAdmins.map((admin) => (
+            <div
+              key={admin.id}
+              className="bg-surface-container-lowest p-4 rounded-2xl border border-outline-variant/30 shadow-sm flex flex-col justify-between gap-3 hover:shadow-md transition-all"
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-sm shrink-0 ${
+                    admin.roleKey === 'admin_global'
+                      ? 'bg-purple-600 text-white'
+                      : admin.roleKey === 'admin_general'
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-amber-600 text-white'
+                  }`}
+                >
+                  {admin.initials}
+                </div>
+
+                <div className="flex flex-col min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span
+                      className={`px-2 py-0.2 rounded font-extrabold text-[9px] uppercase tracking-wider ${
+                        admin.roleKey === 'admin_global'
+                          ? 'bg-purple-100 text-purple-800'
+                          : admin.roleKey === 'admin_general'
+                          ? 'bg-teal-100 text-teal-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {admin.role}
+                    </span>
+                    {admin.assignedBranchIds && admin.assignedBranchIds.length > 1 && (
+                      <span className="px-1.5 py-0.2 rounded bg-amber-200 text-amber-950 font-extrabold text-[9px]">
+                        Multi-Sede ({admin.assignedBranchIds.length})
+                      </span>
+                    )}
+                  </div>
+                  <h4 className="font-extrabold text-sm text-primary truncate mt-0.5">{admin.name}</h4>
+                  <span className="text-xs text-on-surface-variant truncate font-medium">
+                    {admin.brand}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-surface-container-low rounded-xl p-2.5 text-xs text-on-surface-variant flex flex-col gap-1 border border-outline-variant/20">
+                <div className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[14px]">mail</span>
+                  <span className="truncate">{admin.email}</span>
+                </div>
+                {admin.phone && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[14px]">call</span>
+                    <span>{admin.phone}</span>
+                  </div>
+                )}
+                {admin.branchName && (
+                  <div className="flex items-center gap-1.5 text-teal-700 font-bold">
+                    <span className="material-symbols-outlined text-[14px]">location_on</span>
+                    <span className="truncate">{admin.branchName}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+
 
       {/* ========================================================================= */}
       {/* MODAL 1: REGISTRAR NUEVO RESTAURANTE / CEVICHERÍA (ADMIN GLOBAL) */}
@@ -1198,7 +1672,463 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
         </div>
       )}
 
-      {/* Toast Feedback Notification */}
+      {/* ========================================================================= */}
+      {/* MODAL 3: ASIGNAR CARTA MAESTRA A RESTAURANTE (CON PROPAGACIÓN MULTI-SEDE) */}
+      {/* ========================================================================= */}
+      {showModalAssignCarta && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-outline-variant/40 animate-in zoom-in-95 my-8">
+            <div className="px-6 py-4 bg-amber-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white">
+                  <span className="material-symbols-outlined text-[24px]">hub</span>
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-white">
+                    Asignar Carta Maestra a Restaurante
+                  </h3>
+                  <p className="text-xs text-amber-100">
+                    Sincronización centralizada para todas las sedes del restaurante
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowModalAssignCarta(false)}
+                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmAssignCarta} className="p-6 flex flex-col gap-4">
+              {/* Select Restaurant */}
+              <div>
+                <label className="font-bold text-xs text-on-surface block mb-1">
+                  1. Selecciona el Restaurante / Cadena Destino *
+                </label>
+                <select
+                  value={selectedChainForCarta}
+                  onChange={(e) => setSelectedChainForCarta(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none font-bold"
+                  required
+                >
+                  {chains.map((chain) => {
+                    const currentCarta = masterCartas.find((c) => c.id === chain.assignedCartaId);
+                    return (
+                      <option key={chain.id} value={chain.id}>
+                        {chain.name} ({chain.locations.length} sedes) - Carta actual: {currentCarta ? currentCarta.name : 'Sin asignar'}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Select Master Carta */}
+              <div>
+                <label className="font-bold text-xs text-on-surface block mb-1">
+                  2. Selecciona la Carta Maestra a Asignar *
+                </label>
+                <div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1">
+                  {masterCartas.map((carta) => {
+                    const isSelected = selectedCartaToAssign === carta.id;
+                    return (
+                      <div
+                        key={carta.id}
+                        onClick={() => setSelectedCartaToAssign(carta.id)}
+                        className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
+                          isSelected
+                            ? 'bg-amber-50/80 border-amber-500 ring-2 ring-amber-400 shadow-sm'
+                            : 'bg-surface-container-low border-outline-variant/20 hover:border-amber-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span
+                            className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                              isSelected ? 'border-amber-600 bg-amber-600' : 'border-outline-variant'
+                            }`}
+                          >
+                            {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white"></span>}
+                          </span>
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-extrabold text-xs text-on-surface truncate">
+                              {carta.name}
+                            </span>
+                            <span className="text-[11px] text-on-surface-variant truncate">
+                              {carta.description}
+                            </span>
+                          </div>
+                        </div>
+
+                        <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-extrabold text-[10px] shrink-0">
+                          {carta.dishes.length} platos
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Multi-Branch Impact Explanation Box */}
+              {(() => {
+                const targetChain = chains.find((c) => c.id === selectedChainForCarta);
+                const targetCarta = masterCartas.find((c) => c.id === selectedCartaToAssign);
+                return (
+                  <div className="bg-amber-50 border border-amber-300 rounded-xl p-3.5 flex flex-col gap-1.5 text-amber-950 text-xs">
+                    <span className="font-extrabold flex items-center gap-1.5 text-amber-900">
+                      <span className="material-symbols-outlined text-[18px] text-amber-700">info</span>
+                      Efecto Inmediato en Todas las Sedes:
+                    </span>
+                    <p className="leading-relaxed">
+                      Al confirmar, las <strong>{targetChain?.locations.length || 0} sedes</strong> de <strong>{targetChain?.name}</strong> ({targetChain?.locations.map((l) => l.name).join(', ')}) adoptarán los <strong>{targetCarta?.dishes.length || 0} platos</strong> de <em>"{targetCarta?.name}"</em>.
+                    </p>
+                    <p className="text-[11px] text-amber-900/80 font-medium">
+                      ✓ Cada sede mantendrá la libertad de agregar nuevos platos locales, eliminar o desactivar platos individualmente según su stock.
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-outline-variant/20">
+                <button
+                  type="button"
+                  onClick={() => setShowModalAssignCarta(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs flex items-center gap-2 shadow-md cursor-pointer active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-[18px]">verified</span>
+                  <span>Confirmar y Propagar a Sedes</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 4: CREAR NUEVA CARTA MAESTRA (CON MÚLTIPLES PRECIOS/TAMAÑOS)      */}
+      {/* ========================================================================= */}
+      {showModalNewCarta && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-outline-variant/40 animate-in zoom-in-95 my-8 max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 bg-primary text-on-primary flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-teal-300">
+                  <span className="material-symbols-outlined text-[24px]">library_add</span>
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-white">
+                    Crear Nueva Carta Maestra Global
+                  </h3>
+                  <p className="text-xs text-primary-fixed-dim">
+                    Define platos con 1, 2, 3 o más precios y asígnalos a los restaurantes
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowModalNewCarta(false)}
+                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateMasterCarta} className="p-6 overflow-y-auto flex flex-col gap-5">
+              {/* Carta Name & Description */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="font-bold text-xs text-on-surface block mb-1">
+                    Nombre de la Carta Maestra *
+                  </label>
+                  <input
+                    type="text"
+                    value={newCartaName}
+                    onChange={(e) => setNewCartaName(e.target.value)}
+                    placeholder="ej. Carta Verano 2026 - Especialidades del Norte"
+                    className="w-full px-3 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none font-bold"
+                    required
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="font-bold text-xs text-on-surface block mb-1">
+                    Descripción de la Carta
+                  </label>
+                  <input
+                    type="text"
+                    value={newCartaDesc}
+                    onChange={(e) => setNewCartaDesc(e.target.value)}
+                    placeholder="ej. Carta oficial con pescados frescos, combinados, tríos y sudados"
+                    className="w-full px-3 py-2 rounded-xl bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
+                  />
+                </div>
+
+                {/* Base Cloning Selection */}
+                <div className="sm:col-span-2">
+                  <label className="font-bold text-xs text-on-surface block mb-1">
+                    Plantilla Base de Platos
+                  </label>
+                  <select
+                    value={newCartaCloneSource}
+                    onChange={(e) => setNewCartaCloneSource(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none font-medium"
+                  >
+                    {masterCartas.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        Copiar platos de: {c.name} ({c.dishes.length} platos)
+                      </option>
+                    ))}
+                    <option value="empty">Comenzar carta vacía (sin platos iniciales)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Quick Dish Adder with Unlimited Prices/Sizes */}
+              <div className="bg-surface-container-low p-4 rounded-xl border border-outline-variant/30 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-xs text-primary uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[18px] text-secondary">add_circle</span>
+                    Añadir Platos Específicos a esta Carta Maestra
+                  </span>
+                  <span className="text-[11px] text-secondary font-bold">
+                    {customDishesForNewCarta.length} agregados
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="sm:col-span-2">
+                    <label className="font-bold text-[11px] text-on-surface block mb-0.5">Nombre del Plato</label>
+                    <input
+                      type="text"
+                      value={dishNameInput}
+                      onChange={(e) => setDishNameInput(e.target.value)}
+                      placeholder="ej. Ceviche de Mero Murique"
+                      className="w-full px-3 py-2 rounded-lg bg-surface-container-lowest text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-[11px] text-on-surface block mb-0.5">Categoría</label>
+                    <select
+                      value={dishCategoryInput}
+                      onChange={(e) => setDishCategoryInput(e.target.value as MenuItem['category'])}
+                      className="w-full px-3 py-2 rounded-lg bg-surface-container-lowest text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
+                    >
+                      <option value="ceviches">Ceviches</option>
+                      <option value="leches">Leches de Tigre</option>
+                      <option value="calientes">Calientes</option>
+                      <option value="arroces">Arroces</option>
+                      <option value="combinados">Combinados</option>
+                      <option value="trios">Tríos</option>
+                      <option value="jaleas">Jaleas</option>
+                      <option value="bebidas">Bebidas</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Multiple Sizes/Prices List */}
+                <div className="bg-surface-container-lowest p-3 rounded-lg border border-outline-variant/20 flex flex-col gap-2">
+                  <span className="text-[11px] font-bold text-on-surface flex items-center justify-between">
+                    <span>Tamaños y Precios de este Plato (Sin Límite):</span>
+                    <span className="text-[10px] text-on-surface-variant">Soporta 1, 2, 3, 4 o más precios</span>
+                  </span>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {dishSizesInput.map((sz, szIdx) => (
+                      <span
+                        key={szIdx}
+                        className="px-2.5 py-1 rounded-md bg-secondary/10 text-secondary border border-secondary/20 text-xs font-bold flex items-center gap-1.5"
+                      >
+                        <span>{sz.name}:</span>
+                        <span className="text-primary font-black">S/ {sz.price.toFixed(2)}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSizeFromNewCartaDish(szIdx)}
+                          className="hover:text-red-600 transition-colors ml-0.5 cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      type="text"
+                      value={sizeNameInput}
+                      onChange={(e) => setSizeNameInput(e.target.value)}
+                      placeholder="Nombre (ej. Litro, Familiar)"
+                      className="flex-1 px-2.5 py-1.5 rounded-lg bg-surface-container-low text-xs border border-outline-variant/30 focus:outline-none"
+                    />
+                    <div className="relative w-28">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] text-on-surface-variant font-bold">
+                        S/
+                      </span>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        value={sizePriceInput || ''}
+                        onChange={(e) => setSizePriceInput(Number(e.target.value))}
+                        placeholder="0.00"
+                        className="w-full pl-7 pr-2 py-1.5 rounded-lg bg-surface-container-low text-xs border border-outline-variant/30 focus:outline-none font-bold"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddSizeToNewCartaDish}
+                      className="px-3 py-1.5 rounded-lg bg-secondary text-on-secondary font-bold text-xs cursor-pointer active:scale-95 shrink-0"
+                    >
+                      + Tamaño
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleAddDishToNewCartaList}
+                    className="px-3.5 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center gap-1 cursor-pointer active:scale-95"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">add</span>
+                    <span>+ Añadir Plato a la Lista</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-outline-variant/20 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowModalNewCarta(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-extrabold text-xs flex items-center gap-2 shadow-md cursor-pointer active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-[18px]">verified</span>
+                  <span>Guardar y Publicar Carta Maestra</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: PREVISUALIZACIÓN DE PLATOS Y PRECIOS DE CARTA MAESTRA           */}
+      {/* ========================================================================= */}
+      {previewCarta && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden border border-outline-variant/40 animate-in zoom-in-95 my-8 max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[24px]">restaurant_menu</span>
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-white">
+                    {previewCarta.name}
+                  </h3>
+                  <p className="text-xs text-slate-300">
+                    {previewCarta.dishes.length} platos registrados con sus precios oficiales
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPreviewCarta(null)}
+                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex flex-col gap-4">
+              <p className="text-xs text-on-surface-variant">{previewCarta.description}</p>
+
+              {/* Dishes List */}
+              <div className="flex flex-col divide-y divide-surface-container">
+                {previewCarta.dishes.map((dish) => (
+                  <div key={dish.id} className="py-3 flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <img
+                        src={dish.image}
+                        alt={dish.name}
+                        className="w-12 h-12 rounded-lg object-cover shrink-0 border border-outline-variant/30"
+                      />
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-extrabold text-xs text-on-surface truncate">
+                            {dish.name}
+                          </span>
+                          <span className="px-1.5 py-0.2 rounded bg-surface-container text-[9px] font-extrabold uppercase text-on-surface-variant">
+                            {dish.category}
+                          </span>
+                          {dish.tag && (
+                            <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 text-[9px] font-extrabold uppercase">
+                              {dish.tag}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-on-surface-variant line-clamp-1 mt-0.5">
+                          {dish.description}
+                        </p>
+
+                        {/* Sizes list */}
+                        {dish.sizes && dish.sizes.length > 0 && (
+                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                            {dish.sizes.map((sz, sIdx) => (
+                              <span
+                                key={sIdx}
+                                className="px-2 py-0.5 rounded-md bg-surface-container text-[10px] font-semibold flex items-center gap-1 border border-outline-variant/20"
+                              >
+                                <span>{sz.name}:</span>
+                                <span className="text-primary font-black">S/ {sz.price.toFixed(2)}</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end shrink-0">
+                      <span className="font-extrabold text-sm text-primary">
+                        S/ {dish.price.toFixed(2)}
+                      </span>
+                      {dish.sizes && dish.sizes.length > 1 && (
+                        <span className="text-[10px] text-emerald-700 font-bold">
+                          {dish.sizes.length} precios
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="px-6 py-3 bg-surface-container-low border-t border-outline-variant/20 flex items-center justify-between shrink-0">
+              <span className="text-xs text-on-surface-variant font-bold">
+                Total de platos: {previewCarta.dishes.length}
+              </span>
+              <button
+                onClick={() => setPreviewCarta(null)}
+                className="px-4 py-1.5 rounded-xl bg-primary text-on-primary font-bold text-xs cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {toastMessage && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 border border-teal-400 text-xs font-bold animate-in fade-in slide-in-from-top-3 max-w-md">
           <span className="material-symbols-outlined text-teal-400 text-[22px]">

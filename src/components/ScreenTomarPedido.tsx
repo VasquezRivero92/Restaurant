@@ -272,7 +272,13 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
                   </p>
 
                   <div className="flex flex-wrap gap-1.5 mt-2">
-                    {isDrink && (
+                    {!dish.available && (
+                      <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-black text-[10px] flex items-center gap-1 border border-red-300">
+                        <span className="material-symbols-outlined text-[12px]">block</span>
+                        AGOTADO EN ESTA SEDE {dish.stockNote ? `(${dish.stockNote})` : ''}
+                      </span>
+                    )}
+                    {isDrink && dish.available && (
                       <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold text-[10px] flex items-center gap-1 border border-amber-300/60">
                         <span className="material-symbols-outlined text-[12px]">local_bar</span>
                         Servicio Mozo
@@ -386,29 +392,36 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
                   )}
                 </div>
 
-                {/* Direct Thumb-Friendly Stepper */}
-                <div className="flex items-center bg-surface-container-high rounded-xl p-1 border border-outline-variant/30 shrink-0">
-                  <button
-                    onClick={() => onUpdateQty(dish.id, -1, activeSizeName, currentPrice)}
-                    disabled={currentQty === 0}
-                    aria-label="Disminuir cantidad"
-                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-surface-container-lowest text-on-surface flex items-center justify-center active:scale-90 transition-transform disabled:opacity-30 cursor-pointer shadow-xs"
-                  >
-                    <span className="material-symbols-outlined text-[20px]">remove</span>
-                  </button>
-                  <span className="w-8 sm:w-9 text-center font-black text-base text-on-surface">
-                    {currentQty}
-                  </span>
-                  <button
-                    onClick={() => onUpdateQty(dish.id, 1, activeSizeName, currentPrice)}
-                    aria-label="Aumentar cantidad"
-                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center active:scale-90 transition-transform shadow-sm cursor-pointer ${
-                      isDrink ? 'bg-amber-500 text-amber-950 font-black' : 'bg-primary text-on-primary'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[20px]">add</span>
-                  </button>
-                </div>
+                {/* Direct Thumb-Friendly Stepper or Agotado Notice */}
+                {!dish.available ? (
+                  <div className="px-3 py-1.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-1.5 shrink-0">
+                    <span className="material-symbols-outlined text-[16px]">do_not_disturb_on</span>
+                    <span>No disponible</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center bg-surface-container-high rounded-xl p-1 border border-outline-variant/30 shrink-0">
+                    <button
+                      onClick={() => onUpdateQty(dish.id, -1, activeSizeName, currentPrice)}
+                      disabled={currentQty === 0}
+                      aria-label="Disminuir cantidad"
+                      className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-surface-container-lowest text-on-surface flex items-center justify-center active:scale-90 transition-transform disabled:opacity-30 cursor-pointer shadow-xs"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">remove</span>
+                    </button>
+                    <span className="w-8 sm:w-9 text-center font-black text-base text-on-surface">
+                      {currentQty}
+                    </span>
+                    <button
+                      onClick={() => onUpdateQty(dish.id, 1, activeSizeName, currentPrice)}
+                      aria-label="Aumentar cantidad"
+                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center active:scale-90 transition-transform shadow-sm cursor-pointer ${
+                        isDrink ? 'bg-amber-500 text-amber-950 font-black' : 'bg-primary text-on-primary'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">add</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Note / Customize pill bar */}
