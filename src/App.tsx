@@ -33,6 +33,7 @@ import { ScreenCuentaCobro } from './components/ScreenCuentaCobro';
 import { ScreenCartaSede } from './components/ScreenCartaSede';
 import { ScreenSaaSConsole } from './components/ScreenSaaSConsole';
 import { ScreenPinLock } from './components/ScreenPinLock';
+import { ScreenGlobalLogin } from './components/ScreenGlobalLogin';
 import { ModalBandejaBebidas } from './components/ModalBandejaBebidas';
 import {
   initRTDBSeedIfEmpty,
@@ -122,10 +123,64 @@ export default function App() {
     role: 'mesero'
   });
   
-  // Toggle device simulation frame (Mobile mockup vs Full fluid)
-  const [isMobileFrame, setIsMobileFrame] = useState(false);
+  // Helper to extract restaurant slug from path, hash, or query param
+  const getSlugFromUrl = (): string | null => {
+    // 1. Check query param: ?r=la-barra
+    const searchParams = new URLSearchParams(window.location.search);
+    const querySlug = searchParams.get('r') || searchParams.get('restaurant');
+    if (querySlug) return querySlug.toLowerCase().trim();
 
-  const [isCloudConnected, setIsCloudConnected] = useState(true);
+    // 2. Check hash route: #/la-barra or #la-barra
+    if (window.location.hash) {
+      const cleanHash = window.location.hash.replace(/^#[/]?/, '').trim();
+      if (cleanHash && cleanHash !== '/') {
+        return cleanHash.split('/')[0].toLowerCase();
+      }
+    }
+
+    // 3. Check pathname: /la-barra or /dominio/la-barra
+    const cleanPath = window.location.pathname.replace(/^\/+/, '').trim();
+    if (cleanPath && cleanPath !== 'index.html') {
+      const parts = cleanPath.split('/').filter(Boolean);
+      if (parts.length > 0) {
+        return parts[0].toLowerCase();
+      }
+    }
+
+    return null;
+  };
+
+  const [tenantSlug, setTenantSlug] = useState<string | null>(() => getSlugFromUrl());
+
+  // Listen for browser navigation (back/forward)
+  React.useEffect(() => {
+    const handleLocationChange = () => {
+      setTenantSlug(getSlugFromUrl());
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('hashchange', handleLocationChange);
+    };
+  }, []);
+
+  // Update activeChainId whenever tenantSlug changes or chains load
+  React.useEffect(() => {
+    if (tenantSlug && chains.length > 0) {
+      const foundChain = chains.find(
+        (c) => (c.slug && c.slug.toLowerCase() === tenantSlug.toLowerCase()) ||
+               c.id.toLowerCase() === tenantSlug.toLowerCase() ||
+               c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === tenantSlug.toLowerCase()
+      );
+      if (foundChain) {
+        setActiveChainId(foundChain.id);
+        if (foundChain.locations && foundChain.locations.length > 0) {
+          setActiveBranchId(foundChain.locations[0].id);
+        }
+      }
+    }
+  }, [tenantSlug, chains]);
 
   // Synchronize with Firebase Realtime Database in real time
   React.useEffect(() => {
@@ -255,7 +310,25 @@ export default function App() {
     }
   };
 
-  // Cerrar sesión y bloquear terminal (Solo se puede reingresar con PIN de 6 dígitos)
+  // Navegar a un tenant específico (actualiza la URL y el slug)
+  const navigateToTenant = (slug: string) => {
+    window.history.pushState({}, '', `/${slug}`);
+    setTenantSlug(slug);
+    setIsAuthenticated(false);
+    setCurrentScreen('pin-lock');
+    setStaffUser({ name: '', role: 'mesero' });
+  };
+
+  // Navegar de regreso al portal global
+  const navigateToGlobal = () => {
+    window.history.pushState({}, '', '/');
+    setTenantSlug(null);
+    setIsAuthenticated(false);
+    setCurrentScreen('pin-lock');
+    setStaffUser({ name: '', role: 'mesero' });
+  };
+
+  // Cerrar sesión y bloquear terminal (Solo se puede reingresar con PIN de 6 dígitos o credenciales de Admin Global)
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentScreen('pin-lock');
@@ -1377,14 +1450,32 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-surface text-on-surface flex flex-col font-sans antialiased selection:bg-secondary/20 selection:text-secondary">
-      {/* Screen 7: PIN Lockscreen renders full viewport if not authenticated or locked */}
+      {/* Authentication screens when not logged in or explicitly locked */}
       {(!isAuthenticated || currentScreen === 'pin-lock') ? (
-        <ScreenPinLock
-          onUnlock={handleUnlock}
-          onNavigate={handleNavigate}
-          staffMembers={staffMembers}
-          admins={admins}
-        />
+        !tenantSlug ? (
+          /* ROOT URL (/): Acceso exclusivo para el Administrador Global con usuario y contraseña */
+          <ScreenGlobalLogin
+            onLoginSuccess={() => {
+              setIsAuthenticated(true);
+              setCurrentRole('admin_global');
+              setStaffUser({ name: 'José Manuel Vasquez Rivero', role: 'admin' });
+              setCurrentScreen('saas-console');
+            }}
+            chains={chains}
+            onNavigateToTenant={navigateToTenant}
+          />
+        ) : (
+          /* TENANT URL (/:slug): Terminal del Restaurante aislada con PIN de 6 dígitos */
+          <ScreenPinLock
+            onUnlock={handleUnlock}
+            onNavigate={handleNavigate}
+            staffMembers={staffMembers}
+            admins={admins}
+            activeChainName={currentChain?.name || 'Restaurante'}
+            isTenantMode={true}
+            onBackToGlobalLogin={navigateToGlobal}
+          />
+        )
       ) : (
         <div className="flex-1 flex flex-col w-full relative">
           {/* Main Content Layout Container */}

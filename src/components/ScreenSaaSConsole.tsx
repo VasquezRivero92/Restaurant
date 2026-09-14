@@ -175,6 +175,7 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
   // Form state: New Restaurant / Chain
   const [chainForm, setChainForm] = useState({
     name: '',
+    slug: '',
     legalName: '',
     ruc: '',
     plan: 'Enterprise' as 'Enterprise' | 'Pro' | 'Básico',
@@ -253,8 +254,13 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       managerPhone: chainForm.adminPhone
     };
 
+    const computedSlug = chainForm.slug.trim()
+      ? chainForm.slug.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+      : chainForm.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
     const newChain: ChainBrand = {
       id: newChainId,
+      slug: computedSlug,
       name: chainForm.name.trim(),
       legalName: chainForm.legalName.trim() || `${chainForm.name.trim()} S.A.C.`,
       ruc: chainForm.ruc.trim() || '20' + Math.floor(100000000 + Math.random() * 900000000),
@@ -271,6 +277,7 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
     setShowModalNewChain(false);
     setChainForm({
       name: '',
+      slug: '',
       legalName: '',
       ruc: '',
       plan: 'Enterprise',
@@ -680,6 +687,55 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                       <span>+ Agregar Sede a este Restaurante</span>
                     </button>
                   </div>
+
+                  {/* Direct Access Link Box for Multi-Tenant Client Access */}
+                  {(() => {
+                    const tenantSlug = chain.slug || chain.id;
+                    const directUrl = `${window.location.origin}/${tenantSlug}`;
+                    return (
+                      <div className="bg-surface-container-low rounded-xl p-3 border border-outline-variant/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                        <div className="flex items-center gap-2.5 overflow-hidden">
+                          <div className="w-8 h-8 rounded-lg bg-teal-500/10 text-teal-700 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-[18px]">link</span>
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-1">
+                              <span>Link Exclusivo del Restaurante</span>
+                              <span className="text-[9px] bg-teal-100 text-teal-800 font-extrabold px-1.5 py-0.2 rounded">Acceso Personal</span>
+                            </span>
+                            <span className="font-mono text-xs text-primary font-bold truncate select-all">
+                              {directUrl}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(directUrl);
+                              showToast(`¡Link copiado al portapapeles: ${directUrl}!`);
+                            }}
+                            className="h-8 px-3 rounded-lg bg-surface-container-highest hover:bg-teal-600 hover:text-white text-on-surface font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                            title="Copiar link para enviar al cliente o personal"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">content_copy</span>
+                            <span>Copiar Link</span>
+                          </button>
+
+                          <a
+                            href={`/${tenantSlug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="h-8 px-3 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                            title="Abrir este restaurante en una nueva pestaña"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">open_in_new</span>
+                            <span>Abrir</span>
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* General Administrator Badge for this Restaurant */}
                   <div className="bg-primary-container/15 rounded-xl p-3.5 border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1337,11 +1393,36 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                   <input
                     type="text"
                     value={chainForm.name}
-                    onChange={(e) => setChainForm({ ...chainForm, name: e.target.value })}
+                    onChange={(e) => {
+                      const newName = e.target.value;
+                      const autoSlug = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                      setChainForm({ ...chainForm, name: newName, slug: chainForm.slug ? chainForm.slug : autoSlug });
+                    }}
                     placeholder="ej. Cevichería El Pulpo Real"
                     className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:bg-surface-container font-medium"
                     required
                   />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="font-bold text-xs text-on-surface block mb-1">
+                    Enlace Directo del Restaurante (URL Slug)
+                  </label>
+                  <div className="flex items-center rounded-lg bg-surface-container-low border border-outline-variant/30 overflow-hidden px-3 py-1.5 focus-within:ring-2 focus-within:ring-primary/20">
+                    <span className="text-xs text-on-surface-variant font-mono select-none">
+                      {window.location.origin}/
+                    </span>
+                    <input
+                      type="text"
+                      value={chainForm.slug}
+                      onChange={(e) => setChainForm({ ...chainForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+                      placeholder="el-pulpo-real"
+                      className="flex-1 bg-transparent text-xs sm:text-sm text-on-surface font-mono font-bold focus:outline-none ml-0.5"
+                    />
+                  </div>
+                  <span className="text-[10px] text-on-surface-variant mt-0.5 block">
+                    Cada restaurante tendrá su propio link exclusivo para su personal y clientes.
+                  </span>
                 </div>
 
                 <div>

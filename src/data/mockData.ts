@@ -1059,6 +1059,7 @@ export const INITIAL_MASTER_CARTAS: MasterCarta[] = [
 export const INITIAL_CHAINS: ChainBrand[] = [
   {
     id: 'la-barra',
+    slug: 'la-barra',
     name: 'Cevichería La Barra Sabrisimo',
     legalName: 'La Barra Sabrisimo E.I.R.L.',
     ruc: '20608945231',
@@ -1116,6 +1117,7 @@ export const INITIAL_CHAINS: ChainBrand[] = [
   },
   {
     id: 'puerto-azul',
+    slug: 'puerto-azul',
     name: 'Cevichería Puerto Azul Tradición',
     legalName: 'Inversiones Puerto Azul S.A.C.',
     ruc: '20554912044',

@@ -152,6 +152,7 @@ export interface MasterCarta {
 
 export interface ChainBrand {
   id: string;
+  slug?: string; // Enlace único de acceso web: dominio/:slug
   name: string;
   legalName: string;
   ruc: string;

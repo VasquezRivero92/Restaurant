@@ -6,21 +6,27 @@ interface ScreenPinLockProps {
   onNavigate?: (screen: ScreenType) => void;
   staffMembers?: StaffMember[];
   admins?: AdminUser[];
+  activeChainName?: string;
+  isTenantMode?: boolean;
+  onBackToGlobalLogin?: () => void;
 }
 
 export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
   onUnlock,
   onNavigate,
   staffMembers = [],
-  admins = []
+  admins = [],
+  activeChainName = 'Cevichería La Barra Sabrisimo',
+  isTenantMode = false,
+  onBackToGlobalLogin
 }) => {
   const [pin, setPin] = useState<string>('');
   const [errorShake, setErrorShake] = useState(false);
   const isVerifyingRef = React.useRef(false);
   const [selectedStaff, setSelectedStaff] = useState<{ name: string; role: string; pin: string }>({
-    name: 'José Manuel Vasquez Rivero',
-    role: 'Admin Global',
-    pin: '999999'
+    name: isTenantMode ? 'Carlos Mendoza' : 'José Manuel Vasquez Rivero',
+    role: isTenantMode ? 'Mozo Principal' : 'Admin Global',
+    pin: isTenantMode ? '123456' : '999999'
   });
 
   const handleKeyPress = (num: string) => {
@@ -90,7 +96,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
       isVerifyingRef.current = false;
       setPin('');
       onUnlock('cocina', 'Chef Mario Quispe', 'cocina-kds');
-    } else if (cleanEntered === '999999' || cleanEntered === '000000') {
+    } else if (!isTenantMode && (cleanEntered === '999999' || cleanEntered === '000000')) {
       isVerifyingRef.current = false;
       setPin('');
       onUnlock('admin_global', 'José Manuel Vasquez Rivero', 'saas-console');
@@ -141,7 +147,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
             className="w-full h-full object-contain"
           />
         </div>
-        <h1 className="font-extrabold text-2xl tracking-tight text-white">Puerto Azul</h1>
+        <h1 className="font-extrabold text-2xl tracking-tight text-white">{activeChainName}</h1>
         <p className="text-xs text-teal-300/80 font-medium mt-0.5">
           Terminal POS & KDS • Acceso Protegido por PIN
         </p>
@@ -227,21 +233,23 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
           <span className="material-symbols-outlined text-[15px] text-teal-400">lock_clock</span>
           <span>PINs de acceso autorizado (Digita los 6 dígitos):</span>
         </div>
-        <div className="grid grid-cols-2 gap-2 w-full text-left">
-          <div
-            onClick={() => {
-              setSelectedStaff({ name: 'José Manuel Vasquez Rivero', role: 'Admin Global', pin: '999999' });
-              handleClear();
-            }}
-            className="p-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-200 text-xs border border-purple-500/25 transition-all cursor-pointer flex flex-col"
-            title="Seleccionar perfil (debes teclear 999999)"
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-bold">🌐 Admin Global</span>
-              <span className="font-mono font-black text-white bg-purple-500/30 px-1.5 py-0.2 rounded text-[10px]">999999</span>
+        <div className="grid grid-cols-2 gap-2 text-left">
+          {!isTenantMode && (
+            <div
+              onClick={() => {
+                setSelectedStaff({ name: 'José Manuel Vasquez Rivero', role: 'Admin Global', pin: '999999' });
+                handleClear();
+              }}
+              className="p-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-200 text-xs border border-purple-500/25 transition-all cursor-pointer flex flex-col"
+              title="Seleccionar perfil (debes teclear 999999)"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold">🌐 Admin Global</span>
+                <span className="font-mono font-black text-white bg-purple-500/30 px-1.5 py-0.2 rounded text-[10px]">999999</span>
+              </div>
+              <span className="text-[10px] text-purple-300/70 truncate mt-0.5">José Manuel Vasquez Rivero</span>
             </div>
-            <span className="text-[10px] text-purple-300/70 truncate mt-0.5">José Manuel Vasquez Rivero</span>
-          </div>
+          )}
 
           <div
             onClick={() => {
@@ -303,6 +311,18 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
             <span className="text-[10px] text-red-300/70 truncate mt-0.5">Chef Mario Quispe (Cocina)</span>
           </div>
         </div>
+
+        {onBackToGlobalLogin && (
+          <div className="mt-3 text-center">
+            <button
+              onClick={onBackToGlobalLogin}
+              className="text-xs text-slate-400 hover:text-teal-400 transition-colors inline-flex items-center gap-1 cursor-pointer underline"
+            >
+              <span className="material-symbols-outlined text-[14px]">admin_panel_settings</span>
+              Acceso Administrador Global SaaS
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
