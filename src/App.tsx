@@ -280,8 +280,17 @@ export default function App() {
   };
 
   const handleOpenTable = (tableId: string) => {
+    const currentWaiter = staffUser.name || 'Carlos Mendoza';
     setTables((prev) =>
-      prev.map((t) => (t.id === tableId ? { ...t, status: 'cooking' } : t))
+      prev.map((t) => {
+        if (t.id !== tableId) return t;
+        const isUnassigned = !t.waiter || t.waiter.trim() === '' || t.waiter === 'Sin asignar';
+        return {
+          ...t,
+          status: 'cooking',
+          waiter: isUnassigned ? currentWaiter : t.waiter
+        };
+      })
     );
     setSelectedTableId(tableId);
     setCurrentScreen('tomar-pedido');
@@ -308,6 +317,7 @@ export default function App() {
           ? {
               ...t,
               status: 'free',
+              waiter: '', // Asignación de mesa queda en blanco al liberarse
               notes: 'Mesa desinfectada y libre',
               total: 0,
               timeInSalon: undefined,
@@ -516,8 +526,12 @@ export default function App() {
           }));
           const combinedDishes = [...existingDishes, ...newDishes];
 
+          const isUnassigned = !t.waiter || t.waiter.trim() === '' || t.waiter === 'Sin asignar';
+          const assignedWaiter = isUnassigned ? (staffUser.name || 'Carlos Mendoza') : t.waiter;
+
           return {
             ...t,
+            waiter: assignedWaiter,
             status: foodItems.length > 0 ? 'cooking' : t.status === 'free' ? 'eating' : t.status,
             estRemaining: foodItems.length > 0 ? '~12 min' : t.estRemaining,
             progress: foodItems.length > 0 ? 20 : t.progress,
@@ -1299,11 +1313,34 @@ export default function App() {
     });
   };
 
-  const totalReadyDishesInKDS = kdsTickets.reduce((acc, t) => {
+  const isWaiterUser = currentRole === 'mesero';
+  const isMyTableForAlerts = (tableWaiter?: string) => {
+    if (!tableWaiter) return false;
+    const waiterLower = tableWaiter.toLowerCase().trim();
+    const currentLower = (staffUser.name || '').toLowerCase().trim();
+    if (!waiterLower || !currentLower) return false;
+    const currentFirst = currentLower.split(' ')[0];
+    const tableFirst = waiterLower.split(' ')[0];
+    return (
+      waiterLower === currentLower ||
+      (currentFirst && waiterLower.includes(currentFirst)) ||
+      (tableFirst && currentLower.includes(tableFirst))
+    );
+  };
+
+  const tablesForAlerts = isWaiterUser
+    ? tables.filter((t) => isMyTableForAlerts(t.waiter))
+    : tables;
+
+  const ticketsForAlerts = isWaiterUser
+    ? kdsTickets.filter((t) => isMyTableForAlerts(t.waiter))
+    : kdsTickets;
+
+  const totalReadyDishesInKDS = ticketsForAlerts.reduce((acc, t) => {
     return acc + t.items.filter((i) => i.isReady && !i.isServed).length;
   }, 0);
   const readyPlatesCount = Math.max(
-    tables.filter((t) => t.status === 'ready').length,
+    tablesForAlerts.filter((t) => t.status === 'ready').length,
     totalReadyDishesInKDS
   );
   const cartCount = (Object.values(cart) as CartItem[]).reduce((sum, item) => sum + item.qty, 0);
@@ -1311,22 +1348,14 @@ export default function App() {
   // Pending bills count: role-filtered for waiters to only show their assigned tables requiring payment
   const pendingBillsCount = tables.filter((t) => {
     if (t.status !== 'bill_requested') return false;
-    if (currentRole === 'mesero') {
-      const waiterLower = (t.waiter || '').toLowerCase().trim();
-      const currentLower = (staffUser.name || '').toLowerCase().trim();
-      const currentFirst = currentLower.split(' ')[0];
-      const tableFirst = waiterLower.split(' ')[0];
-      return (
-        waiterLower === currentLower ||
-        (currentFirst && waiterLower.includes(currentFirst)) ||
-        (tableFirst && currentLower.includes(tableFirst))
-      );
+    if (isWaiterUser) {
+      return isMyTableForAlerts(t.waiter);
     }
     return true;
   }).length;
   
-  // Total pending drinks count across salon
-  const pendingDrinksCount = tables.reduce((acc, t) => {
+  // Total pending drinks count (for waiter: only their assigned tables)
+  const pendingDrinksCount = tablesForAlerts.reduce((acc, t) => {
     return acc + (t.drinks?.filter((d) => !d.served).length || 0);
   }, 0);
 
@@ -1383,6 +1412,8 @@ export default function App() {
                   onToggleDrinkServed={handleToggleDrinkServed}
                   onServeAllDrinks={handleServeAllDrinks}
                   onOpenDrinksTray={() => setIsDrinksTrayOpen(true)}
+                  currentRole={currentRole}
+                  currentUserName={staffUser.name}
                 />
               )}
 
@@ -1506,6 +1537,8 @@ export default function App() {
         tables={tables}
         onToggleDrinkServed={handleToggleDrinkServed}
         onServeAllDrinks={handleServeAllDrinks}
+        currentRole={currentRole}
+        currentUserName={staffUser.name}
       />
 
       {/* Modal: Selector de Perfil / Rol */}

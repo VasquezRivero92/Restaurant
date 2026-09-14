@@ -209,7 +209,7 @@ export const INITIAL_TABLES: TableItem[] = [
     status: 'free',
     statusLabel: 'Libre',
     zone: 'Zona Barra',
-    waiter: 'Sin asignar',
+    waiter: '',
     diners: 2,
     notes: 'Mesa desinfectada y lista'
   },

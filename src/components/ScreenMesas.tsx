@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TableItem, ScreenType } from '../types';
+import { TableItem, ScreenType, AppRole } from '../types';
 
 interface ScreenMesasProps {
   tables: TableItem[];
@@ -10,6 +10,8 @@ interface ScreenMesasProps {
   onToggleDrinkServed?: (tableId: string, drinkId: string) => void;
   onServeAllDrinks?: (tableId: string) => void;
   onOpenDrinksTray?: () => void;
+  currentRole?: AppRole;
+  currentUserName?: string;
 }
 
 export const ScreenMesas: React.FC<ScreenMesasProps> = ({
@@ -20,27 +22,54 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
   onOpenTable,
   onToggleDrinkServed,
   onServeAllDrinks,
-  onOpenDrinksTray
+  onOpenDrinksTray,
+  currentRole = 'admin_sede',
+  currentUserName = ''
 }) => {
+  const isWaiter = currentRole === 'mesero';
   const [activeFilter, setActiveFilter] = useState<'all' | 'ready' | 'drinks' | 'occupied' | 'free'>('all');
+  const [scopeMode, setScopeMode] = useState<'my_tables' | 'all'>(isWaiter ? 'my_tables' : 'all');
   const [showTopAlert, setShowTopAlert] = useState(true);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
+  const isMyTable = (table: TableItem) => {
+    if (!table.waiter) return false;
+    const waiterLower = table.waiter.toLowerCase().trim();
+    const currentLower = (currentUserName || '').toLowerCase().trim();
+    if (!waiterLower || !currentLower) return false;
+    const currentFirst = currentLower.split(' ')[0];
+    const tableFirst = waiterLower.split(' ')[0];
+    return (
+      waiterLower === currentLower ||
+      (currentFirst && waiterLower.includes(currentFirst)) ||
+      (tableFirst && currentLower.includes(tableFirst))
+    );
+  };
+
+  const myAssignedTables = tables.filter((t) => t.status !== 'free' && isMyTable(t));
+  const myAssignedCount = myAssignedTables.length;
+
   const totalCount = tables.length;
-  const readyCount = tables.filter((t) => t.status === 'ready').length;
   const freeCount = tables.filter((t) => t.status === 'free').length;
   const occupiedCount = totalCount - freeCount;
 
-  // Count tables with pending drinks
-  const tablesWithPendingDrinks = tables.filter((t) =>
+  // Para mozo: alertas de cocina y bebidas filtradas a sus mesas asignadas
+  const relevantAlertTables = isWaiter ? tables.filter((t) => isMyTable(t)) : tables;
+  const readyCount = relevantAlertTables.filter((t) => t.status === 'ready').length;
+  const tablesWithPendingDrinks = relevantAlertTables.filter((t) =>
     t.drinks?.some((d) => !d.served)
   );
   const pendingDrinksCount = tablesWithPendingDrinks.length;
-  const totalPendingGlasses = tables.reduce((acc, t) => {
+  const totalPendingGlasses = relevantAlertTables.reduce((acc, t) => {
     return acc + (t.drinks?.filter((d) => !d.served).length || 0);
   }, 0);
 
-  const filteredTables = tables.filter((table) => {
+  // Lista base: en modo 'my_tables' el mozo solo ve sus mesas asignadas y las mesas libres para abrir
+  const baseTables = (isWaiter && scopeMode === 'my_tables')
+    ? tables.filter((t) => t.status === 'free' || isMyTable(t))
+    : tables;
+
+  const filteredTables = baseTables.filter((table) => {
     if (activeFilter === 'all') return true;
     if (activeFilter === 'ready') return table.status === 'ready';
     if (activeFilter === 'drinks') return table.drinks?.some((d) => !d.served);
@@ -156,6 +185,61 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
               </div>
             </div>
           ) : null}
+        </div>
+      )}
+
+      {/* Waiter Scope Selector (Mis Mesas vs Salón Completo) */}
+      {isWaiter && (
+        <div className="px-3 sm:px-4 pt-1 pb-1.5">
+          <div className="bg-surface-container-low p-2.5 rounded-2xl border border-outline-variant/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shadow-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+                {currentUserName ? currentUserName.charAt(0) : 'M'}
+              </div>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-extrabold text-xs text-on-surface truncate">
+                    Mozo: {currentUserName}
+                  </span>
+                  <span className="px-2 py-0.2 rounded-full bg-teal-100 text-teal-800 text-[10px] font-bold">
+                    {myAssignedCount} mesa(s) a tu cargo
+                  </span>
+                </div>
+                <span className="text-[11px] text-teal-700 font-medium truncate">
+                  {scopeMode === 'my_tables'
+                    ? 'Mostrando solo tus mesas asignadas y libres para atender'
+                    : 'Modo exploración: Viendo todo el salón'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1 bg-surface-container p-1 rounded-xl text-xs font-bold shrink-0">
+              <button
+                type="button"
+                onClick={() => setScopeMode('my_tables')}
+                className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
+                  scopeMode === 'my_tables'
+                    ? 'bg-primary text-on-primary shadow-xs font-black'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[15px]">assignment_ind</span>
+                <span>Mis Mesas ({myAssignedCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setScopeMode('all')}
+                className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
+                  scopeMode === 'all'
+                    ? 'bg-primary text-on-primary shadow-xs font-black'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[15px]">grid_view</span>
+                <span>Todo el Salón ({totalCount})</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -280,7 +364,11 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
           const hasDrinks = table.drinks && table.drinks.length > 0;
           const hasPendingDrinks = table.drinks?.some((d) => !d.served);
 
-          // Free table render
+          const isCurrentTableMine = isMyTable(table);
+          const isUnassignedTable = !table.waiter || table.waiter.trim() === '' || table.waiter === 'Sin asignar';
+          const isOtherWaiterTable = isWaiter && !isCurrentTableMine && !isUnassignedTable;
+
+          // Free table render (en blanco / sin asignar)
           if (table.status === 'free') {
             return (
               <div
@@ -302,12 +390,22 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                   <p className="text-xs text-on-surface-variant">{table.notes || table.zone}</p>
                 </div>
 
+                <div className="flex items-center justify-between text-xs py-1.5 px-3 rounded-xl bg-surface-container-low border border-outline-variant/20">
+                  <span className="text-[11px] text-on-surface-variant flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[15px] text-slate-400">person_off</span>
+                    <span>Mozo: <strong className="text-slate-500 font-medium italic">En blanco (Sin asignar)</strong></span>
+                  </span>
+                  <span className="text-[10px] text-teal-800 font-bold bg-teal-100/70 px-2 py-0.5 rounded-full">
+                    Autoasignable
+                  </span>
+                </div>
+
                 <button
                   onClick={() => onOpenTable(table.id)}
-                  className="w-full h-11 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1 active:scale-95 transition-all shadow cursor-pointer"
+                  className="w-full h-11 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow cursor-pointer min-h-[44px]"
                 >
                   <span className="material-symbols-outlined text-[18px]">add</span>
-                  <span>Abrir Mesa {table.number}</span>
+                  <span>Abrir Mesa {table.number} {isWaiter ? '(Autoasignarme y Tomar Pedido)' : ''}</span>
                 </button>
               </div>
             );
@@ -332,7 +430,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                       <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-extrabold text-[10px] animate-pulse whitespace-nowrap">
                         ⏳ Por Servir
                       </span>
-                      {onServeAllDrinks && (
+                      {onServeAllDrinks && !isOtherWaiterTable && (
                         <button
                           onClick={() => onServeAllDrinks(table.id)}
                           className="h-7 px-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] sm:text-[11px] flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
@@ -377,7 +475,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                         </div>
                       </div>
 
-                      {onToggleDrinkServed && (
+                      {onToggleDrinkServed && !isOtherWaiterTable && (
                         <button
                           onClick={() => onToggleDrinkServed(table.id, drink.id)}
                           className={`h-7 px-2.5 rounded-lg font-bold text-[10px] sm:text-[11px] flex items-center gap-1 transition-all active:scale-95 cursor-pointer shrink-0 ${
@@ -399,7 +497,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
             );
           };
 
-          // Mesa 04: Listo para recoger
+          // Mesa Listo para recoger (Ready)
           if (table.status === 'ready') {
             return (
               <div
@@ -421,9 +519,19 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                           ¡Listo para recoger!
                         </span>
                       </div>
-                      <p className="text-xs text-on-surface-variant mt-0.5 truncate">
-                        Zona: {table.zone} • Mozo: {table.waiter}
-                      </p>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <span className="text-xs text-on-surface-variant">Zona: {table.zone}</span>
+                        <span>•</span>
+                        {isCurrentTableMine && (
+                          <span className="px-2 py-0.2 rounded-full bg-teal-100 text-teal-900 font-extrabold text-[10px] flex items-center gap-0.5 border border-teal-300">
+                            <span className="material-symbols-outlined text-[12px]">person_check</span>
+                            <span>Mi Mesa</span>
+                          </span>
+                        )}
+                        <span className="text-xs text-on-surface-variant truncate">
+                          Mozo: <strong className={isCurrentTableMine ? 'text-teal-700 font-bold' : isOtherWaiterTable ? 'text-amber-700 font-bold' : 'text-primary'}>{table.waiter || 'Sin asignar'}</strong>
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <span className="px-2.5 py-1 rounded-full bg-surface-container text-on-surface text-xs font-bold shrink-0">
@@ -456,19 +564,26 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                 {/* Drinks Section */}
                 {renderDrinksSection()}
 
-                {/* Action Button */}
-                <button
-                  onClick={() => onMarkDelivered(table.id)}
-                  className="w-full h-11 sm:h-12 rounded-xl bg-secondary hover:bg-teal-700 text-on-secondary font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[20px]">task_alt</span>
-                  <span>Marcar Platos como Entregados</span>
-                </button>
+                {/* Action Button: restricted for other waiters */}
+                {isOtherWaiterTable ? (
+                  <div className="w-full py-2.5 px-3 rounded-xl bg-surface-container text-xs text-on-surface-variant font-medium text-center border border-outline-variant/30 flex items-center justify-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px] text-amber-600">lock</span>
+                    <span>Mesa asignada a <strong>{table.waiter}</strong> • Solo su mozo puede entregar</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => onMarkDelivered(table.id)}
+                    className="w-full h-11 sm:h-12 rounded-xl bg-secondary hover:bg-teal-700 text-on-secondary font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">task_alt</span>
+                    <span>Marcar Platos como Entregados</span>
+                  </button>
+                )}
               </div>
             );
           }
 
-          // Mesa 01: Cuenta pedida / Por cobrar
+          // Mesa Cuenta pedida / Por cobrar
           if (table.status === 'bill_requested') {
             return (
               <div
@@ -488,9 +603,19 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                           Cuenta Pedida
                         </span>
                       </div>
-                      <p className="text-xs text-on-surface-variant mt-0.5 truncate">
-                        {table.diners} Personas • Tiempo: {table.timeInSalon} • <span className="font-bold text-primary">Mozo: {table.waiter}</span>
-                      </p>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <span className="text-xs text-on-surface-variant">{table.diners} Personas • {table.timeInSalon}</span>
+                        <span>•</span>
+                        {isCurrentTableMine && (
+                          <span className="px-2 py-0.2 rounded-full bg-teal-100 text-teal-900 font-extrabold text-[10px] flex items-center gap-0.5 border border-teal-300">
+                            <span className="material-symbols-outlined text-[12px]">person_check</span>
+                            <span>Mi Mesa</span>
+                          </span>
+                        )}
+                        <span className="text-xs text-on-surface-variant truncate">
+                          Mozo: <strong className={isCurrentTableMine ? 'text-teal-700 font-bold' : isOtherWaiterTable ? 'text-amber-700 font-bold' : 'text-primary'}>{table.waiter || 'Sin asignar'}</strong>
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -512,33 +637,41 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                  <button
-                    onClick={() => {
-                      onSelectTable(table.id);
-                      onNavigate('cuenta-cobro');
-                    }}
-                    className="h-11 sm:h-12 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">receipt_long</span>
-                    <span>Ver Pre-cuenta</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      onSelectTable(table.id);
-                      onNavigate('cuenta-cobro');
-                    }}
-                    className="h-11 sm:h-12 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">point_of_sale</span>
-                    <span>Cobrar y Liberar</span>
-                  </button>
-                </div>
+                {/* Action Buttons: restricted for other waiters */}
+                {isOtherWaiterTable ? (
+                  <div className="w-full py-2.5 px-3 rounded-xl bg-surface-container text-xs text-on-surface-variant font-medium text-center border border-outline-variant/30 flex items-center justify-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px] text-amber-600">lock</span>
+                    <span>Mesa a cargo de <strong>{table.waiter}</strong> • Cobro exclusivo por su mozo</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                    <button
+                      onClick={() => {
+                        onSelectTable(table.id);
+                        onNavigate('cuenta-cobro');
+                      }}
+                      className="h-11 sm:h-12 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">receipt_long</span>
+                      <span>Ver Pre-cuenta</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        onSelectTable(table.id);
+                        onNavigate('cuenta-cobro');
+                      }}
+                      className="h-11 sm:h-12 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">point_of_sale</span>
+                      <span>Cobrar y Liberar</span>
+                    </button>
+                  </div>
+                )}
               </div>
             );
           }
 
-          // Mesa 02: Comiendo
+          // Mesa Comiendo
           if (table.status === 'eating') {
             return (
               <div
@@ -558,9 +691,19 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                           Comiendo
                         </span>
                       </div>
-                      <p className="text-xs text-on-surface-variant mt-0.5 truncate">
-                        {table.diners} comensales • Mozo: {table.waiter}
-                      </p>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <span className="text-xs text-on-surface-variant">{table.diners} comensales</span>
+                        <span>•</span>
+                        {isCurrentTableMine && (
+                          <span className="px-2 py-0.2 rounded-full bg-teal-100 text-teal-900 font-extrabold text-[10px] flex items-center gap-0.5 border border-teal-300">
+                            <span className="material-symbols-outlined text-[12px]">person_check</span>
+                            <span>Mi Mesa</span>
+                          </span>
+                        )}
+                        <span className="text-xs text-on-surface-variant truncate">
+                          Mozo: <strong className={isCurrentTableMine ? 'text-teal-700 font-bold' : isOtherWaiterTable ? 'text-amber-700 font-bold' : 'text-primary'}>{table.waiter || 'Sin asignar'}</strong>
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -575,30 +718,38 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                 {/* Drinks Section */}
                 {renderDrinksSection()}
 
-                <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                  <button
-                    onClick={() => {
-                      onSelectTable(table.id);
-                      onNavigate('tomar-pedido');
-                    }}
-                    className="h-11 sm:h-12 rounded-xl bg-surface-container hover:bg-surface-container-high text-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                    <span>Agregar Pedido</span>
-                  </button>
-                  <button
-                    onClick={() => onNavigate('cuenta-cobro')}
-                    className="h-11 sm:h-12 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">request_quote</span>
-                    <span>Pedir Cuenta</span>
-                  </button>
-                </div>
+                {/* Action Buttons: restricted for other waiters */}
+                {isOtherWaiterTable ? (
+                  <div className="w-full py-2.5 px-3 rounded-xl bg-surface-container text-xs text-on-surface-variant font-medium text-center border border-outline-variant/30 flex items-center justify-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px] text-slate-500">lock</span>
+                    <span>Mesa a cargo de <strong>{table.waiter}</strong> • Seguimiento exclusivo de su mozo</span>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                    <button
+                      onClick={() => {
+                        onSelectTable(table.id);
+                        onNavigate('tomar-pedido');
+                      }}
+                      className="h-11 sm:h-12 rounded-xl bg-surface-container hover:bg-surface-container-high text-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                      <span>Agregar Pedido</span>
+                    </button>
+                    <button
+                      onClick={() => onNavigate('cuenta-cobro')}
+                      className="h-11 sm:h-12 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">request_quote</span>
+                      <span>Pedir Cuenta</span>
+                    </button>
+                  </div>
+                )}
               </div>
             );
           }
 
-          // Mesa 07 o 05: En Preparación
+          // Mesa En Preparación (Cooking)
           return (
             <div
               key={table.id}
@@ -617,9 +768,19 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                         En Preparación (Cocina)
                       </span>
                     </div>
-                    <p className="text-xs text-on-surface-variant mt-0.5 truncate">
-                      {table.diners} comensales • {table.timeInSalon} • <span className="font-bold text-primary">Mozo: {table.waiter}</span>
-                    </p>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                      <span className="text-xs text-on-surface-variant">{table.diners} comensales • {table.timeInSalon}</span>
+                      <span>•</span>
+                      {isCurrentTableMine && (
+                        <span className="px-2 py-0.2 rounded-full bg-teal-100 text-teal-900 font-extrabold text-[10px] flex items-center gap-0.5 border border-teal-300">
+                          <span className="material-symbols-outlined text-[12px]">person_check</span>
+                          <span>Mi Mesa</span>
+                        </span>
+                      )}
+                      <span className="text-xs text-on-surface-variant truncate">
+                        Mozo: <strong className={isCurrentTableMine ? 'text-teal-700 font-bold' : isOtherWaiterTable ? 'text-amber-700 font-bold' : 'text-primary'}>{table.waiter || 'Sin asignar'}</strong>
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -650,28 +811,65 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
               {/* Drinks Section */}
               {renderDrinksSection()}
 
-              <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                <button
-                  onClick={() => {
-                    onSelectTable(table.id);
-                    onNavigate('tomar-pedido');
-                  }}
-                  className="h-11 sm:h-12 rounded-xl bg-surface-container hover:bg-surface-container-high text-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[18px]">add</span>
-                  <span>Añadir Más</span>
-                </button>
-                <button
-                  onClick={() => onNavigate('cocina-kds')}
-                  className="h-11 sm:h-12 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[18px]">skillet</span>
-                  <span>Ver en KDS</span>
-                </button>
-              </div>
+              {/* Action Buttons: restricted for other waiters */}
+              {isOtherWaiterTable ? (
+                <div className="w-full py-2.5 px-3 rounded-xl bg-surface-container text-xs text-on-surface-variant font-medium text-center border border-outline-variant/30 flex items-center justify-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] text-slate-500">lock</span>
+                  <span>Mesa a cargo de <strong>{table.waiter}</strong> • En preparación para su mozo</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                  <button
+                    onClick={() => {
+                      onSelectTable(table.id);
+                      onNavigate('tomar-pedido');
+                    }}
+                    className="h-11 sm:h-12 rounded-xl bg-surface-container hover:bg-surface-container-high text-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">add</span>
+                    <span>Añadir Más</span>
+                  </button>
+                  <button
+                    onClick={() => onNavigate('cocina-kds')}
+                    className="h-11 sm:h-12 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">skillet</span>
+                    <span>Ver en KDS</span>
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
+
+        {filteredTables.length === 0 && (
+          <div className="bg-surface-container-lowest rounded-2xl p-8 text-center border border-dashed border-outline-variant/40 flex flex-col items-center gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center shadow-xs">
+              <span className="material-symbols-outlined text-[32px]">assignment_ind</span>
+            </div>
+            <div className="max-w-sm">
+              <h4 className="font-extrabold text-sm text-on-surface">No hay mesas en esta vista</h4>
+              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                {isWaiter && scopeMode === 'my_tables'
+                  ? 'Actualmente no tienes mesas asignadas con este filtro. Puedes abrir cualquier mesa libre del salón para tomar la orden y se te autoasignará de inmediato.'
+                  : 'No se encontraron mesas con los criterios de filtro seleccionados.'}
+              </p>
+            </div>
+            {isWaiter && (
+              <button
+                type="button"
+                onClick={() => {
+                  setScopeMode('all');
+                  setActiveFilter('all');
+                }}
+                className="px-4 py-2 rounded-xl bg-primary text-on-primary font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">grid_view</span>
+                <span>Ver Todo el Salón</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Floating Drinks Tray Trigger Button for Mozo */}

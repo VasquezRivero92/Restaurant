@@ -145,8 +145,13 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
                   3 Comensales
                 </span>
               </div>
-              <span className="text-xs text-primary-fixed-dim truncate font-medium">
-                Carta: La Barra Sabrisimo • Mozo Carlos M.
+              <span className="text-xs text-teal-200 truncate font-medium flex items-center gap-1">
+                <span className="material-symbols-outlined text-[13px]">person</span>
+                <span>
+                  {selectedTable?.waiter && selectedTable.waiter !== 'Sin asignar'
+                    ? `Mozo: ${selectedTable.waiter}`
+                    : `Autoasignando a: ${currentUserName || 'Mozo en turno'}`}
+                </span>
               </span>
             </div>
           </div>

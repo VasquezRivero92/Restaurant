@@ -1,5 +1,5 @@
-import React from 'react';
-import { TableItem } from '../types';
+import React, { useState } from 'react';
+import { TableItem, AppRole } from '../types';
 
 interface ModalBandejaBebidasProps {
   isOpen: boolean;
@@ -7,6 +7,8 @@ interface ModalBandejaBebidasProps {
   tables: TableItem[];
   onToggleDrinkServed: (tableId: string, drinkId: string) => void;
   onServeAllDrinks: (tableId: string) => void;
+  currentRole?: AppRole;
+  currentUserName?: string;
 }
 
 export const ModalBandejaBebidas: React.FC<ModalBandejaBebidasProps> = ({
@@ -14,12 +16,33 @@ export const ModalBandejaBebidas: React.FC<ModalBandejaBebidasProps> = ({
   onClose,
   tables,
   onToggleDrinkServed,
-  onServeAllDrinks
+  onServeAllDrinks,
+  currentRole = 'admin_sede',
+  currentUserName = ''
 }) => {
   if (!isOpen) return null;
 
+  const isWaiter = currentRole === 'mesero';
+  const [scopeFilter, setScopeFilter] = useState<'my_tables' | 'all'>(isWaiter ? 'my_tables' : 'all');
+
+  const isMyTable = (t: TableItem) => {
+    if (!t.waiter) return false;
+    const w = t.waiter.toLowerCase().trim();
+    const c = (currentUserName || '').toLowerCase().trim();
+    if (!w || !c) return false;
+    const cFirst = c.split(' ')[0];
+    const wFirst = w.split(' ')[0];
+    return w === c || (cFirst && w.includes(cFirst)) || (wFirst && c.includes(wFirst));
+  };
+
   // Tables with drinks
-  const tablesWithDrinks = tables.filter((t) => t.drinks && t.drinks.length > 0);
+  const tablesWithDrinks = tables.filter((t) => {
+    if (!t.drinks || t.drinks.length === 0) return false;
+    if (isWaiter && scopeFilter === 'my_tables') {
+      return isMyTable(t);
+    }
+    return true;
+  });
 
   // Split into tables with pending drinks vs all served
   const tablesWithPending = tablesWithDrinks.filter((t) =>
@@ -78,7 +101,33 @@ export const ModalBandejaBebidas: React.FC<ModalBandejaBebidasProps> = ({
           </button>
         </div>
 
-        {/* Global Quick Bar */}
+        {/* Waiter Scope Filter Tabs */}
+        {isWaiter && (
+          <div className="px-4 py-2 bg-surface-container-low border-b border-outline-variant/30 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 bg-surface-container p-1 rounded-xl text-xs font-bold w-full">
+              <button
+                onClick={() => setScopeFilter('my_tables')}
+                className={`flex-1 py-1.5 px-3 rounded-lg transition-all text-center cursor-pointer ${
+                  scopeFilter === 'my_tables'
+                    ? 'bg-surface-container-lowest text-primary shadow-xs font-black'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                Mis Mesas ({tables.filter((t) => t.drinks && t.drinks.length > 0 && isMyTable(t)).length})
+              </button>
+              <button
+                onClick={() => setScopeFilter('all')}
+                className={`flex-1 py-1.5 px-3 rounded-lg transition-all text-center cursor-pointer ${
+                  scopeFilter === 'all'
+                    ? 'bg-surface-container-lowest text-primary shadow-xs font-black'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                Todo el Salón ({tables.filter((t) => t.drinks && t.drinks.length > 0).length})
+              </button>
+            </div>
+          </div>
+        )}
         {totalPendingDrinksCount > 0 && (
           <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-200 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-xs text-amber-900 font-medium">
