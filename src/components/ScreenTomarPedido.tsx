@@ -15,8 +15,8 @@ interface ScreenTomarPedidoProps {
   onNavigate: (screen: ScreenType) => void;
   selectedTableNumber?: string;
   selectedTable?: TableItem;
-  onRemoveTableDish?: (dishIndex: number) => void;
-  onRemoveTableDrink?: (drinkId: string) => void;
+  onRemoveTableDish?: (dishIndex: number, reason?: string) => void;
+  onRemoveTableDrink?: (drinkId: string, reason?: string) => void;
   currentRole?: AppRole;
   currentUserName?: string;
 }
@@ -41,6 +41,20 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
   const [showDrinkDispatchPrompt, setShowDrinkDispatchPrompt] = useState(false);
   const [showCartBreakdown, setShowCartBreakdown] = useState(false);
   
+  // Existing table items collapsible toggle & remove modals
+  const [showExistingItems, setShowExistingItems] = useState(false);
+  const [dishToRemove, setDishToRemove] = useState<{
+    index: number;
+    name: string;
+    price?: number;
+  } | null>(null);
+  const [drinkToRemove, setDrinkToRemove] = useState<{
+    id: string;
+    name: string;
+    price?: number;
+  } | null>(null);
+  const [cancelReason, setCancelReason] = useState('A solicitud del comensal');
+
   // Track active size selection for each dish card (defaults to minimum price size)
   const [selectedCardSizes, setSelectedCardSizes] = useState<{ [dishId: number]: string }>({});
 
@@ -208,6 +222,155 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Platos y Bebidas ya ordenados en esta mesa (Con opción de retirar para mozo o admin) */}
+      {selectedTable &&
+        ((selectedTable.dishes && selectedTable.dishes.length > 0) ||
+          (selectedTable.drinks && selectedTable.drinks.length > 0)) && (
+          <div className="px-4 pb-2">
+            <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-lowest shadow-xs overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowExistingItems(!showExistingItems)}
+                className="w-full px-3.5 py-2.5 flex items-center justify-between bg-surface-container-low hover:bg-surface-container transition-colors cursor-pointer text-left"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="material-symbols-outlined text-[20px] text-amber-600">receipt_long</span>
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-extrabold text-xs text-primary">
+                      Platos y bebidas ya pedidos en Mesa {selectedTableNumber}
+                    </span>
+                    <span className="text-[10px] text-on-surface-variant">
+                      {(selectedTable.dishes?.length || 0)} plato(s) • {(selectedTable.drinks?.length || 0)} bebida(s) • Consumo: S/ {selectedTable.total?.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-[11px] font-bold text-teal-700 bg-teal-100 px-2 py-0.5 rounded-full">
+                    {showExistingItems ? 'Ocultar' : 'Ver / Quitar platos'}
+                  </span>
+                  <span
+                    className={`material-symbols-outlined text-[18px] text-on-surface-variant transition-transform duration-200 ${
+                      showExistingItems ? 'rotate-180' : ''
+                    }`}
+                  >
+                    expand_more
+                  </span>
+                </div>
+              </button>
+
+              {showExistingItems && (
+                <div className="p-3 flex flex-col gap-2 bg-surface divide-y divide-outline-variant/20">
+                  {/* Food Dishes */}
+                  {selectedTable.dishes && selectedTable.dishes.length > 0 && (
+                    <div className="flex flex-col gap-1.5 pb-2">
+                      <span className="text-[10px] font-extrabold text-on-surface-variant uppercase tracking-wider">
+                        Platos de Cocina
+                      </span>
+                      {selectedTable.dishes.map((dish, idx) => (
+                        <div
+                          key={dish.id || idx}
+                          className="flex items-center justify-between gap-2 py-1.5 px-2.5 rounded-xl bg-surface-container-low text-xs"
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span className="w-5 h-5 rounded-md bg-primary/10 text-primary font-bold text-[10px] flex items-center justify-center shrink-0">
+                              {dish.qty || 1}x
+                            </span>
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-bold text-xs text-on-surface truncate">
+                                {dish.name}
+                              </span>
+                              <span className="text-[10px] text-on-surface-variant">
+                                {dish.station} • {dish.status === 'ready' ? 'Listo' : dish.status === 'served' ? 'Servido' : 'En preparación'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {dish.price && (
+                              <span className="font-bold text-xs text-primary">
+                                S/ {(dish.price * (dish.qty || 1)).toFixed(2)}
+                              </span>
+                            )}
+                            {onRemoveTableDish && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDishToRemove({
+                                    index: idx,
+                                    name: dish.name,
+                                    price: dish.price
+                                  })
+                                }
+                                className="h-7 px-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] flex items-center gap-1 border border-rose-200 transition-all cursor-pointer active:scale-95"
+                                title="Quitar este plato del pedido"
+                              >
+                                <span className="material-symbols-outlined text-[14px]">delete</span>
+                                <span>Quitar</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Drinks */}
+                  {selectedTable.drinks && selectedTable.drinks.length > 0 && (
+                    <div className="flex flex-col gap-1.5 pt-2">
+                      <span className="text-[10px] font-extrabold text-on-surface-variant uppercase tracking-wider">
+                        Bebidas (Barra)
+                      </span>
+                      {selectedTable.drinks.map((drink) => (
+                        <div
+                          key={drink.id}
+                          className="flex items-center justify-between gap-2 py-1.5 px-2.5 rounded-xl bg-surface-container-low text-xs"
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span className="material-symbols-outlined text-amber-600 text-[18px] shrink-0">
+                              local_bar
+                            </span>
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-bold text-xs text-on-surface truncate">
+                                {drink.qty}x {drink.name} {drink.size && `(${drink.size})`}
+                              </span>
+                              <span className="text-[10px] text-on-surface-variant">
+                                {drink.served ? 'Servido en mesa' : 'Pendiente por servir'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="font-bold text-xs text-primary">
+                              S/ {((drink.price || 0) * (drink.qty || 1)).toFixed(2)}
+                            </span>
+                            {onRemoveTableDrink && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDrinkToRemove({
+                                    id: drink.id,
+                                    name: `${drink.qty}x ${drink.name}`,
+                                    price: (drink.price || 0) * (drink.qty || 1)
+                                  })
+                                }
+                                className="h-7 px-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] flex items-center gap-1 border border-rose-200 transition-all cursor-pointer active:scale-95"
+                                title="Quitar esta bebida del pedido"
+                              >
+                                <span className="material-symbols-outlined text-[14px]">delete</span>
+                                <span>Quitar</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       {/* Notice on Drinks vs Kitchen */}
       {activeCategory === 'bebidas' && (
@@ -889,6 +1052,106 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
                 <span className="font-extrabold text-teal-200">
                   (S/ {(((customizingDish.sizes?.[selectedSizeIndex]?.price ?? customizingDish.price)) * modalQty).toFixed(2)})
                 </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmar Retiro de Plato */}
+      {dishToRemove && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-surface rounded-3xl p-5 sm:p-6 w-full max-w-sm shadow-2xl border border-outline-variant/30 flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[26px]">delete_sweep</span>
+              </div>
+              <div>
+                <h3 className="font-black text-base text-primary">Quitar Plato del Pedido</h3>
+                <p className="text-xs text-on-surface-variant font-medium">Mesa {selectedTableNumber}</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              ¿Estás seguro de retirar <strong>"{dishToRemove.name}"</strong>? Se descontará del total de la mesa y se cancelará su preparación en cocina.
+            </p>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-on-surface-variant">Motivo de la anulación:</label>
+              <select
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container border border-outline-variant/30 text-on-surface"
+              >
+                <option value="A solicitud del comensal">A solicitud del comensal</option>
+                <option value="Demora en preparación">Demora en preparación</option>
+                <option value="Error al digitar comanda">Error al digitar comanda</option>
+                <option value="Insumo agotado en cocina">Insumo agotado en cocina</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2 border-t border-outline-variant/20">
+              <button
+                type="button"
+                onClick={() => setDishToRemove(null)}
+                className="flex-1 py-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-bold text-xs transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onRemoveTableDish) {
+                    onRemoveTableDish(dishToRemove.index, cancelReason);
+                  }
+                  setDishToRemove(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                Confirmar y Quitar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Confirmar Retiro de Bebida */}
+      {drinkToRemove && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-surface rounded-3xl p-5 sm:p-6 w-full max-w-sm shadow-2xl border border-outline-variant/30 flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[26px]">local_bar</span>
+              </div>
+              <div>
+                <h3 className="font-black text-base text-primary">Quitar Bebida del Pedido</h3>
+                <p className="text-xs text-on-surface-variant font-medium">Mesa {selectedTableNumber}</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              ¿Deseas retirar <strong>"{drinkToRemove.name}"</strong>? Se descontará del total de la cuenta de la mesa.
+            </p>
+
+            <div className="flex items-center gap-2 pt-2 border-t border-outline-variant/20">
+              <button
+                type="button"
+                onClick={() => setDrinkToRemove(null)}
+                className="flex-1 py-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-bold text-xs transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onRemoveTableDrink) {
+                    onRemoveTableDrink(drinkToRemove.id, cancelReason);
+                  }
+                  setDrinkToRemove(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                Confirmar y Quitar
               </button>
             </div>
           </div>

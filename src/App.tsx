@@ -1441,8 +1441,16 @@ export default function App() {
                     tables.find((t) => t.id === selectedTableId)?.number || '05'
                   }
                   selectedTable={tables.find((t) => t.id === selectedTableId)}
-                  onRemoveTableDish={handleRemoveTableDish}
-                  onRemoveTableDrink={handleRemoveTableDrink}
+                  onRemoveTableDish={(dishIndex, reason) => {
+                    if (selectedTableId) {
+                      handleRemoveTableDish(selectedTableId, dishIndex, reason);
+                    }
+                  }}
+                  onRemoveTableDrink={(drinkId, reason) => {
+                    if (selectedTableId) {
+                      handleRemoveTableDrink(selectedTableId, drinkId, reason);
+                    }
+                  }}
                   currentRole={currentRole}
                   currentUserName={staffUser.name}
                 />
