@@ -9,6 +9,7 @@ interface ModalRoleSwitcherProps {
   isMobileFrame?: boolean;
   onToggleFrame?: () => void;
   onResetData?: () => void;
+  onLogout?: () => void;
 }
 
 export const ModalRoleSwitcher: React.FC<ModalRoleSwitcherProps> = ({
@@ -18,7 +19,8 @@ export const ModalRoleSwitcher: React.FC<ModalRoleSwitcherProps> = ({
   onSelectRole,
   isMobileFrame = false,
   onToggleFrame,
-  onResetData
+  onResetData,
+  onLogout
 }) => {
   if (!isOpen) return null;
 
@@ -122,8 +124,16 @@ export const ModalRoleSwitcher: React.FC<ModalRoleSwitcherProps> = ({
               <div
                 key={r.key}
                 onClick={() => {
-                  onSelectRole(r.key);
-                  onClose();
+                  if (r.key === currentRole) {
+                    onClose();
+                  } else {
+                    onClose();
+                    if (onLogout) {
+                      onLogout();
+                    } else {
+                      onSelectRole(r.key);
+                    }
+                  }
                 }}
                 className={`p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex flex-col gap-2 relative ${
                   isSelected
@@ -205,12 +215,28 @@ export const ModalRoleSwitcher: React.FC<ModalRoleSwitcherProps> = ({
             )}
           </div>
 
-          <button
-            onClick={onClose}
-            className="h-9 px-4 rounded-xl bg-primary hover:bg-primary-container text-on-primary text-xs font-bold transition-all cursor-pointer ml-auto"
-          >
-            Listo
-          </button>
+          <div className="flex items-center gap-2 ml-auto">
+            {onLogout && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onLogout();
+                }}
+                className="h-9 px-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-red-200"
+                title="Cerrar sesión actual y bloquear terminal con PIN de 6 dígitos"
+              >
+                <span className="material-symbols-outlined text-[16px]">lock</span>
+                <span>Cerrar Sesión</span>
+              </button>
+            )}
+
+            <button
+              onClick={onClose}
+              className="h-9 px-4 rounded-xl bg-primary hover:bg-primary-container text-on-primary text-xs font-bold transition-all cursor-pointer"
+            >
+              Listo
+            </button>
+          </div>
         </div>
       </div>
     </div>

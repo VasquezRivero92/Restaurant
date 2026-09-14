@@ -13,6 +13,7 @@ interface HeaderTopProps {
   onOpenRoleSwitcher?: () => void;
   activeBranchName?: string;
   isCloudConnected?: boolean;
+  onLogout?: () => void;
 }
 
 export const HeaderTop: React.FC<HeaderTopProps> = ({
@@ -26,7 +27,8 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
   onOpenDrinksTray,
   onOpenRoleSwitcher,
   activeBranchName = 'Sede Miraflores',
-  isCloudConnected = true
+  isCloudConnected = true,
+  onLogout
 }) => {
   const getSubTitle = () => {
     switch (currentScreen) {
@@ -180,14 +182,18 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
             )}
           </button>
 
-          {/* Lock terminal PIN button */}
+          {/* Botón Cerrar Sesión (Bloquear terminal con PIN de 6 dígitos) */}
           <button
-            onClick={() => onNavigate('pin-lock')}
-            aria-label="Bloquear terminal o cambiar turno"
-            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-primary flex items-center justify-center shrink-0 active:scale-90 transition-transform shadow-sm hover:ring-2 hover:ring-secondary cursor-pointer text-on-primary"
-            title="Bloquear terminal (PIN)"
+            onClick={() => {
+              if (onLogout) onLogout();
+              else onNavigate('pin-lock');
+            }}
+            aria-label="Cerrar sesión y bloquear terminal"
+            className="h-8 sm:h-9 px-2 sm:px-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 border border-red-500/20 flex items-center gap-1 shrink-0 active:scale-90 transition-all shadow-xs cursor-pointer"
+            title="Cerrar sesión (Requiere PIN de 6 dígitos para reingresar)"
           >
             <span className="material-symbols-outlined text-[17px] sm:text-[19px]">lock</span>
+            <span className="hidden sm:inline text-[11px] font-bold">Cerrar Sesión</span>
           </button>
         </div>
       </div>

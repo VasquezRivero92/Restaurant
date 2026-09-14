@@ -54,7 +54,8 @@ import {
 } from './services/rtdbService';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<ScreenType>('mesas');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [currentScreen, setCurrentScreen] = useState<ScreenType>('pin-lock');
   const [tables, setTables] = useState<TableItem[]>(INITIAL_TABLES);
   
   // Master Cartas SaaS Catalog
@@ -117,8 +118,8 @@ export default function App() {
   const [activeBranchId, setActiveBranchId] = useState<string>('loc-miraflores');
   const [cartaInitialTab, setCartaInitialTab] = useState<'carta' | 'sedes' | 'equipo'>('carta');
   const [staffUser, setStaffUser] = useState<{ name: string; role: 'mesero' | 'admin' }>({
-    name: 'Roberto Morales',
-    role: 'admin'
+    name: '',
+    role: 'mesero'
   });
   
   // Toggle device simulation frame (Mobile mockup vs Full fluid)
@@ -254,9 +255,24 @@ export default function App() {
     }
   };
 
-  // Guard navigation to strictly isolate cocina role to kitchen KDS & PIN lock
+  // Cerrar sesión y bloquear terminal (Solo se puede reingresar con PIN de 6 dígitos)
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setCurrentScreen('pin-lock');
+    setStaffUser({ name: '', role: 'mesero' });
+  };
+
+  // Guard navigation: requiring 6-digit PIN authentication
   const handleNavigate = (screen: ScreenType) => {
-    if (currentRole === 'cocina' && screen !== 'pin-lock' && screen !== 'cocina-kds') {
+    if (screen === 'pin-lock') {
+      handleLogout();
+      return;
+    }
+    if (!isAuthenticated) {
+      setCurrentScreen('pin-lock');
+      return;
+    }
+    if (currentRole === 'cocina' && screen !== 'cocina-kds') {
       return;
     }
     setCurrentScreen(screen);
@@ -1152,15 +1168,26 @@ export default function App() {
     }
   };
 
-  // Staff unlock with role hierarchy
+  // Staff unlock with role hierarchy (Autenticación estricta con PIN de 6 dígitos)
   const handleUnlock = (role: AppRole, name: string) => {
+    setIsAuthenticated(true);
     setCurrentRole(role);
     setStaffUser({
       name,
       role: role === 'mesero' ? 'mesero' : 'admin'
     });
+
     if (role === 'cocina') {
       setCurrentScreen('cocina-kds');
+      return;
+    }
+    if (role === 'admin_global') {
+      setCurrentScreen('saas-console');
+      return;
+    }
+    if (role === 'admin_general') {
+      setCurrentScreen('carta-sede');
+      setCartaInitialTab('carta');
       return;
     }
     // Set appropriate active branch and chain if it's a sede admin
@@ -1172,7 +1199,12 @@ export default function App() {
       } else if (foundAdmin?.branchId) {
         setActiveBranchId(foundAdmin.branchId);
       }
+      setCurrentScreen('carta-sede');
+      return;
     }
+
+    // Rol mesero / cajero / salón
+    setCurrentScreen('mesas');
   };
 
   // Staff management handlers (Multi-Sede)
@@ -1303,11 +1335,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-surface text-on-surface flex flex-col font-sans antialiased selection:bg-secondary/20 selection:text-secondary">
-      {/* Screen 7: PIN Lockscreen renders full viewport if active */}
-      {currentScreen === 'pin-lock' ? (
+      {/* Screen 7: PIN Lockscreen renders full viewport if not authenticated or locked */}
+      {(!isAuthenticated || currentScreen === 'pin-lock') ? (
         <ScreenPinLock
           onUnlock={handleUnlock}
-          onNavigate={setCurrentScreen}
+          onNavigate={handleNavigate}
           staffMembers={staffMembers}
           admins={admins}
         />
@@ -1334,6 +1366,7 @@ export default function App() {
               onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
               activeBranchName={currentBranch?.name || 'Sede Miraflores'}
               isCloudConnected={isCloudConnected}
+              onLogout={handleLogout}
             />
 
             {/* Viewport content */}
@@ -1458,6 +1491,7 @@ export default function App() {
               onOpenDrinksTray={() => setIsDrinksTrayOpen(true)}
               onSelectCartaTab={(tab) => setCartaInitialTab(tab)}
               onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
+              onLogout={handleLogout}
             />
           </div>
         </div>
@@ -1481,6 +1515,7 @@ export default function App() {
         isMobileFrame={isMobileFrame}
         onToggleFrame={() => setIsMobileFrame(!isMobileFrame)}
         onResetData={handleResetData}
+        onLogout={handleLogout}
       />
     </div>
   );

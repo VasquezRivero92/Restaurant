@@ -86,6 +86,22 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
     }
   };
 
+  // Soporte para teclado físico (0-9, Backspace, Escape)
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key >= '0' && e.key <= '9') {
+        handleKeyPress(e.key);
+      } else if (e.key === 'Backspace') {
+        handleBackspace();
+      } else if (e.key === 'Escape') {
+        setPin('');
+        setErrorShake(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pin]);
+
   return (
     <div className="fixed inset-0 z-50 bg-[#071626] text-white flex flex-col items-center justify-between p-6 select-none">
       {/* Background caustic subtle gradient effect */}
@@ -102,7 +118,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
         </div>
         <h1 className="font-extrabold text-2xl tracking-tight text-white">Puerto Azul</h1>
         <p className="text-xs text-teal-300/80 font-medium mt-0.5">
-          Terminal POS & KDS • Sede Miraflores
+          Terminal POS & KDS • Acceso Protegido por PIN
         </p>
 
         {/* Selected Staff Pill */}
@@ -121,7 +137,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
       <div className={`flex flex-col items-center gap-3 my-4 z-10 ${errorShake ? 'animate-shake' : ''}`}>
         <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
           <span className="material-symbols-outlined text-[16px] text-[#00A896]">lock</span>
-          <span>Ingresa tu código PIN de 6 dígitos</span>
+          <span>Ingresa tu PIN de 6 dígitos en el teclado</span>
         </div>
         <div className="flex items-center gap-3 sm:gap-4">
           {[0, 1, 2, 3, 4, 5].map((index) => {
@@ -140,7 +156,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
         </div>
         {errorShake && (
           <span className="text-xs font-bold text-red-400 animate-fade-in text-center max-w-xs">
-            PIN Incorrecto (6 dígitos). Consulta con tu Administrador General o Global.
+            PIN Incorrecto. Digita los 6 dígitos exactos asignados por tu Administrador.
           </span>
         )}
       </div>
@@ -183,62 +199,87 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
         </button>
       </div>
 
-      {/* Quick Access Test Shortcuts */}
+      {/* Guía de Credenciales (Sin bypass: Obliga a teclear los 6 dígitos) */}
       <div className="mt-4 flex flex-col items-center gap-2 z-10 w-full max-w-sm">
-        <div className="text-[11px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
-          <span className="material-symbols-outlined text-[14px] text-teal-400">vpn_key</span>
-          <span>PINs de acceso (6 dígitos):</span>
+        <div className="text-[11px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+          <span className="material-symbols-outlined text-[15px] text-teal-400">lock_clock</span>
+          <span>PINs de acceso autorizado (Digita los 6 dígitos):</span>
         </div>
-        <div className="grid grid-cols-2 gap-2 w-full">
-          <button
+        <div className="grid grid-cols-2 gap-2 w-full text-left">
+          <div
             onClick={() => {
-              setPin('999999');
-              verifyPin('999999');
+              setSelectedStaff({ name: 'Ing. Alejandro Vega', role: 'Admin Global', pin: '999999' });
+              setPin('');
             }}
-            className="py-2 px-2.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 text-xs font-bold border border-purple-500/30 active:scale-95 transition-all text-center cursor-pointer flex items-center justify-center gap-1"
+            className="p-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-200 text-xs border border-purple-500/25 transition-all cursor-pointer flex flex-col"
+            title="Seleccionar perfil (debes teclear 999999)"
           >
-            <span>🌐 Admin Global (999999)</span>
-          </button>
+            <div className="flex items-center justify-between">
+              <span className="font-bold">🌐 Admin Global</span>
+              <span className="font-mono font-black text-white bg-purple-500/30 px-1.5 py-0.2 rounded text-[10px]">999999</span>
+            </div>
+            <span className="text-[10px] text-purple-300/70 truncate mt-0.5">Ing. Alejandro Vega</span>
+          </div>
 
-          <button
+          <div
             onClick={() => {
-              setPin('888888');
-              verifyPin('888888');
+              setSelectedStaff({ name: 'Roberto Morales', role: 'Admin General', pin: '888888' });
+              setPin('');
             }}
-            className="py-2 px-2.5 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 text-teal-200 text-xs font-bold border border-teal-500/30 active:scale-95 transition-all text-center cursor-pointer flex items-center justify-center gap-1"
+            className="p-2 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 text-teal-200 text-xs border border-teal-500/25 transition-all cursor-pointer flex flex-col"
+            title="Seleccionar perfil (debes teclear 888888)"
           >
-            <span>🏢 Admin General (888888)</span>
-          </button>
+            <div className="flex items-center justify-between">
+              <span className="font-bold">🏢 Admin General</span>
+              <span className="font-mono font-black text-white bg-teal-500/30 px-1.5 py-0.2 rounded text-[10px]">888888</span>
+            </div>
+            <span className="text-[10px] text-teal-300/70 truncate mt-0.5">Roberto Morales</span>
+          </div>
 
-          <button
+          <div
             onClick={() => {
-              setPin('777777');
-              verifyPin('777777');
+              setSelectedStaff({ name: 'Lucía Ramos', role: 'Admin Sede', pin: '777777' });
+              setPin('');
             }}
-            className="py-2 px-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-bold border border-amber-500/30 active:scale-95 transition-all text-center cursor-pointer flex items-center justify-center gap-1"
+            className="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-200 text-xs border border-amber-500/25 transition-all cursor-pointer flex flex-col"
+            title="Seleccionar perfil (debes teclear 777777)"
           >
-            <span>📍 Admin Sede (777777)</span>
-          </button>
+            <div className="flex items-center justify-between">
+              <span className="font-bold">📍 Admin Sede</span>
+              <span className="font-mono font-black text-white bg-amber-500/30 px-1.5 py-0.2 rounded text-[10px]">777777</span>
+            </div>
+            <span className="text-[10px] text-amber-300/70 truncate mt-0.5">Lucía Ramos</span>
+          </div>
 
-          <button
+          <div
             onClick={() => {
-              setPin('123456');
-              verifyPin('123456');
+              setSelectedStaff({ name: 'Carlos Mendoza', role: 'Mozo Salón', pin: '123456' });
+              setPin('');
             }}
-            className="py-2 px-2.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 text-xs font-bold border border-sky-500/30 active:scale-95 transition-all text-center cursor-pointer flex items-center justify-center gap-1"
+            className="p-2 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-200 text-xs border border-sky-500/25 transition-all cursor-pointer flex flex-col"
+            title="Seleccionar perfil (debes teclear 123456)"
           >
-            <span>🍽️ Mozo Salón (123456)</span>
-          </button>
+            <div className="flex items-center justify-between">
+              <span className="font-bold">🍽️ Mozo Salón</span>
+              <span className="font-mono font-black text-white bg-sky-500/30 px-1.5 py-0.2 rounded text-[10px]">123456</span>
+            </div>
+            <span className="text-[10px] text-sky-300/70 truncate mt-0.5">Carlos Mendoza</span>
+          </div>
 
-          <button
+          <div
             onClick={() => {
-              setPin('555555');
-              verifyPin('555555');
+              setSelectedStaff({ name: 'Chef Mario Quispe', role: 'Chef KDS', pin: '555555' });
+              setPin('');
             }}
-            className="col-span-2 py-2 px-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-200 text-xs font-bold border border-red-500/30 active:scale-95 transition-all text-center cursor-pointer flex items-center justify-center gap-1"
+            className="col-span-2 p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-200 text-xs border border-red-500/25 transition-all cursor-pointer flex flex-col"
+            title="Seleccionar perfil (debes teclear 555555)"
           >
-            <span>👨‍🍳 Chef / Cocina KDS (555555)</span>
-          </button>
+            <div className="flex items-center justify-between">
+              <span className="font-bold">👨‍🍳 Chef / Cocina KDS</span>
+              <span className="font-mono font-black text-white bg-red-500/30 px-1.5 py-0.2 rounded text-[10px]">555555</span>
+            </div>
+            <span className="text-[10px] text-red-300/70 truncate mt-0.5">Chef Mario Quispe (Cocina)</span>
+          </div>
         </div>
       </div>
     </div>

@@ -12,6 +12,7 @@ export interface BottomNavProps {
   onOpenDrinksTray?: () => void;
   onSelectCartaTab?: (tab: 'carta' | 'sedes' | 'equipo') => void;
   onOpenRoleSwitcher?: () => void;
+  onLogout?: () => void;
 }
 
 interface NavItemConfig {
@@ -33,7 +34,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   pendingDrinksCount = 0,
   onOpenDrinksTray,
   onSelectCartaTab,
-  onOpenRoleSwitcher
+  onOpenRoleSwitcher,
+  onLogout
 }) => {
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
 
@@ -56,9 +58,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           },
           {
             id: 'pin-lock',
-            label: 'Bloquear PIN',
+            label: 'Cerrar Sesión',
             icon: 'lock',
-            action: () => onNavigate('pin-lock')
+            action: () => (onLogout ? onLogout() : onNavigate('pin-lock'))
           }
         ];
 
@@ -532,13 +534,14 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
                 <button
                   onClick={() => {
-                    onNavigate('pin-lock');
                     setIsMoreMenuOpen(false);
+                    if (onLogout) onLogout();
+                    else onNavigate('pin-lock');
                   }}
-                  className="h-10 px-3 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  className="h-10 px-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-red-200"
                 >
                   <span className="material-symbols-outlined text-[16px]">lock</span>
-                  <span>Bloquear PIN</span>
+                  <span>Cerrar Sesión (PIN)</span>
                 </button>
               </div>
             </div>
