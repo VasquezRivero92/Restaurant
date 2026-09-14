@@ -123,6 +123,11 @@ export default function App() {
     role: 'mesero'
   });
   
+  // Toggle device simulation frame (Mobile mockup vs Full fluid)
+  const [isMobileFrame, setIsMobileFrame] = useState(false);
+
+  const [isCloudConnected, setIsCloudConnected] = useState(true);
+  
   // Helper to extract restaurant slug from path, hash, or query param
   const getSlugFromUrl = (): string | null => {
     // 1. Check query param: ?r=la-barra
