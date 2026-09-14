@@ -14,6 +14,7 @@ interface ScreenSaaSConsoleProps {
   onSwitchRole?: (role: AppRole) => void;
   onAddMasterCarta?: (newCarta: MasterCarta) => void;
   onAssignCartaToChain?: (chainId: string, cartaId: string) => void;
+  onUpdateAdmin?: (admin: AdminUser) => void;
 }
 
 export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
@@ -28,12 +29,15 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
   currentRole = 'admin_global',
   onSwitchRole,
   onAddMasterCarta,
-  onAssignCartaToChain
+  onAssignCartaToChain,
+  onUpdateAdmin
 }) => {
   // Modals state
   const [showModalNewChain, setShowModalNewChain] = useState(false);
   const [showModalNewLocation, setShowModalNewLocation] = useState(false);
   const [selectedChainForLocation, setSelectedChainForLocation] = useState<string>(chains[0]?.id || '');
+  const [editingAdminForPin, setEditingAdminForPin] = useState<AdminUser | null>(null);
+  const [newAdminPin, setNewAdminPin] = useState<string>('');
   
   // Search & filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -1260,6 +1264,32 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                     <span className="truncate">{admin.branchName}</span>
                   </div>
                 )}
+
+                {/* PIN de Ingreso (6 Dígitos) */}
+                <div className="pt-1.5 mt-1 border-t border-outline-variant/15 flex items-center justify-between gap-1 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[14px] text-teal-700">key</span>
+                    <span className="text-[10px] font-bold text-on-surface">PIN (6 dígitos):</span>
+                    <span className="px-1.5 py-0.5 rounded bg-slate-900 text-teal-300 font-mono font-bold text-[10px] tracking-wider">
+                      {admin.pin || (admin.roleKey === 'admin_global' ? '999999' : admin.roleKey === 'admin_general' ? '888888' : '777777')}
+                    </span>
+                  </div>
+
+                  {(currentRole === 'admin_global' || currentRole === 'admin_general') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingAdminForPin(admin);
+                        setNewAdminPin(admin.pin || (admin.roleKey === 'admin_global' ? '999999' : admin.roleKey === 'admin_general' ? '888888' : '777777'));
+                      }}
+                      className="text-[10px] text-teal-800 font-extrabold hover:underline cursor-pointer flex items-center gap-0.5"
+                      title="Asignar o cambiar PIN de 6 dígitos"
+                    >
+                      <span className="material-symbols-outlined text-[12px]">edit</span>
+                      <span>Cambiar PIN</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -2125,6 +2155,94 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                 Cerrar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ASIGNAR PIN DE 6 DÍGITOS A ADMINISTRADOR */}
+      {editingAdminForPin && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-outline-variant/40 animate-in zoom-in-95">
+            <div className="px-5 py-4 bg-primary text-on-primary flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-teal-300 text-[22px]">vpn_key</span>
+                <div>
+                  <h3 className="font-extrabold text-sm text-white">Asignar PIN de 6 Dígitos</h3>
+                  <p className="text-[11px] text-teal-200">{editingAdminForPin.name} ({editingAdminForPin.role})</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingAdminForPin(null)}
+                className="w-7 h-7 rounded-full hover:bg-white/10 flex items-center justify-center text-white cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (newAdminPin.length !== 6 || !/^\d{6}$/.test(newAdminPin)) {
+                  setToastMessage('El PIN debe tener exactamente 6 dígitos numéricos');
+                  setTimeout(() => setToastMessage(null), 3000);
+                  return;
+                }
+                if (onUpdateAdmin) {
+                  onUpdateAdmin({
+                    ...editingAdminForPin,
+                    pin: newAdminPin
+                  });
+                  setToastMessage(`¡PIN de 6 dígitos asignado para ${editingAdminForPin.name}!`);
+                  setTimeout(() => setToastMessage(null), 3000);
+                }
+                setEditingAdminForPin(null);
+              }}
+              className="p-5 flex flex-col gap-4"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-xs text-on-surface">Nuevo PIN de Terminal *</label>
+                  <button
+                    type="button"
+                    onClick={() => setNewAdminPin(Math.floor(100000 + Math.random() * 900000).toString())}
+                    className="text-[10px] text-teal-700 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">autorenew</span>
+                    <span>Generar PIN</span>
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={newAdminPin}
+                  onChange={(e) => setNewAdminPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="999999"
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-base font-mono font-extrabold tracking-widest text-primary border border-outline-variant/30 focus:outline-none text-center"
+                  required
+                  autoFocus
+                />
+                <p className="text-[11px] text-on-surface-variant mt-1.5 leading-relaxed">
+                  Como <strong>Administrador General / Global</strong>, este PIN de 6 dígitos permitirá a este usuario autenticarse en terminales de acceso.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant/20">
+                <button
+                  type="button"
+                  onClick={() => setEditingAdminForPin(null)}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[16px]">save</span>
+                  <span>Guardar PIN</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

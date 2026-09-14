@@ -1205,6 +1205,13 @@ export default function App() {
     );
   };
 
+  // Update Admin user (e.g. PIN update)
+  const handleUpdateAdmin = (updatedAdmin: AdminUser) => {
+    setAdmins((prev) =>
+      prev.map((adm) => (adm.id === updatedAdmin.id ? updatedAdmin : adm))
+    );
+  };
+
   // Reset demo data
   const handleResetData = () => {
     resetAllDataInRTDB().catch((e) => console.error('Error resetting RTDB:', e));
@@ -1298,7 +1305,12 @@ export default function App() {
     <div className="min-h-screen bg-surface text-on-surface flex flex-col font-sans antialiased selection:bg-secondary/20 selection:text-secondary">
       {/* Screen 7: PIN Lockscreen renders full viewport if active */}
       {currentScreen === 'pin-lock' ? (
-        <ScreenPinLock onUnlock={handleUnlock} onNavigate={setCurrentScreen} />
+        <ScreenPinLock
+          onUnlock={handleUnlock}
+          onNavigate={setCurrentScreen}
+          staffMembers={staffMembers}
+          admins={admins}
+        />
       ) : (
         <div className="flex-1 flex flex-col w-full relative">
           {/* Main Content Layout Container */}
@@ -1429,6 +1441,7 @@ export default function App() {
                   onSwitchRole={handleSwitchRole}
                   onAddMasterCarta={handleAddMasterCarta}
                   onAssignCartaToChain={handleAssignCartaToChain}
+                  onUpdateAdmin={handleUpdateAdmin}
                 />
               )}
             </main>

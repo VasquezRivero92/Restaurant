@@ -1,25 +1,32 @@
 import React, { useState } from 'react';
-import { ScreenType, AppRole } from '../types';
+import { ScreenType, AppRole, StaffMember, AdminUser } from '../types';
 
 interface ScreenPinLockProps {
   onUnlock: (role: AppRole, name: string) => void;
   onNavigate: (screen: ScreenType) => void;
+  staffMembers?: StaffMember[];
+  admins?: AdminUser[];
 }
 
-export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({ onUnlock, onNavigate }) => {
+export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
+  onUnlock,
+  onNavigate,
+  staffMembers = [],
+  admins = []
+}) => {
   const [pin, setPin] = useState<string>('');
   const [errorShake, setErrorShake] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<{ name: string; role: string; pin: string }>({
     name: 'Ing. Alejandro Vega',
     role: 'Admin Global',
-    pin: '9999'
+    pin: '999999'
   });
 
   const handleKeyPress = (num: string) => {
-    if (pin.length < 4) {
+    if (pin.length < 6) {
       const newPin = pin + num;
       setPin(newPin);
-      if (newPin.length === 4) {
+      if (newPin.length === 6) {
         verifyPin(newPin);
       }
     }
@@ -30,19 +37,44 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({ onUnlock, onNaviga
   };
 
   const verifyPin = (enteredPin: string) => {
-    if (enteredPin === '1234') {
+    // 1. Buscar en lista dinámica de administradores
+    const foundAdmin = admins.find((a) => a.active !== false && a.pin === enteredPin);
+    if (foundAdmin) {
+      onUnlock(foundAdmin.roleKey, foundAdmin.name);
+      if (foundAdmin.roleKey === 'admin_global') {
+        onNavigate('saas-console');
+      } else {
+        onNavigate('carta-sede');
+      }
+      return;
+    }
+
+    // 2. Buscar en lista dinámica de colaboradores / mozos / cocina
+    const foundStaff = staffMembers.find((s) => s.active && s.pin === enteredPin);
+    if (foundStaff) {
+      const isCocina =
+        foundStaff.role.toLowerCase().includes('cocina') ||
+        foundStaff.role.toLowerCase().includes('chef');
+      const role: AppRole = isCocina ? 'cocina' : 'mesero';
+      onUnlock(role, foundStaff.name);
+      onNavigate(isCocina ? 'cocina-kds' : 'mesas');
+      return;
+    }
+
+    // 3. Códigos PIN por defecto de 6 dígitos (presets de fábrica)
+    if (enteredPin === '123456') {
       onUnlock('mesero', 'Carlos Mendoza');
       onNavigate('mesas');
-    } else if (enteredPin === '5555') {
+    } else if (enteredPin === '555555') {
       onUnlock('cocina', 'Chef Mario Quispe');
       onNavigate('cocina-kds');
-    } else if (enteredPin === '9999' || enteredPin === '0000') {
+    } else if (enteredPin === '999999' || enteredPin === '000000') {
       onUnlock('admin_global', 'Ing. Alejandro Vega');
       onNavigate('saas-console');
-    } else if (enteredPin === '8888') {
+    } else if (enteredPin === '888888') {
       onUnlock('admin_general', 'Roberto Morales');
       onNavigate('carta-sede');
-    } else if (enteredPin === '7777') {
+    } else if (enteredPin === '777777') {
       onUnlock('admin_sede', 'Lucía Ramos');
       onNavigate('carta-sede');
     } else {
@@ -85,11 +117,14 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({ onUnlock, onNaviga
         </div>
       </div>
 
-      {/* PIN Dots Display */}
+      {/* PIN Dots Display (6 Dígitos) */}
       <div className={`flex flex-col items-center gap-3 my-4 z-10 ${errorShake ? 'animate-shake' : ''}`}>
-        <span className="text-xs text-slate-400 font-medium">Ingresa tu código de 4 dígitos</span>
-        <div className="flex items-center gap-4">
-          {[0, 1, 2, 3].map((index) => {
+        <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
+          <span className="material-symbols-outlined text-[16px] text-[#00A896]">lock</span>
+          <span>Ingresa tu código PIN de 6 dígitos</span>
+        </div>
+        <div className="flex items-center gap-3 sm:gap-4">
+          {[0, 1, 2, 3, 4, 5].map((index) => {
             const isFilled = pin.length > index;
             return (
               <div
@@ -104,8 +139,8 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({ onUnlock, onNaviga
           })}
         </div>
         {errorShake && (
-          <span className="text-xs font-bold text-red-400 animate-fade-in">
-            PIN Incorrecto. Intenta con 1234 (Mozo) o 9999 (Admin)
+          <span className="text-xs font-bold text-red-400 animate-fade-in text-center max-w-xs">
+            PIN Incorrecto (6 dígitos). Consulta con tu Administrador General o Global.
           </span>
         )}
       </div>
@@ -150,58 +185,59 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({ onUnlock, onNaviga
 
       {/* Quick Access Test Shortcuts */}
       <div className="mt-4 flex flex-col items-center gap-2 z-10 w-full max-w-sm">
-        <div className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
-          Acceso rápido para demostración de jerarquía:
+        <div className="text-[11px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+          <span className="material-symbols-outlined text-[14px] text-teal-400">vpn_key</span>
+          <span>PINs de acceso (6 dígitos):</span>
         </div>
         <div className="grid grid-cols-2 gap-2 w-full">
           <button
             onClick={() => {
-              setPin('9999');
-              verifyPin('9999');
+              setPin('999999');
+              verifyPin('999999');
             }}
             className="py-2 px-2.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 text-xs font-bold border border-purple-500/30 active:scale-95 transition-all text-center cursor-pointer flex items-center justify-center gap-1"
           >
-            <span>🌐 Admin Global (9999)</span>
+            <span>🌐 Admin Global (999999)</span>
           </button>
 
           <button
             onClick={() => {
-              setPin('8888');
-              verifyPin('8888');
+              setPin('888888');
+              verifyPin('888888');
             }}
             className="py-2 px-2.5 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 text-teal-200 text-xs font-bold border border-teal-500/30 active:scale-95 transition-all text-center cursor-pointer flex items-center justify-center gap-1"
           >
-            <span>🏢 Admin General (8888)</span>
+            <span>🏢 Admin General (888888)</span>
           </button>
 
           <button
             onClick={() => {
-              setPin('7777');
-              verifyPin('7777');
+              setPin('777777');
+              verifyPin('777777');
             }}
             className="py-2 px-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-bold border border-amber-500/30 active:scale-95 transition-all text-center cursor-pointer flex items-center justify-center gap-1"
           >
-            <span>📍 Admin Sede (7777)</span>
+            <span>📍 Admin Sede (777777)</span>
           </button>
 
           <button
             onClick={() => {
-              setPin('1234');
-              verifyPin('1234');
+              setPin('123456');
+              verifyPin('123456');
             }}
             className="py-2 px-2.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 text-xs font-bold border border-sky-500/30 active:scale-95 transition-all text-center cursor-pointer flex items-center justify-center gap-1"
           >
-            <span>🍽️ Mozo Salón (1234)</span>
+            <span>🍽️ Mozo Salón (123456)</span>
           </button>
 
           <button
             onClick={() => {
-              setPin('5555');
-              verifyPin('5555');
+              setPin('555555');
+              verifyPin('555555');
             }}
             className="col-span-2 py-2 px-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-200 text-xs font-bold border border-red-500/30 active:scale-95 transition-all text-center cursor-pointer flex items-center justify-center gap-1"
           >
-            <span>👨‍🍳 Chef / Cocina KDS (5555)</span>
+            <span>👨‍🍳 Chef / Cocina KDS (555555)</span>
           </button>
         </div>
       </div>

@@ -180,6 +180,7 @@ export interface AdminUser {
   branchId?: string;
   assignedBranchIds?: string[]; // Sedes asignadas a este administrador (puede gestionar más de una)
   initials: string;
+  pin?: string; // PIN de terminal de 6 dígitos
   active?: boolean;
 }
 

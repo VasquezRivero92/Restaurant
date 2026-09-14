@@ -1169,6 +1169,7 @@ export const INITIAL_ADMINS: AdminUser[] = [
     roleKey: 'admin_global',
     brand: 'Plataforma SaaS Central',
     initials: 'AV',
+    pin: '999999',
     active: true
   },
   {
@@ -1181,6 +1182,7 @@ export const INITIAL_ADMINS: AdminUser[] = [
     brand: 'Cevichería La Barra Sabrisimo',
     brandId: 'la-barra',
     initials: 'RM',
+    pin: '888888',
     active: true
   },
   {
@@ -1193,6 +1195,7 @@ export const INITIAL_ADMINS: AdminUser[] = [
     brand: 'Cevichería Puerto Azul Tradición',
     brandId: 'puerto-azul',
     initials: 'GR',
+    pin: '888888',
     active: true
   },
   {
@@ -1208,6 +1211,7 @@ export const INITIAL_ADMINS: AdminUser[] = [
     branchId: 'loc-miraflores',
     assignedBranchIds: ['loc-miraflores', 'loc-chorrillos'], // Administradora Multi-Sede (Miraflores + Chorrillos)
     initials: 'LR',
+    pin: '777777',
     active: true
   },
   {
@@ -1223,6 +1227,7 @@ export const INITIAL_ADMINS: AdminUser[] = [
     branchId: 'loc-chorrillos',
     assignedBranchIds: ['loc-chorrillos'],
     initials: 'MH',
+    pin: '777777',
     active: true
   },
   {
@@ -1238,6 +1243,7 @@ export const INITIAL_ADMINS: AdminUser[] = [
     branchId: 'loc-san-miguel',
     assignedBranchIds: ['loc-san-miguel'],
     initials: 'PS',
+    pin: '777777',
     active: true
   },
   {
@@ -1253,6 +1259,7 @@ export const INITIAL_ADMINS: AdminUser[] = [
     branchId: 'loc-barranco',
     assignedBranchIds: ['loc-barranco'],
     initials: 'RV',
+    pin: '777777',
     active: true
   },
   {
@@ -1268,6 +1275,7 @@ export const INITIAL_ADMINS: AdminUser[] = [
     branchId: 'loc-miraflores',
     assignedBranchIds: ['loc-miraflores', 'loc-chorrillos'],
     initials: 'CM',
+    pin: '123456',
     active: true
   }
 ];
@@ -1277,7 +1285,7 @@ export const INITIAL_STAFF: StaffMember[] = [
     id: 'stf-1',
     name: 'Carlos Mendoza',
     role: 'Mozo Principal',
-    pin: '1234',
+    pin: '123456',
     phone: '+51 965 443 221',
     assignedBranchIds: ['loc-miraflores', 'loc-chorrillos'], // Asignado a más de una sede
     brandId: 'la-barra',
@@ -1290,7 +1298,7 @@ export const INITIAL_STAFF: StaffMember[] = [
     id: 'stf-2',
     name: 'Rosa Paredes',
     role: 'Moza Salón',
-    pin: '2345',
+    pin: '234567',
     phone: '+51 988 112 990',
     assignedBranchIds: ['loc-miraflores'],
     brandId: 'la-barra',
@@ -1303,7 +1311,7 @@ export const INITIAL_STAFF: StaffMember[] = [
     id: 'stf-3',
     name: 'Jorge Benítez',
     role: 'Mozo Terraza',
-    pin: '3456',
+    pin: '345678',
     phone: '+51 977 443 881',
     assignedBranchIds: ['loc-miraflores', 'loc-chorrillos'], // Asignado a ambas sedes por Lucía Ramos
     brandId: 'la-barra',
@@ -1316,7 +1324,7 @@ export const INITIAL_STAFF: StaffMember[] = [
     id: 'stf-4',
     name: 'Walter Quispe',
     role: 'Barman / Bebidas',
-    pin: '4567',
+    pin: '456789',
     phone: '+51 955 889 001',
     assignedBranchIds: ['loc-miraflores'],
     brandId: 'la-barra',
@@ -1329,7 +1337,7 @@ export const INITIAL_STAFF: StaffMember[] = [
     id: 'stf-5',
     name: 'Marilú Chávez',
     role: 'Cajera POS',
-    pin: '5678',
+    pin: '567890',
     phone: '+51 944 332 119',
     assignedBranchIds: ['loc-miraflores', 'loc-chorrillos', 'loc-san-miguel'], // Multi-sede en 3 locales
     brandId: 'la-barra',
@@ -1342,7 +1350,7 @@ export const INITIAL_STAFF: StaffMember[] = [
     id: 'stf-6',
     name: 'Julio Cárdenas',
     role: 'Mozo Salón',
-    pin: '6789',
+    pin: '678901',
     phone: '+51 933 221 004',
     assignedBranchIds: ['loc-chorrillos'],
     brandId: 'la-barra',
@@ -1355,7 +1363,7 @@ export const INITIAL_STAFF: StaffMember[] = [
     id: 'stf-7',
     name: 'Mario Quispe',
     role: 'Jefe de Cocina KDS',
-    pin: '5555',
+    pin: '555555',
     phone: '+51 988 123 456',
     assignedBranchIds: ['loc-miraflores'],
     brandId: 'la-barra',

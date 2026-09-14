@@ -316,18 +316,21 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [staffName, setStaffName] = useState('');
   const [staffRole, setStaffRole] = useState('Mozo Salón');
-  const [staffPin, setStaffPin] = useState('1234');
+  const [staffPin, setStaffPin] = useState('123456');
   const [staffPhone, setStaffPhone] = useState('');
   const [staffTablesZone, setStaffTablesZone] = useState('Mesas 1 a 6');
   const [staffShift, setStaffShift] = useState('Turno Mañana');
   const [staffAssignedBranches, setStaffAssignedBranches] = useState<string[]>([currentBranch?.id || 'loc-miraflores']);
   const [staffActive, setStaffActive] = useState(true);
 
+  // Permission check: Solo el Administrador General o Global puede asignar/cambiar PINs
+  const canManagePin = currentRole === 'admin_global' || currentRole === 'admin_general';
+
   const openAddStaffModal = () => {
     setEditingStaffId(null);
     setStaffName('');
     setStaffRole('Mozo Salón');
-    setStaffPin(Math.floor(1000 + Math.random() * 9000).toString());
+    setStaffPin(Math.floor(100000 + Math.random() * 900000).toString());
     setStaffPhone('');
     setStaffTablesZone('Mesas 1 a 6');
     setStaffShift('Turno Mañana');
@@ -341,7 +344,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
     setEditingStaffId(member.id);
     setStaffName(member.name);
     setStaffRole(member.role);
-    setStaffPin(member.pin);
+    setStaffPin(member.pin || '123456');
     setStaffPhone(member.phone || '');
     setStaffTablesZone(member.tablesZone || 'Mesas 1 a 6');
     setStaffShift(member.shift || 'Turno Mañana');
@@ -382,8 +385,8 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
       triggerToast('Ingresa el nombre del colaborador');
       return;
     }
-    if (staffPin.length !== 4) {
-      triggerToast('El PIN debe tener exactamente 4 dígitos');
+    if (canManagePin && (staffPin.length !== 6 || !/^\d{6}$/.test(staffPin))) {
+      triggerToast('El PIN debe tener exactamente 6 dígitos numéricos');
       return;
     }
     if (staffAssignedBranches.length === 0) {
@@ -1226,11 +1229,25 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                           )}
                         </div>
 
-                        {/* PIN terminal badge */}
-                        <div className="mt-1 flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded bg-slate-900 text-teal-300 font-mono text-[10px] font-bold tracking-wider">
-                            PIN TERMINAL: {member.pin}
+                        {/* PIN terminal badge (6 dígitos) */}
+                        <div className="mt-1 flex items-center gap-2 flex-wrap">
+                          <span className="px-2 py-0.5 rounded bg-slate-900 text-teal-300 font-mono text-[10px] font-bold tracking-wider flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[13px] text-teal-400">key</span>
+                            <span>PIN (6 DÍGITOS): {canManagePin ? member.pin : '••••••'}</span>
                           </span>
+                          {canManagePin ? (
+                            <button
+                              type="button"
+                              onClick={() => openEditStaffModal(member)}
+                              className="text-[10px] text-teal-700 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
+                            >
+                              <span>Cambiar PIN</span>
+                            </button>
+                          ) : (
+                            <span className="text-[9px] text-on-surface-variant italic">
+                              (Definido por Admin General/Global)
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -2072,18 +2089,53 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                 </div>
 
                 <div>
-                  <label className="font-bold text-xs text-on-surface block mb-1">
-                    PIN de Terminal (4 dígitos) *
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={4}
-                    value={staffPin}
-                    onChange={(e) => setStaffPin(e.target.value.replace(/\D/g, ''))}
-                    placeholder="1234"
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs font-mono font-bold tracking-widest text-primary border border-outline-variant/30 focus:outline-none"
-                    required
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-xs text-on-surface flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[15px] text-teal-600">lock</span>
+                      <span>PIN de Terminal (6 dígitos) *</span>
+                    </label>
+                    {canManagePin && (
+                      <button
+                        type="button"
+                        onClick={() => setStaffPin(Math.floor(100000 + Math.random() * 900000).toString())}
+                        className="text-[10px] text-teal-700 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
+                      >
+                        <span className="material-symbols-outlined text-[13px]">autorenew</span>
+                        <span>Generar</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {canManagePin ? (
+                    <div>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={staffPin}
+                        onChange={(e) => setStaffPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="123456"
+                        className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs font-mono font-bold tracking-widest text-primary border border-outline-variant/30 focus:outline-none"
+                        required
+                      />
+                      <p className="text-[10px] text-teal-800 font-semibold mt-1 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[12px] text-teal-600">verified_user</span>
+                        <span>Autorizado: Administrador General y Global pueden definir el PIN</span>
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <input
+                        type="password"
+                        value="••••••"
+                        disabled
+                        className="w-full px-3 py-2 rounded-lg bg-surface-container-highest/60 text-xs font-mono font-bold tracking-widest text-slate-500 border border-outline-variant/20 cursor-not-allowed"
+                      />
+                      <p className="text-[10px] text-amber-700 font-medium mt-1 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[12px]">lock</span>
+                        <span>Solo el Admin General o Global puede asignar o cambiar este PIN de 6 dígitos</span>
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
