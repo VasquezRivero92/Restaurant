@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { MenuItem, ScreenType, CartItem } from '../types';
+import { MenuItem, ScreenType, CartItem, TableItem, AppRole } from '../types';
 
 interface ScreenTomarPedidoProps {
   menuItems: MenuItem[];
@@ -15,6 +14,11 @@ interface ScreenTomarPedidoProps {
   onSendComanda: (notes: string, serveDrinksNow?: boolean) => void;
   onNavigate: (screen: ScreenType) => void;
   selectedTableNumber?: string;
+  selectedTable?: TableItem;
+  onRemoveTableDish?: (dishIndex: number) => void;
+  onRemoveTableDrink?: (drinkId: string) => void;
+  currentRole?: AppRole;
+  currentUserName?: string;
 }
 
 export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
@@ -23,7 +27,12 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
   onUpdateQty,
   onSendComanda,
   onNavigate,
-  selectedTableNumber = '05'
+  selectedTableNumber = '05',
+  selectedTable,
+  onRemoveTableDish,
+  onRemoveTableDrink,
+  currentRole = 'mesero',
+  currentUserName = ''
 }) => {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -128,6 +137,43 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
       setPrefCebollaLavada(false);
     }
   };
+
+  const isWaiter = currentRole === 'mesero';
+
+  const isMyTable = () => {
+    if (!selectedTable?.waiter) return true; // Mesa libre o sin asignar -> se autoasigna
+    const w = selectedTable.waiter.toLowerCase().trim();
+    const u = (currentUserName || '').toLowerCase().trim();
+    if (!w || !u || w === 'sin asignar') return true;
+    const curFirst = u.split(' ')[0];
+    const tableFirst = w.split(' ')[0];
+    return w === u || (curFirst && w.includes(curFirst)) || (tableFirst && u.includes(tableFirst));
+  };
+
+  const isOtherWaiterTable = isWaiter && selectedTable && selectedTable.status !== 'free' && !isMyTable();
+
+  if (isOtherWaiterTable) {
+    return (
+      <div className="flex flex-col items-center justify-center p-6 min-h-[65vh] text-center max-w-md mx-auto">
+        <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-800 flex items-center justify-center mb-4 shadow-sm border border-amber-300">
+          <span className="material-symbols-outlined text-[36px]">lock</span>
+        </div>
+        <h2 className="text-xl font-black text-primary mb-1">
+          Mesa Asignada a {selectedTable?.waiter}
+        </h2>
+        <p className="text-xs text-on-surface-variant mb-6 leading-relaxed">
+          Esta mesa fue tomada por <strong>{selectedTable?.waiter}</strong>. Por control del salón, todo el proceso de pedido y atención debe ser realizado por el mozo asignado. Solo el Administrador de la Sede puede reasignarla o atenderla directamente.
+        </p>
+        <button
+          onClick={() => onNavigate('mesas')}
+          className="w-full py-3.5 px-4 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-bold text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer active:scale-95 transition-all"
+        >
+          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+          <span>Volver a Mis Mesas</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col w-full pb-48 pt-2">

@@ -331,9 +331,20 @@ export default function App() {
 
   // Reassign waiter for a table (Admin authority)
   const handleUpdateTableWaiter = (tableId: string, newWaiterName: string) => {
+    const targetTable = tables.find((t) => t.id === tableId);
     setTables((prev) =>
       prev.map((t) => (t.id === tableId ? { ...t, waiter: newWaiterName } : t))
     );
+    if (targetTable) {
+      const tableLabel = `Mesa ${targetTable.number}`;
+      setKdsTickets((prev) =>
+        prev.map((tk) =>
+          tk.table === tableLabel || tk.table === targetTable.number || tk.table === targetTable.id
+            ? { ...tk, waiter: newWaiterName }
+            : tk
+        )
+      );
+    }
   };
 
   // Cart actions: supports size selection, minimum default price, and individual quantity tracking
@@ -1405,10 +1416,12 @@ export default function App() {
               {currentScreen === 'mesas' && (
                 <ScreenMesas
                   tables={tables}
+                  staffMembers={staffMembers}
                   onNavigate={handleNavigate}
                   onSelectTable={handleSelectTable}
                   onMarkDelivered={handleMarkDelivered}
                   onOpenTable={handleOpenTable}
+                  onUpdateTableWaiter={handleUpdateTableWaiter}
                   onToggleDrinkServed={handleToggleDrinkServed}
                   onServeAllDrinks={handleServeAllDrinks}
                   onOpenDrinksTray={() => setIsDrinksTrayOpen(true)}
@@ -1430,6 +1443,7 @@ export default function App() {
                   selectedTable={tables.find((t) => t.id === selectedTableId)}
                   onRemoveTableDish={handleRemoveTableDish}
                   onRemoveTableDrink={handleRemoveTableDrink}
+                  currentRole={currentRole}
                   currentUserName={staffUser.name}
                 />
               )}

@@ -169,17 +169,35 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
     showToast(`Alerta de retiro reenviada al mozo ${waiterName} (Ticket #${ticketId})`);
   };
 
+  const isMyTicket = (t: KDSTicket) => {
+    if (!t.waiter) return false;
+    const waiterLower = t.waiter.toLowerCase().trim();
+    const currentLower = (currentUserName || '').toLowerCase().trim();
+    if (!waiterLower || !currentLower) return false;
+    const currentFirst = currentLower.split(' ')[0];
+    const ticketFirst = waiterLower.split(' ')[0];
+    return (
+      waiterLower === currentLower ||
+      (currentFirst && waiterLower.includes(currentFirst)) ||
+      (ticketFirst && currentLower.includes(ticketFirst))
+    );
+  };
+
   // A ticket is active if it hasn't been served and NOT all items are ready & served
   // THE CARD DISAPPEARS WHEN ALL ITEMS IN THE ORDER ARE PREPARED AND SERVED!
-  const activeTickets = tickets.filter((t) => {
+  const allActiveTickets = tickets.filter((t) => {
     if (t.status === 'served') return false;
     const allDishesCompleted = t.items.length > 0 && t.items.every((i) => i.isReady && i.isServed);
     return !allDishesCompleted;
   });
 
-  const completedTickets = tickets.filter((t) => {
+  const allCompletedTickets = tickets.filter((t) => {
     return t.status === 'served' || (t.items.length > 0 && t.items.every((i) => i.isReady && i.isServed));
   });
+
+  // El mesero SÓLO ve las comandas de sus mesas asignadas en todo el proceso
+  const activeTickets = isWaiter ? allActiveTickets.filter(isMyTicket) : allActiveTickets;
+  const completedTickets = isWaiter ? allCompletedTickets.filter(isMyTicket) : allCompletedTickets;
 
   const currentList = activeTab === 'active' ? activeTickets : completedTickets;
 
@@ -518,12 +536,20 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
             </span>
           </div>
           <h2 className="text-lg font-extrabold text-primary">
-            {activeTab === 'active'
+            {isWaiter
+              ? activeTab === 'active'
+                ? `Sin comandas pendientes para tus mesas (${currentUserName || 'Mozo'})`
+                : 'Sin comandas en tu historial'
+              : activeTab === 'active'
               ? '¡Cocina al día! Sin platos pendientes'
               : 'Sin comandas en el historial'}
           </h2>
           <p className="text-xs text-on-surface-variant max-w-md mt-1">
-            {activeTab === 'active'
+            {isWaiter
+              ? activeTab === 'active'
+                ? 'No tienes platos en preparación en este momento. Como mozo solo visualizas las comandas de tus mesas asignadas. Aparecerán aquí cuando tomes pedidos.'
+                : 'Aquí podrás revisar las comandas de tus mesas que ya fueron completamente servidas.'
+              : activeTab === 'active'
               ? 'Todas las comandas han sido preparadas por cocina y servidas en mesa por los mozos. Las tarjetas desaparecen automáticamente al completarse.'
               : 'Aquí podrás revisar las comandas que ya fueron completamente preparadas y entregadas a los comensales.'}
           </p>

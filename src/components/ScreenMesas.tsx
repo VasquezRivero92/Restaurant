@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { TableItem, ScreenType, AppRole } from '../types';
+import { TableItem, ScreenType, AppRole, StaffMember } from '../types';
 
 interface ScreenMesasProps {
   tables: TableItem[];
+  staffMembers?: StaffMember[];
   onNavigate: (screen: ScreenType) => void;
   onSelectTable: (tableId: string) => void;
   onMarkDelivered: (tableId: string) => void;
   onOpenTable: (tableId: string) => void;
+  onUpdateTableWaiter?: (tableId: string, newWaiterName: string) => void;
   onToggleDrinkServed?: (tableId: string, drinkId: string) => void;
   onServeAllDrinks?: (tableId: string) => void;
   onOpenDrinksTray?: () => void;
@@ -16,10 +18,12 @@ interface ScreenMesasProps {
 
 export const ScreenMesas: React.FC<ScreenMesasProps> = ({
   tables,
+  staffMembers = [],
   onNavigate,
   onSelectTable,
   onMarkDelivered,
   onOpenTable,
+  onUpdateTableWaiter,
   onToggleDrinkServed,
   onServeAllDrinks,
   onOpenDrinksTray,
@@ -27,10 +31,25 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
   currentUserName = ''
 }) => {
   const isWaiter = currentRole === 'mesero';
+  const isAdmin = currentRole === 'admin_sede' || currentRole === 'admin_general' || currentRole === 'admin_global';
+
   const [activeFilter, setActiveFilter] = useState<'all' | 'ready' | 'drinks' | 'occupied' | 'free'>('all');
   const [scopeMode, setScopeMode] = useState<'my_tables' | 'all'>(isWaiter ? 'my_tables' : 'all');
   const [showTopAlert, setShowTopAlert] = useState(true);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+
+  // Modal para reasignación de mesa exclusiva por Administrador
+  const [reassignModalTable, setReassignModalTable] = useState<TableItem | null>(null);
+  const [selectedNewWaiter, setSelectedNewWaiter] = useState<string>('');
+  const [customWaiterName, setCustomWaiterName] = useState<string>('');
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3500);
+  };
+
+  const availableWaiters = staffMembers.filter((s) => s.active);
 
   const isMyTable = (table: TableItem) => {
     if (!table.waiter) return false;
@@ -393,11 +412,27 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                 <div className="flex items-center justify-between text-xs py-1.5 px-3 rounded-xl bg-surface-container-low border border-outline-variant/20">
                   <span className="text-[11px] text-on-surface-variant flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-[15px] text-slate-400">person_off</span>
-                    <span>Mozo: <strong className="text-slate-500 font-medium italic">En blanco (Sin asignar)</strong></span>
+                    <span>Mozo: <strong className="text-slate-500 font-medium italic">{table.waiter || 'En blanco (Sin asignar)'}</strong></span>
                   </span>
-                  <span className="text-[10px] text-teal-800 font-bold bg-teal-100/70 px-2 py-0.5 rounded-full">
-                    Autoasignable
-                  </span>
+                  {isAdmin && onUpdateTableWaiter ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setReassignModalTable(table);
+                        setSelectedNewWaiter(table.waiter || '');
+                        setCustomWaiterName('');
+                      }}
+                      className="px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-[10px] flex items-center gap-1 border border-amber-300 transition-all cursor-pointer active:scale-95"
+                      title="Asignar mozo previamente (Solo Administrador)"
+                    >
+                      <span className="material-symbols-outlined text-[12px] text-amber-700">person_add</span>
+                      <span>Asignar</span>
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-teal-800 font-bold bg-teal-100/70 px-2 py-0.5 rounded-full">
+                      Autoasignable
+                    </span>
+                  )}
                 </div>
 
                 <button
@@ -410,6 +445,63 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
               </div>
             );
           }
+
+          // Render waiter info with admin fast-reassign buttons
+          const renderWaiterHeaderInfo = () => (
+            <div className="flex items-center gap-1.5 flex-wrap mt-1 w-full">
+              {isCurrentTableMine && (
+                <span className="px-2 py-0.5 rounded-full bg-teal-100 text-teal-900 font-extrabold text-[10px] flex items-center gap-0.5 border border-teal-300">
+                  <span className="material-symbols-outlined text-[12px]">person_check</span>
+                  <span>Mi Mesa</span>
+                </span>
+              )}
+              <span className="text-xs text-on-surface-variant truncate">
+                Mozo:{' '}
+                <strong
+                  className={
+                    isCurrentTableMine
+                      ? 'text-teal-700 font-bold'
+                      : isOtherWaiterTable
+                      ? 'text-amber-700 font-bold'
+                      : 'text-primary font-bold'
+                  }
+                >
+                  {table.waiter || 'En blanco (Sin asignar)'}
+                </strong>
+              </span>
+
+              {/* Acciones exclusivas de Administrador: Atender yo mismo o Reasignar a otro personal */}
+              {isAdmin && onUpdateTableWaiter && (
+                <div className="flex items-center gap-1 ml-auto flex-wrap">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUpdateTableWaiter(table.id, currentUserName || 'Administrador');
+                      showToast(`✓ Mesa ${table.number} ahora está a tu cargo (${currentUserName || 'Administrador'})`);
+                    }}
+                    className="px-2 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] flex items-center gap-0.5 border border-indigo-200 transition-all cursor-pointer active:scale-95"
+                    title="Atender esta mesa directamente como Administrador"
+                  >
+                    <span className="material-symbols-outlined text-[12px]">person_pin</span>
+                    <span>Atender yo</span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setReassignModalTable(table);
+                      setSelectedNewWaiter(table.waiter || '');
+                      setCustomWaiterName('');
+                    }}
+                    className="px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-[10px] flex items-center gap-0.5 border border-amber-300 transition-all cursor-pointer active:scale-95"
+                    title="Reasignar esta mesa a otro mozo (Solo Administrador)"
+                  >
+                    <span className="material-symbols-outlined text-[12px] text-amber-700">swap_horiz</span>
+                    <span>Reasignar</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          );
 
           // Drinks UI Box per table
           const renderDrinksSection = () => {
@@ -521,17 +613,8 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                       </div>
                       <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                         <span className="text-xs text-on-surface-variant">Zona: {table.zone}</span>
-                        <span>•</span>
-                        {isCurrentTableMine && (
-                          <span className="px-2 py-0.2 rounded-full bg-teal-100 text-teal-900 font-extrabold text-[10px] flex items-center gap-0.5 border border-teal-300">
-                            <span className="material-symbols-outlined text-[12px]">person_check</span>
-                            <span>Mi Mesa</span>
-                          </span>
-                        )}
-                        <span className="text-xs text-on-surface-variant truncate">
-                          Mozo: <strong className={isCurrentTableMine ? 'text-teal-700 font-bold' : isOtherWaiterTable ? 'text-amber-700 font-bold' : 'text-primary'}>{table.waiter || 'Sin asignar'}</strong>
-                        </span>
                       </div>
+                      {renderWaiterHeaderInfo()}
                     </div>
                   </div>
                   <span className="px-2.5 py-1 rounded-full bg-surface-container text-on-surface text-xs font-bold shrink-0">
@@ -605,17 +688,8 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                       </div>
                       <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                         <span className="text-xs text-on-surface-variant">{table.diners} Personas • {table.timeInSalon}</span>
-                        <span>•</span>
-                        {isCurrentTableMine && (
-                          <span className="px-2 py-0.2 rounded-full bg-teal-100 text-teal-900 font-extrabold text-[10px] flex items-center gap-0.5 border border-teal-300">
-                            <span className="material-symbols-outlined text-[12px]">person_check</span>
-                            <span>Mi Mesa</span>
-                          </span>
-                        )}
-                        <span className="text-xs text-on-surface-variant truncate">
-                          Mozo: <strong className={isCurrentTableMine ? 'text-teal-700 font-bold' : isOtherWaiterTable ? 'text-amber-700 font-bold' : 'text-primary'}>{table.waiter || 'Sin asignar'}</strong>
-                        </span>
                       </div>
+                      {renderWaiterHeaderInfo()}
                     </div>
                   </div>
 
@@ -693,17 +767,8 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                       </div>
                       <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                         <span className="text-xs text-on-surface-variant">{table.diners} comensales</span>
-                        <span>•</span>
-                        {isCurrentTableMine && (
-                          <span className="px-2 py-0.2 rounded-full bg-teal-100 text-teal-900 font-extrabold text-[10px] flex items-center gap-0.5 border border-teal-300">
-                            <span className="material-symbols-outlined text-[12px]">person_check</span>
-                            <span>Mi Mesa</span>
-                          </span>
-                        )}
-                        <span className="text-xs text-on-surface-variant truncate">
-                          Mozo: <strong className={isCurrentTableMine ? 'text-teal-700 font-bold' : isOtherWaiterTable ? 'text-amber-700 font-bold' : 'text-primary'}>{table.waiter || 'Sin asignar'}</strong>
-                        </span>
                       </div>
+                      {renderWaiterHeaderInfo()}
                     </div>
                   </div>
 
@@ -770,17 +835,8 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                     </div>
                     <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                       <span className="text-xs text-on-surface-variant">{table.diners} comensales • {table.timeInSalon}</span>
-                      <span>•</span>
-                      {isCurrentTableMine && (
-                        <span className="px-2 py-0.2 rounded-full bg-teal-100 text-teal-900 font-extrabold text-[10px] flex items-center gap-0.5 border border-teal-300">
-                          <span className="material-symbols-outlined text-[12px]">person_check</span>
-                          <span>Mi Mesa</span>
-                        </span>
-                      )}
-                      <span className="text-xs text-on-surface-variant truncate">
-                        Mozo: <strong className={isCurrentTableMine ? 'text-teal-700 font-bold' : isOtherWaiterTable ? 'text-amber-700 font-bold' : 'text-primary'}>{table.waiter || 'Sin asignar'}</strong>
-                      </span>
                     </div>
+                    {renderWaiterHeaderInfo()}
                   </div>
                 </div>
 
@@ -901,6 +957,187 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
           )}
         </button>
       </div>
+
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 border border-slate-700 animate-fadeIn">
+          <span className="material-symbols-outlined text-[18px] text-amber-400">info</span>
+          <span>{toastMsg}</span>
+        </div>
+      )}
+
+      {/* Modal Reasignar Mozo (Exclusivo Administrador) */}
+      {reassignModalTable && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-surface rounded-3xl p-5 sm:p-6 w-full max-w-md shadow-2xl border border-outline-variant/30 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-outline-variant/20 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                  <span className="material-symbols-outlined text-[22px]">swap_horiz</span>
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-primary">
+                    Reasignar Mesa {reassignModalTable.number}
+                  </h3>
+                  <p className="text-xs text-on-surface-variant font-medium">
+                    Autoridad de Administrador de Sede
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setReassignModalTable(null)}
+                className="w-8 h-8 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface-variant flex items-center justify-center transition-all cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {/* Info context */}
+            <div className="bg-surface-container-low p-3 rounded-2xl border border-outline-variant/20 flex flex-col gap-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-on-surface-variant">Mozo actualmente asignado:</span>
+                <span className="font-black text-primary">
+                  {reassignModalTable.waiter || 'En blanco (Sin asignar)'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-on-surface-variant">Estado actual de la mesa:</span>
+                <span className="font-bold text-teal-700 uppercase text-[11px]">
+                  {reassignModalTable.statusLabel || reassignModalTable.status}
+                </span>
+              </div>
+            </div>
+
+            {/* Admin Fast Actions */}
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                Acciones Rápidas de Administración
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    if (onUpdateTableWaiter) {
+                      onUpdateTableWaiter(reassignModalTable.id, currentUserName || 'Administrador');
+                      showToast(`✓ Mesa ${reassignModalTable.number} ahora está a cargo de ${currentUserName || 'Administrador'}`);
+                      setReassignModalTable(null);
+                    }
+                  }}
+                  className="p-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 font-bold text-xs flex flex-col items-center justify-center gap-1 transition-all active:scale-95 text-center cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-indigo-700 text-[20px]">person_pin</span>
+                  <span>Atender yo mismo</span>
+                  <span className="text-[10px] text-indigo-600 font-normal">({currentUserName || 'Administrador'})</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (onUpdateTableWaiter) {
+                      onUpdateTableWaiter(reassignModalTable.id, '');
+                      showToast(`✓ Mesa ${reassignModalTable.number} quedó en blanco (Sin asignar)`);
+                      setReassignModalTable(null);
+                    }
+                  }}
+                  className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-xs flex flex-col items-center justify-center gap-1 transition-all active:scale-95 text-center cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-slate-600 text-[20px]">person_off</span>
+                  <span>Dejar en blanco</span>
+                  <span className="text-[10px] text-slate-500 font-normal">(Cualquier mozo podrá autoasignarse)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Waiter Selection List */}
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                Seleccionar Mozo del Personal
+              </span>
+              <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
+                {availableWaiters.map((staff) => {
+                  const isSelected = selectedNewWaiter === staff.name;
+                  return (
+                    <button
+                      key={staff.id}
+                      onClick={() => setSelectedNewWaiter(staff.name)}
+                      className={`flex items-center justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-amber-50 border-amber-500 shadow-xs ring-1 ring-amber-400'
+                          : 'bg-surface hover:bg-surface-container-low border-outline-variant/20'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`w-8 h-8 rounded-full ${staff.avatarColor || 'bg-amber-600'} text-white font-black text-xs flex items-center justify-center shrink-0`}>
+                          {staff.name.charAt(0)}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-bold text-xs text-primary truncate">
+                            {staff.name}
+                          </span>
+                          <span className="text-[10px] text-on-surface-variant">
+                            {staff.role} • {staff.shift}
+                          </span>
+                        </div>
+                      </div>
+
+                      {isSelected && (
+                        <span className="material-symbols-outlined text-amber-600 text-[18px] shrink-0">
+                          check_circle
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom Name input if not in list */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-bold text-on-surface-variant">
+                O ingresar nombre manualmente:
+              </label>
+              <input
+                type="text"
+                placeholder="Ej: Pedro Ramos"
+                value={customWaiterName}
+                onChange={(e) => {
+                  setCustomWaiterName(e.target.value);
+                  if (e.target.value.trim()) {
+                    setSelectedNewWaiter(e.target.value.trim());
+                  }
+                }}
+                className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container border border-outline-variant/30 text-on-surface focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex items-center gap-2 pt-2 border-t border-outline-variant/20">
+              <button
+                onClick={() => setReassignModalTable(null)}
+                className="flex-1 py-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-bold text-xs transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const finalWaiter = (customWaiterName.trim() || selectedNewWaiter.trim());
+                  if (!finalWaiter) {
+                    showToast('⚠️ Por favor selecciona o escribe un mozo');
+                    return;
+                  }
+                  if (onUpdateTableWaiter) {
+                    onUpdateTableWaiter(reassignModalTable.id, finalWaiter);
+                    showToast(`✓ Mesa ${reassignModalTable.number} reasignada a ${finalWaiter}`);
+                    setReassignModalTable(null);
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                Confirmar Reasignación
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
