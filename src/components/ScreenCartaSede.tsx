@@ -1116,12 +1116,12 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
       {activeTab === 'equipo' && (
         <div className="flex flex-col gap-3">
           {/* Header & Subtitle */}
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
             <div>
-              <h3 className="font-extrabold text-base text-primary">
+              <h3 className="font-extrabold text-base sm:text-lg text-primary">
                 Personal de Salón, Barra y Caja
               </h3>
-              <p className="text-xs text-on-surface-variant">
+              <p className="text-xs text-on-surface-variant mt-0.5">
                 Como administrador de sede, puedes registrar personal y asignarlo a una o más sedes a tu cargo con su mismo PIN.
               </p>
             </div>
@@ -1129,52 +1129,50 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
             {/* Button: + Agregar Personal */}
             <button
               onClick={openAddStaffModal}
-              className="px-3 py-2 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer shrink-0"
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all cursor-pointer shrink-0 min-h-[44px]"
             >
-              <span className="material-symbols-outlined text-[18px]">person_add</span>
+              <span className="material-symbols-outlined text-[20px]">person_add</span>
               <span>+ Agregar Personal</span>
             </button>
           </div>
 
           {/* Filter & Search for Staff */}
-          <div className="bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/30 flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">
-                  search
-                </span>
-                <input
-                  type="text"
-                  value={staffSearchQuery}
-                  onChange={(e) => setStaffSearchQuery(e.target.value)}
-                  placeholder="Buscar personal por nombre o rol..."
-                  className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
-                />
-              </div>
+          <div className="bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/30 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            <div className="relative flex-1">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">
+                search
+              </span>
+              <input
+                type="text"
+                value={staffSearchQuery}
+                onChange={(e) => setStaffSearchQuery(e.target.value)}
+                placeholder="Buscar personal por nombre o rol..."
+                className="w-full pl-9 pr-3 py-2 rounded-lg bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-1 focus:ring-primary min-h-[40px]"
+              />
+            </div>
 
-              {/* Sede Scope Filter Toggle */}
-              <div className="flex items-center gap-1 bg-surface-container p-0.5 rounded-lg text-xs font-bold">
-                <button
-                  onClick={() => setStaffFilterMode('current_sede')}
-                  className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                    staffFilterMode === 'current_sede'
-                      ? 'bg-surface-container-lowest text-primary shadow-xs'
-                      : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  Esta Sede ({staffInCurrentBranchCount})
-                </button>
-                <button
-                  onClick={() => setStaffFilterMode('all_managed')}
-                  className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                    staffFilterMode === 'all_managed'
-                      ? 'bg-surface-container-lowest text-primary shadow-xs'
-                      : 'text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  Multi-Sede ({staff.length})
-                </button>
-              </div>
+            {/* Sede Scope Filter Toggle */}
+            <div className="flex items-center gap-1 bg-surface-container p-1 rounded-lg text-xs font-bold shrink-0">
+              <button
+                onClick={() => setStaffFilterMode('current_sede')}
+                className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-md transition-all cursor-pointer text-center ${
+                  staffFilterMode === 'current_sede'
+                    ? 'bg-surface-container-lowest text-primary shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                Esta Sede ({staffInCurrentBranchCount})
+              </button>
+              <button
+                onClick={() => setStaffFilterMode('all_managed')}
+                className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-md transition-all cursor-pointer text-center ${
+                  staffFilterMode === 'all_managed'
+                    ? 'bg-surface-container-lowest text-primary shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                Multi-Sede ({staff.length})
+              </button>
             </div>
           </div>
 
@@ -2030,259 +2028,274 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
       {/* ======================================================================= */}
       {/* MODAL: AGREGAR / EDITAR PERSONAL (CON ASIGNACIÓN MULTI-SEDE)            */}
       {/* ======================================================================= */}
+      {/* ======================================================================= */}
+      {/* MODAL: AGREGAR / EDITAR PERSONAL (RESPONSIVO MÓVIL Y DESKTOP)            */}
+      {/* ======================================================================= */}
       {showStaffModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-outline-variant/40 animate-in zoom-in-95 my-8">
-            <div className="px-6 py-4 bg-primary text-on-primary flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-teal-300 text-[24px]">badge</span>
-                <div>
-                  <h3 className="font-extrabold text-base text-white">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+          <div className="bg-surface-container-lowest rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg max-h-[92dvh] sm:max-h-[90vh] flex flex-col overflow-hidden border-t sm:border border-outline-variant/40 animate-in slide-in-from-bottom-6 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
+            {/* Header del Modal */}
+            <div className="px-4 py-3 sm:px-6 sm:py-4 bg-primary text-on-primary flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-teal-300 shrink-0">
+                  <span className="material-symbols-outlined text-[22px]">badge</span>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-sm sm:text-base text-white truncate">
                     {editingStaffId ? 'Editar Personal' : 'Nuevo Colaborador en Sede'}
                   </h3>
-                  <p className="text-xs text-teal-200">
-                    Como administrador de sede, puedes asignar este colaborador a una o más sedes.
+                  <p className="text-[11px] sm:text-xs text-teal-200 truncate">
+                    Asigna este colaborador y sedes con PIN de 6 dígitos
                   </p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowStaffModal(false)}
-                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white cursor-pointer"
+                className="w-9 h-9 rounded-full hover:bg-white/10 flex items-center justify-center text-white cursor-pointer shrink-0 transition-colors"
+                title="Cerrar"
               >
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            <form onSubmit={handleSaveStaff} className="p-6 flex flex-col gap-4">
-              <div>
-                <label className="font-bold text-xs text-on-surface block mb-1">
-                  Nombre Completo *
-                </label>
-                <input
-                  type="text"
-                  value={staffName}
-                  onChange={(e) => setStaffName(e.target.value)}
-                  placeholder="ej. Daniel Quispe Ramos"
-                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none font-bold"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleSaveStaff} className="flex-1 flex flex-col overflow-hidden min-h-0">
+              {/* Cuerpo del Formulario desplazable */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-4 overscroll-contain">
                 <div>
                   <label className="font-bold text-xs text-on-surface block mb-1">
-                    Rol / Cargo *
-                  </label>
-                  <select
-                    value={staffRole}
-                    onChange={(e) => setStaffRole(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none font-bold"
-                  >
-                    <option value="Mozo Salón">Mozo Salón</option>
-                    <option value="Mozo Principal">Mozo Principal</option>
-                    <option value="Mozo Terraza">Mozo Terraza</option>
-                    <option value="Barman / Bebidas">Barman / Bebidas</option>
-                    <option value="Cajero POS">Cajero POS</option>
-                    <option value="Cocinero">Cocinero</option>
-                    <option value="Jefe de Salón">Jefe de Salón</option>
-                  </select>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-xs text-on-surface flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[15px] text-teal-600">lock</span>
-                      <span>PIN de Terminal (6 dígitos) *</span>
-                    </label>
-                    {canManagePin && (
-                      <button
-                        type="button"
-                        onClick={() => setStaffPin(Math.floor(100000 + Math.random() * 900000).toString())}
-                        className="text-[10px] text-teal-700 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
-                      >
-                        <span className="material-symbols-outlined text-[13px]">autorenew</span>
-                        <span>Generar</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {canManagePin ? (
-                    <div>
-                      <input
-                        type="text"
-                        maxLength={6}
-                        value={staffPin}
-                        onChange={(e) => setStaffPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        placeholder="123456"
-                        className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs font-mono font-bold tracking-widest text-primary border border-outline-variant/30 focus:outline-none"
-                        required
-                      />
-                      <p className="text-[10px] text-teal-800 font-semibold mt-1 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[12px] text-teal-600">verified_user</span>
-                        <span>Autorizado: Administrador General y Global pueden definir el PIN</span>
-                      </p>
-                    </div>
-                  ) : (
-                    <div>
-                      <input
-                        type="password"
-                        value="••••••"
-                        disabled
-                        className="w-full px-3 py-2 rounded-lg bg-surface-container-highest/60 text-xs font-mono font-bold tracking-widest text-slate-500 border border-outline-variant/20 cursor-not-allowed"
-                      />
-                      <p className="text-[10px] text-amber-700 font-medium mt-1 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[12px]">lock</span>
-                        <span>Solo el Admin General o Global puede asignar o cambiar este PIN de 6 dígitos</span>
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-xs text-on-surface block mb-1">
-                    Teléfono / WhatsApp
+                    Nombre Completo *
                   </label>
                   <input
-                    type="tel"
-                    value={staffPhone}
-                    onChange={(e) => setStaffPhone(e.target.value)}
-                    placeholder="+51 988 776 543"
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
+                    type="text"
+                    value={staffName}
+                    onChange={(e) => setStaffName(e.target.value)}
+                    placeholder="ej. Daniel Quispe Ramos"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold min-h-[44px]"
+                    required
                   />
                 </div>
 
-                <div>
-                  <label className="font-bold text-xs text-on-surface block mb-1">
-                    Turno Asignado
-                  </label>
-                  <select
-                    value={staffShift}
-                    onChange={(e) => setStaffShift(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
-                  >
-                    <option value="Turno Mañana">Turno Mañana (11:00 - 17:00)</option>
-                    <option value="Turno Tarde">Turno Tarde (16:00 - 23:00)</option>
-                    <option value="Turno Completo">Turno Completo</option>
-                    <option value="Rotativo">Rotativo</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-xs text-on-surface block mb-1">
-                  Zona o Mesas Asignadas
-                </label>
-                <input
-                  type="text"
-                  value={staffTablesZone}
-                  onChange={(e) => setStaffTablesZone(e.target.value)}
-                  placeholder="ej. Mesas 1 a 6 / Terraza"
-                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
-                />
-              </div>
-
-              {/* CRITICAL FEATURE: ASIGNACIÓN MULTI-SEDE */}
-              <div className="bg-teal-500/10 border border-teal-500/30 rounded-xl p-4 flex flex-col gap-3">
-                <div className="flex items-start justify-between gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
-                    <div className="flex items-center gap-1.5 font-extrabold text-xs text-teal-950 uppercase tracking-wider">
-                      <span className="material-symbols-outlined text-[16px] text-teal-700">hub</span>
-                      <span>ASIGNACIÓN DE SEDES (MULTI-SEDE)</span>
-                    </div>
-                    <p className="text-[11px] text-teal-800 mt-0.5">
-                      Un administrador de sede puede asignar a este mismo colaborador a más de una sede. El personal podrá operar con su mismo PIN en los terminales de las sedes marcadas:
-                    </p>
+                    <label className="font-bold text-xs text-on-surface block mb-1">
+                      Rol / Cargo *
+                    </label>
+                    <select
+                      value={staffRole}
+                      onChange={(e) => setStaffRole(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold min-h-[44px]"
+                    >
+                      <option value="Mozo Salón">Mozo Salón</option>
+                      <option value="Mozo Principal">Mozo Principal</option>
+                      <option value="Mozo Terraza">Mozo Terraza</option>
+                      <option value="Barman / Bebidas">Barman / Bebidas</option>
+                      <option value="Cajero POS">Cajero POS</option>
+                      <option value="Cocinero">Cocinero</option>
+                      <option value="Jefe de Salón">Jefe de Salón</option>
+                    </select>
                   </div>
 
-                  <span className="px-2 py-0.5 rounded-full bg-teal-600 text-white font-extrabold text-[10px] shrink-0">
-                    {staffAssignedBranches.length} Sede(s)
-                  </span>
-                </div>
-
-                {/* Quick actions for assigning */}
-                <div className="flex items-center gap-2 text-[11px]">
-                  <button
-                    type="button"
-                    onClick={handleSelectOnlyCurrentBranchForStaff}
-                    className="text-teal-700 font-bold hover:underline cursor-pointer"
-                  >
-                    Solo Sede Actual
-                  </button>
-                  <span>•</span>
-                  <button
-                    type="button"
-                    onClick={handleSelectAllBranchesForStaff}
-                    className="text-teal-700 font-bold hover:underline cursor-pointer"
-                  >
-                    Asignar a Todas las Sedes
-                  </button>
-                </div>
-
-                {/* Branch Checkboxes */}
-                <div className="flex flex-col gap-2 pt-1">
-                  {currentChain?.locations.map((loc) => {
-                    const isChecked = staffAssignedBranches.includes(loc.id);
-                    return (
-                      <label
-                        key={loc.id}
-                        className={`flex items-center justify-between p-2.5 rounded-lg border transition-all cursor-pointer ${
-                          isChecked
-                            ? 'bg-surface-container-lowest border-teal-600 shadow-xs'
-                            : 'bg-white/50 border-outline-variant/30 opacity-75'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => handleToggleStaffBranch(loc.id)}
-                            className="w-4 h-4 text-teal-600 rounded border-outline focus:ring-teal-500 cursor-pointer"
-                          />
-                          <div className="flex flex-col">
-                            <span className="font-extrabold text-xs text-on-surface">
-                              {loc.name}
-                            </span>
-                            <span className="text-[10px] text-on-surface-variant">
-                              📍 {loc.address} ({loc.tables} mesas)
-                            </span>
-                          </div>
-                        </div>
-
-                        {isChecked && (
-                          <span className="text-[10px] font-bold text-teal-700 bg-teal-100 px-2 py-0.5 rounded-full">
-                            Asignado
-                          </span>
-                        )}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-bold text-xs text-on-surface flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[15px] text-teal-600">lock</span>
+                        <span>PIN de Terminal (6 dígitos) *</span>
                       </label>
-                    );
-                  })}
+                      {canManagePin && (
+                        <button
+                          type="button"
+                          onClick={() => setStaffPin(Math.floor(100000 + Math.random() * 900000).toString())}
+                          className="text-[10px] text-teal-700 font-bold hover:underline cursor-pointer flex items-center gap-0.5 bg-teal-50 px-2 py-0.5 rounded-md"
+                        >
+                          <span className="material-symbols-outlined text-[13px]">autorenew</span>
+                          <span>Generar</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {canManagePin ? (
+                      <div>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={6}
+                          value={staffPin}
+                          onChange={(e) => setStaffPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          placeholder="123456"
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low text-sm font-mono font-bold tracking-widest text-primary border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[44px]"
+                          required
+                        />
+                        <p className="text-[10px] text-teal-800 font-semibold mt-1 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[12px] text-teal-600">verified_user</span>
+                          <span>PIN de 6 dígitos para ingresar al terminal</span>
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <input
+                          type="password"
+                          value="••••••"
+                          disabled
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-highest/60 text-sm font-mono font-bold tracking-widest text-slate-500 border border-outline-variant/20 cursor-not-allowed min-h-[44px]"
+                        />
+                        <p className="text-[10px] text-amber-700 font-medium mt-1 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[12px]">lock</span>
+                          <span>Solo Admin General o Global define este PIN</span>
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="font-bold text-xs text-on-surface block mb-1">
+                      Teléfono / WhatsApp
+                    </label>
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      value={staffPhone}
+                      onChange={(e) => setStaffPhone(e.target.value)}
+                      placeholder="+51 988 776 543"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[44px]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-xs text-on-surface block mb-1">
+                      Turno Asignado
+                    </label>
+                    <select
+                      value={staffShift}
+                      onChange={(e) => setStaffShift(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[44px]"
+                    >
+                      <option value="Turno Mañana">Turno Mañana (11:00 - 17:00)</option>
+                      <option value="Turno Tarde">Turno Tarde (16:00 - 23:00)</option>
+                      <option value="Turno Completo">Turno Completo</option>
+                      <option value="Rotativo">Rotativo</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-xs text-on-surface block mb-1">
+                    Zona o Mesas Asignadas
+                  </label>
+                  <input
+                    type="text"
+                    value={staffTablesZone}
+                    onChange={(e) => setStaffTablesZone(e.target.value)}
+                    placeholder="ej. Mesas 1 a 6 / Terraza"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[44px]"
+                  />
+                </div>
+
+                {/* CRITICAL FEATURE: ASIGNACIÓN MULTI-SEDE */}
+                <div className="bg-teal-500/10 border border-teal-500/30 rounded-xl p-3.5 sm:p-4 flex flex-col gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-1.5 font-extrabold text-xs text-teal-950 uppercase tracking-wider">
+                        <span className="material-symbols-outlined text-[16px] text-teal-700">hub</span>
+                        <span>ASIGNACIÓN DE SEDES (MULTI-SEDE)</span>
+                      </div>
+                      <p className="text-[11px] text-teal-800 mt-0.5">
+                        Asigna este colaborador a una o más sedes. Podrá operar con su PIN de 6 dígitos en los terminales de las sedes marcadas:
+                      </p>
+                    </div>
+
+                    <span className="self-start sm:self-auto px-2.5 py-0.5 rounded-full bg-teal-600 text-white font-extrabold text-[10px] shrink-0 shadow-xs">
+                      {staffAssignedBranches.length} Sede(s)
+                    </span>
+                  </div>
+
+                  {/* Quick actions for assigning */}
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] pt-0.5">
+                    <button
+                      type="button"
+                      onClick={handleSelectOnlyCurrentBranchForStaff}
+                      className="text-teal-700 font-bold hover:underline cursor-pointer bg-teal-500/10 hover:bg-teal-500/20 px-2.5 py-1 rounded-md transition-colors"
+                    >
+                      Solo Sede Actual
+                    </button>
+                    <span className="text-teal-400">•</span>
+                    <button
+                      type="button"
+                      onClick={handleSelectAllBranchesForStaff}
+                      className="text-teal-700 font-bold hover:underline cursor-pointer bg-teal-500/10 hover:bg-teal-500/20 px-2.5 py-1 rounded-md transition-colors"
+                    >
+                      Asignar a Todas las Sedes
+                    </button>
+                  </div>
+
+                  {/* Branch Checkboxes */}
+                  <div className="flex flex-col gap-2 pt-1">
+                    {currentChain?.locations.map((loc) => {
+                      const isChecked = staffAssignedBranches.includes(loc.id);
+                      return (
+                        <label
+                          key={loc.id}
+                          className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer min-h-[48px] ${
+                            isChecked
+                              ? 'bg-surface-container-lowest border-teal-600 shadow-xs ring-1 ring-teal-600/30'
+                              : 'bg-white/60 border-outline-variant/30 opacity-80'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0 pr-2">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleStaffBranch(loc.id)}
+                              className="w-5 h-5 text-teal-600 rounded border-outline focus:ring-teal-500 cursor-pointer shrink-0"
+                            />
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-extrabold text-xs text-on-surface truncate">
+                                {loc.name}
+                              </span>
+                              <span className="text-[10px] text-on-surface-variant truncate">
+                                📍 {loc.address} ({loc.tables} mesas)
+                              </span>
+                            </div>
+                          </div>
+
+                          {isChecked && (
+                            <span className="text-[10px] font-bold text-teal-700 bg-teal-100 px-2.5 py-0.5 rounded-full shrink-0">
+                              Asignado
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-outline-variant/20">
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-on-surface">
+              {/* Pie del Modal: Sticky para móvil y escritorio */}
+              <div className="shrink-0 bg-surface-container-lowest px-4 py-3 sm:px-6 sm:py-3.5 border-t border-outline-variant/20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
+                <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-on-surface py-1">
                   <input
                     type="checkbox"
                     checked={staffActive}
                     onChange={(e) => setStaffActive(e.target.checked)}
-                    className="w-4 h-4 text-teal-600 rounded border-outline"
+                    className="w-5 h-5 text-teal-600 rounded border-outline focus:ring-teal-500 cursor-pointer"
                   />
                   <span>Colaborador Activo (En Turno)</span>
                 </label>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 justify-end">
                   <button
                     type="button"
                     onClick={() => setShowStaffModal(false)}
-                    className="px-4 py-2 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container cursor-pointer"
+                    className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container active:scale-95 transition-all cursor-pointer min-h-[44px] flex items-center justify-center text-center"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
+                    className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer min-h-[44px]"
                   >
                     <span className="material-symbols-outlined text-[18px]">save</span>
                     <span>{editingStaffId ? 'Guardar Cambios' : 'Registrar Personal'}</span>
