@@ -250,7 +250,7 @@ export default function App() {
       setCurrentScreen('carta-sede');
       setCartaInitialTab('carta');
     } else if (role === 'admin_global') {
-      setStaffUser({ name: 'Ing. Alejandro Vega', role: 'admin' });
+      setStaffUser({ name: 'José Manuel Vasquez Rivero', role: 'admin' });
       setCurrentScreen('saas-console');
     }
   };

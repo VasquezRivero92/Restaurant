@@ -77,7 +77,7 @@ export const ModalRoleSwitcher: React.FC<ModalRoleSwitcherProps> = ({
     {
       key: 'admin_global',
       title: 'Administrador Global',
-      person: 'Ing. Alejandro Vega',
+      person: 'José Manuel Vasquez Rivero',
       scope: 'Plataforma SaaS Cloud (Multi-Empresa)',
       icon: 'public',
       badge: 'SUPERADMIN',

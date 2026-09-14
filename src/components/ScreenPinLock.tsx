@@ -18,7 +18,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
   const [errorShake, setErrorShake] = useState(false);
   const isVerifyingRef = React.useRef(false);
   const [selectedStaff, setSelectedStaff] = useState<{ name: string; role: string; pin: string }>({
-    name: 'Ing. Alejandro Vega',
+    name: 'José Manuel Vasquez Rivero',
     role: 'Admin Global',
     pin: '999999'
   });
@@ -93,7 +93,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
     } else if (cleanEntered === '999999' || cleanEntered === '000000') {
       isVerifyingRef.current = false;
       setPin('');
-      onUnlock('admin_global', 'Ing. Alejandro Vega', 'saas-console');
+      onUnlock('admin_global', 'José Manuel Vasquez Rivero', 'saas-console');
     } else if (cleanEntered === '888888') {
       isVerifyingRef.current = false;
       setPin('');
@@ -230,7 +230,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
         <div className="grid grid-cols-2 gap-2 w-full text-left">
           <div
             onClick={() => {
-              setSelectedStaff({ name: 'Ing. Alejandro Vega', role: 'Admin Global', pin: '999999' });
+              setSelectedStaff({ name: 'José Manuel Vasquez Rivero', role: 'Admin Global', pin: '999999' });
               handleClear();
             }}
             className="p-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-200 text-xs border border-purple-500/25 transition-all cursor-pointer flex flex-col"
@@ -240,7 +240,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
               <span className="font-bold">🌐 Admin Global</span>
               <span className="font-mono font-black text-white bg-purple-500/30 px-1.5 py-0.2 rounded text-[10px]">999999</span>
             </div>
-            <span className="text-[10px] text-purple-300/70 truncate mt-0.5">Ing. Alejandro Vega</span>
+            <span className="text-[10px] text-purple-300/70 truncate mt-0.5">José Manuel Vasquez Rivero</span>
           </div>
 
           <div

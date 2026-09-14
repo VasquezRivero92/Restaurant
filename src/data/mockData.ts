@@ -1162,13 +1162,13 @@ export const INITIAL_CHAINS: ChainBrand[] = [
 export const INITIAL_ADMINS: AdminUser[] = [
   {
     id: 'adm-global',
-    name: 'Ing. Alejandro Vega',
-    email: 'alejandro@gastronomiaperu.cloud',
+    name: 'José Manuel Vasquez Rivero',
+    email: 'jose.vasquez@gastronomiaperu.cloud',
     phone: '+51 999 000 111',
     role: 'Administrador Global',
     roleKey: 'admin_global',
     brand: 'Plataforma SaaS Central',
-    initials: 'AV',
+    initials: 'JV',
     pin: '999999',
     active: true
   },
