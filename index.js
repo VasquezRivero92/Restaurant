@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || process.env.SERVER_PORT || 10019;
 
 // Servir los archivos estáticos de la build de producción
 app.use(express.static(path.join(__dirname, 'dist')));
