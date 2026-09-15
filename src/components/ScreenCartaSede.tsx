@@ -30,6 +30,7 @@ interface ScreenCartaSedeProps {
   activeChainId?: string;
   activeBranchId?: string;
   onSelectBranch?: (branchId: string) => void;
+  onSelectChain?: (chainId: string) => void;
   onAddLocation?: (chainId: string, newLocation: BranchLocation, managerAdmin?: AdminUser) => void;
   currentRole?: AppRole;
   currentAdminName?: string;
@@ -67,6 +68,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   activeChainId = 'la-barra',
   activeBranchId = 'loc-miraflores',
   onSelectBranch,
+  onSelectChain,
   onAddLocation,
   currentRole = 'admin_general',
   currentAdminName = 'Roberto Morales',
@@ -588,6 +590,57 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
 
   return (
     <div className="flex flex-col w-full pb-36 pt-2 max-w-2xl mx-auto px-3 sm:px-4">
+      {/* Global Superadmin Management Bar */}
+      {currentRole === 'admin_global' && (
+        <div className="mb-3 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-3.5 rounded-2xl border-2 border-amber-400/40 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-300 border border-amber-400/40 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[22px]">admin_panel_settings</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-amber-400 uppercase tracking-wide">
+                  Panel de Control Global • Superadmin
+                </span>
+                <span className="px-2 py-0.5 bg-amber-400/20 text-amber-300 rounded text-[10px] font-extrabold">
+                  ORDENA SaaS
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                Administrando restaurante: <strong className="text-white">{currentChain?.name}</strong>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-stretch sm:self-auto">
+            {chains.length > 1 && onSelectChain && (
+              <div className="relative flex-1 sm:w-56">
+                <select
+                  value={activeChainId}
+                  onChange={(e) => onSelectChain(e.target.value)}
+                  aria-label="Seleccionar restaurante para administrar"
+                  className="w-full text-xs font-bold bg-white/10 hover:bg-white/15 text-white border border-white/20 rounded-xl px-2.5 py-2 focus:outline-hidden focus:ring-2 focus:ring-amber-400 cursor-pointer"
+                >
+                  {chains.map((chain) => (
+                    <option key={chain.id} value={chain.id} className="bg-slate-900 text-white">
+                      {chain.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              onClick={() => onNavigate('saas-console')}
+              className="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 shrink-0 transition-all cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+              <span>Consola Global</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top Breadcrumb Context */}
       <div className="py-2 flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-xs text-on-surface-variant flex-wrap">
@@ -597,7 +650,11 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
           <span className="font-bold text-secondary">{currentBranch?.name || 'Sede Principal La Mar'}</span>
           <span>•</span>
           <span className="px-2 py-0.5 rounded-full bg-surface-container font-extrabold text-[10px] text-primary uppercase">
-            {currentRole === 'admin_sede' ? 'Administrador de Sede' : 'Administrador General'}
+            {currentRole === 'admin_sede'
+              ? 'Administrador de Sede'
+              : currentRole === 'admin_global'
+              ? 'Administrador Global'
+              : 'Administrador General'}
           </span>
         </div>
 
@@ -617,7 +674,11 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl bg-teal-500/20 text-teal-300 border border-teal-400/30 flex items-center justify-center font-bold text-lg">
                 <span className="material-symbols-outlined text-[24px]">
-                  {currentRole === 'admin_sede' ? 'storefront' : 'corporate_fare'}
+                  {currentRole === 'admin_sede'
+                    ? 'storefront'
+                    : currentRole === 'admin_global'
+                    ? 'admin_panel_settings'
+                    : 'corporate_fare'}
                 </span>
               </div>
               <div className="flex flex-col">
@@ -625,6 +686,8 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                   <span className="px-2 py-0.5 rounded bg-teal-400/20 text-teal-300 text-[10px] font-extrabold uppercase tracking-wider">
                     {currentRole === 'admin_sede'
                       ? 'ADMINISTRADOR DE SEDE'
+                      : currentRole === 'admin_global'
+                      ? 'ADMINISTRADOR GLOBAL'
                       : 'ADMINISTRADOR GENERAL DE RESTAURANTE'}
                   </span>
                   {currentRole === 'admin_sede' && managedBranches.length > 1 && (
@@ -637,6 +700,8 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                 <h2 className="font-extrabold text-base sm:text-lg text-white mt-0.5">
                   {currentRole === 'admin_sede'
                     ? (currentAdmin?.name || currentBranch?.managerName || 'Lucía Ramos')
+                    : currentRole === 'admin_global'
+                    ? (currentAdminName || 'José Manuel Vasquez Rivero (Admin Global)')
                     : (currentChain?.adminName || 'Roberto Morales')}
                 </h2>
                 <span className="text-xs text-slate-300">

@@ -1510,6 +1510,7 @@ export default function App() {
               onOpenDrinksTray={() => setIsDrinksTrayOpen(true)}
               onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
               activeBranchName={currentBranch?.name || 'Sede Miraflores'}
+              activeChainName={currentChain?.name}
               isCloudConnected={isCloudConnected}
               onLogout={handleLogout}
             />
@@ -1610,6 +1611,10 @@ export default function App() {
                   activeChainId={activeChainId}
                   activeBranchId={activeBranchId}
                   onSelectBranch={setActiveBranchId}
+                  onSelectChain={(chainId) => {
+                    const found = chains.find((c) => c.id === chainId);
+                    handleSelectChainAndBranch(chainId, found?.locations[0]?.id || '', 'carta-sede');
+                  }}
                   onAddLocation={handleAddLocationToChain}
                   currentRole={currentRole}
                   currentAdminName={staffUser.name}

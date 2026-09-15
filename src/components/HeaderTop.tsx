@@ -12,6 +12,7 @@ interface HeaderTopProps {
   onOpenDrinksTray?: () => void;
   onOpenRoleSwitcher?: () => void;
   activeBranchName?: string;
+  activeChainName?: string;
   isCloudConnected?: boolean;
   onLogout?: () => void;
 }
@@ -27,6 +28,7 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
   onOpenDrinksTray,
   onOpenRoleSwitcher,
   activeBranchName = 'Sede Miraflores',
+  activeChainName,
   isCloudConnected = true,
   onLogout
 }) => {
@@ -43,7 +45,7 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
       case 'cuenta-cobro':
         return 'Caja & Cobro POS';
       case 'carta-sede':
-        return 'Carta, Sedes & Personal';
+        return 'Panel General • Carta & Sedes';
       case 'saas-console':
         return 'Consola SaaS Global';
       default:
@@ -70,6 +72,7 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
 
   const isCocina = currentRole === 'cocina';
   const isGlobal = currentRole === 'admin_global';
+  const isGlobalManagingRestaurant = isGlobal && currentScreen !== 'saas-console';
 
   return (
     <header className="sticky top-0 z-40 bg-surface/95 backdrop-blur-md border-b border-outline-variant/30 px-3 sm:px-4 py-2 sm:py-2.5 transition-all shadow-xs">
@@ -81,31 +84,47 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
         >
           <div
             className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105 ${
-              isGlobal
-                ? 'bg-purple-900 text-purple-200'
+              isGlobal && currentScreen === 'saas-console'
+                ? 'bg-[#0c3130] text-[#ffd06f]'
+                : isGlobalManagingRestaurant
+                ? 'bg-teal-700 text-white'
                 : isCocina
                 ? 'bg-amber-500 text-amber-950'
                 : 'bg-primary text-on-primary'
             }`}
           >
             <span className="material-symbols-outlined text-[20px] sm:text-[22px]">
-              {isGlobal ? 'public' : isCocina ? 'soup_kitchen' : 'phishing'}
+              {isGlobal && currentScreen === 'saas-console'
+                ? 'public'
+                : isGlobalManagingRestaurant
+                ? 'store'
+                : isCocina
+                ? 'soup_kitchen'
+                : 'restaurant'}
             </span>
           </div>
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1 sm:gap-1.5">
               <span className="font-extrabold text-sm sm:text-base text-primary truncate leading-none">
-                {isGlobal ? 'Puerto Azul' : 'La Barra'}
+                {isGlobal && currentScreen === 'saas-console'
+                  ? 'ORDENA'
+                  : activeChainName || 'Restaurante'}
               </span>
               <span className="text-secondary font-bold text-xs italic truncate leading-none">
-                {isGlobal ? 'SaaS' : 'Sabrisimo'}
+                {isGlobal && currentScreen === 'saas-console'
+                  ? 'Cloud'
+                  : isGlobalManagingRestaurant
+                  ? 'Panel General'
+                  : ''}
               </span>
             </div>
             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
               <span className="flex items-center gap-1">
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isCloudConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'}`}></span>
                 <span className="text-[11px] sm:text-xs text-on-surface-variant truncate font-medium">
-                  {isGlobal ? 'Multi-Restaurante' : activeBranchName} • {getSubTitle()}
+                  {isGlobal && currentScreen === 'saas-console'
+                    ? 'Consola Multi-Restaurante'
+                    : `${activeBranchName} • ${getSubTitle()}`}
                 </span>
               </span>
               <span
@@ -114,7 +133,7 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                     : 'bg-amber-50 text-amber-700 border border-amber-200'
                 }`}
-                title="Conectado en tiempo real a Firebase Realtime Database: restaurant-4e0ee-default-rtdb"
+                title="Conectado en tiempo real a Firebase Realtime Database"
               >
                 <span className="material-symbols-outlined text-[11px]">cloud_done</span>
                 <span>Firebase RTDB</span>
@@ -123,8 +142,20 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
           </div>
         </div>
 
-        {/* Center / Profile Selector Pill */}
-        <div className="flex items-center">
+        {/* Center / Profile Selector Pill & Return to Global Console Button */}
+        <div className="flex items-center gap-2">
+          {isGlobalManagingRestaurant && (
+            <button
+              onClick={() => onNavigate('saas-console')}
+              className="h-8 px-2.5 sm:px-3 rounded-lg bg-teal-800 hover:bg-teal-900 text-white font-extrabold text-[11px] sm:text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer border border-teal-700"
+              title="Volver al panel central de Administrador Global"
+            >
+              <span className="material-symbols-outlined text-[15px]">arrow_back</span>
+              <span className="hidden sm:inline">Consola Global</span>
+              <span className="sm:hidden">Global</span>
+            </button>
+          )}
+
           <button
             onClick={onOpenRoleSwitcher}
             className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-full bg-surface-container hover:bg-surface-container-high border border-outline-variant/30 text-on-surface transition-all active:scale-95 cursor-pointer shadow-xs"

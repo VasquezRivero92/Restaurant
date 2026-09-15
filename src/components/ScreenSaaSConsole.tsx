@@ -585,6 +585,53 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
         {/* TAB 1: RESTAURANTES & SEDES */}
         {mainViewTab === 'restaurantes' && (
           <>
+            {/* Quick Restaurant Administration Selector Banner */}
+            <div className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-4 sm:p-5 rounded-2xl border border-teal-500/30 mb-6 flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-teal-500/20 border border-teal-400/30 text-teal-300 flex items-center justify-center shrink-0 shadow-inner">
+                  <span className="material-symbols-outlined text-[28px]">storefront</span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.2 rounded-full bg-teal-400/20 text-teal-300 text-[10px] font-black tracking-wider uppercase border border-teal-400/30">
+                      CONTROL MULTI-RESTAURANTE
+                    </span>
+                  </div>
+                  <h3 className="font-extrabold text-base sm:text-lg text-white mt-0.5">
+                    Seleccionar Restaurante para Administrar
+                  </h3>
+                  <p className="text-xs text-slate-300 max-w-xl">
+                    Ingresa directamente al panel administrativo general de cualquier restaurante registrado para gestionar su carta, sedes, personal y salón.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 w-full md:w-auto shrink-0">
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    const selectedId = e.target.value;
+                    if (!selectedId) return;
+                    const foundChain = chains.find((c) => c.id === selectedId);
+                    if (foundChain && onSelectChainAndBranch) {
+                      onSelectChainAndBranch(foundChain.id, foundChain.locations[0]?.id || '', 'carta-sede');
+                      showToast(`Ingresando al panel general de ${foundChain.name}`);
+                    }
+                  }}
+                  className="h-11 px-3.5 rounded-xl bg-white/10 text-white border border-white/20 text-xs sm:text-sm font-bold focus:outline-none focus:bg-slate-800 cursor-pointer shadow-sm w-full md:w-auto"
+                >
+                  <option value="" disabled className="bg-slate-900 text-white">
+                    -- Seleccionar restaurante a administrar --
+                  </option>
+                  {chains.map((c) => (
+                    <option key={c.id} value={c.id} className="bg-slate-900 text-white font-medium">
+                      {c.name} ({c.locations.length} sedes)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             {/* Filter & Search Bar */}
             <div className="bg-surface-container-lowest p-3 sm:p-4 rounded-xl shadow-sm border border-outline-variant/30 mb-6 flex flex-col md:flex-row items-center gap-3 justify-between">
               <div className="relative flex-1 w-full">
@@ -677,15 +724,34 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                       </div>
                     </div>
 
-                    {/* Button to Add Sede directly to THIS Restaurant */}
-                    <button
-                      onClick={() => handleOpenAddLocation(chain.id)}
-                      className="h-10 px-3.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-300 font-bold text-xs flex items-center gap-1.5 shrink-0 active:scale-95 transition-all cursor-pointer shadow-sm"
-                      title={`Agregar una nueva sede a ${chain.name}`}
-                    >
-                      <span className="material-symbols-outlined text-[18px] text-teal-700">add_location_alt</span>
-                      <span>+ Agregar Sede a este Restaurante</span>
-                    </button>
+                    {/* Action Buttons for THIS Restaurant */}
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                      <button
+                        onClick={() => {
+                          if (onSelectChainAndBranch) {
+                            onSelectChainAndBranch(chain.id, chain.locations[0]?.id || '', 'carta-sede');
+                          } else {
+                            onNavigate('carta-sede');
+                          }
+                          showToast(`Ingresando al panel general de ${chain.name}`);
+                        }}
+                        className="h-10 px-4 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-md hover:shadow-lg active:scale-95 transition-all cursor-pointer"
+                        title={`Administrar carta, sedes y equipo de ${chain.name}`}
+                      >
+                        <span className="material-symbols-outlined text-[19px]">tune</span>
+                        <span>Administrar Restaurante</span>
+                        <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleOpenAddLocation(chain.id)}
+                        className="h-10 px-3 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-bold text-xs flex items-center gap-1.5 shrink-0 active:scale-95 transition-all cursor-pointer border border-outline-variant/30"
+                        title={`Agregar una nueva sede a ${chain.name}`}
+                      >
+                        <span className="material-symbols-outlined text-[18px] text-secondary">add_location_alt</span>
+                        <span className="hidden sm:inline">+ Sede</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Direct Access Link Box for Multi-Tenant Client Access */}
