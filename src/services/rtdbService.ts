@@ -1,4 +1,4 @@
-﻿import { ref, onValue, set, update, get } from 'firebase/database';
+import { ref, onValue, set, update, get } from 'firebase/database';
 import { rtdb } from './firebase';
 import {
   TableItem,
@@ -78,7 +78,7 @@ export interface SyncStatus {
 
 // Check if database already has data, if empty, seed with initial mock data
 export async function initRTDBSeedIfEmpty(): Promise<boolean> {
-  if (!demoDataEnabled) return false;
+  if (!rtdb || !demoDataEnabled) return false;
   try {
     const rootRef = ref(rtdb, 'restaurant');
     const snapshot = await get(rootRef);
@@ -100,6 +100,7 @@ export async function initRTDBSeedIfEmpty(): Promise<boolean> {
 
 // Live subscriptions
 export function subscribeToTables(callback: (tables: TableItem[]) => void) {
+  if (!rtdb) return () => {};
   const tablesRef = ref(rtdb, PATHS.TABLES);
   return onValue(tablesRef, (snapshot) => {
     if (snapshot.exists()) {
@@ -110,6 +111,7 @@ export function subscribeToTables(callback: (tables: TableItem[]) => void) {
 }
 
 export function subscribeToChains(callback: (chains: ChainBrand[]) => void) {
+  if (!rtdb) return () => {};
   const chainsRef = ref(rtdb, PATHS.CHAINS);
   return onValue(chainsRef, (snapshot) => {
     if (snapshot.exists()) {
@@ -120,6 +122,7 @@ export function subscribeToChains(callback: (chains: ChainBrand[]) => void) {
 }
 
 export function subscribeToMasterCartas(callback: (cartas: MasterCarta[]) => void) {
+  if (!rtdb) return () => {};
   const refPath = ref(rtdb, PATHS.MASTER_CARTAS);
   return onValue(refPath, (snapshot) => {
     if (snapshot.exists()) {
@@ -130,6 +133,7 @@ export function subscribeToMasterCartas(callback: (cartas: MasterCarta[]) => voi
 }
 
 export function subscribeToBranchMenus(callback: (menus: Record<string, MenuItem[]>) => void) {
+  if (!rtdb) return () => {};
   const refPath = ref(rtdb, PATHS.BRANCH_MENUS);
   return onValue(refPath, (snapshot) => {
     if (snapshot.exists()) {
@@ -139,6 +143,7 @@ export function subscribeToBranchMenus(callback: (menus: Record<string, MenuItem
 }
 
 export function subscribeToKDSTickets(callback: (tickets: KDSTicket[]) => void) {
+  if (!rtdb) return () => {};
   const refPath = ref(rtdb, PATHS.KDS_TICKETS);
   return onValue(refPath, (snapshot) => {
     const val = snapshot.val();
@@ -147,6 +152,7 @@ export function subscribeToKDSTickets(callback: (tickets: KDSTicket[]) => void) 
 }
 
 export function subscribeToStaff(callback: (staff: StaffMember[]) => void) {
+  if (!rtdb) return () => {};
   const refPath = ref(rtdb, PATHS.STAFF);
   return onValue(refPath, (snapshot) => {
     const val = snapshot.val();
@@ -155,6 +161,7 @@ export function subscribeToStaff(callback: (staff: StaffMember[]) => void) {
 }
 
 export function subscribeToAdmins(callback: (admins: AdminUser[]) => void) {
+  if (!rtdb) return () => {};
   const refPath = ref(rtdb, PATHS.ADMINS);
   return onValue(refPath, (snapshot) => {
     if (snapshot.exists()) {
@@ -166,6 +173,7 @@ export function subscribeToAdmins(callback: (admins: AdminUser[]) => void) {
 
 // Mutations saving directly to Realtime Database
 export async function syncTablesToRTDB(tables: TableItem[]) {
+  if (!rtdb) return;
   try {
     await set(ref(rtdb, PATHS.TABLES), tables);
   } catch (e) {
@@ -174,6 +182,7 @@ export async function syncTablesToRTDB(tables: TableItem[]) {
 }
 
 export async function syncKDSTicketsToRTDB(tickets: KDSTicket[]) {
+  if (!rtdb) return;
   try {
     await set(ref(rtdb, PATHS.KDS_TICKETS), tickets);
   } catch (e) {
@@ -182,6 +191,7 @@ export async function syncKDSTicketsToRTDB(tickets: KDSTicket[]) {
 }
 
 export async function syncBranchMenusToRTDB(branchMenus: Record<string, MenuItem[]>) {
+  if (!rtdb) return;
   try {
     await set(ref(rtdb, PATHS.BRANCH_MENUS), branchMenus);
   } catch (e) {
@@ -190,6 +200,7 @@ export async function syncBranchMenusToRTDB(branchMenus: Record<string, MenuItem
 }
 
 export async function syncMasterCartasToRTDB(cartas: MasterCarta[]) {
+  if (!rtdb) return;
   try {
     await set(ref(rtdb, PATHS.MASTER_CARTAS), cartas);
   } catch (e) {
@@ -198,6 +209,7 @@ export async function syncMasterCartasToRTDB(cartas: MasterCarta[]) {
 }
 
 export async function syncChainsToRTDB(chains: ChainBrand[]) {
+  if (!rtdb) return;
   try {
     await set(ref(rtdb, PATHS.CHAINS), chains);
   } catch (e) {
@@ -206,6 +218,7 @@ export async function syncChainsToRTDB(chains: ChainBrand[]) {
 }
 
 export async function syncStaffToRTDB(staff: StaffMember[]) {
+  if (!rtdb) return;
   try {
     await set(ref(rtdb, PATHS.STAFF), staff);
   } catch (e) {
@@ -214,6 +227,7 @@ export async function syncStaffToRTDB(staff: StaffMember[]) {
 }
 
 export async function syncAdminsToRTDB(admins: AdminUser[]) {
+  if (!rtdb) return;
   try {
     await set(ref(rtdb, PATHS.ADMINS), admins);
   } catch (e) {
@@ -222,6 +236,7 @@ export async function syncAdminsToRTDB(admins: AdminUser[]) {
 }
 
 export async function resetAllDataInRTDB() {
+  if (!rtdb) return;
   if (!demoDataEnabled) {
     throw new Error('El reinicio de Firebase está deshabilitado fuera del entorno demo.');
   }
