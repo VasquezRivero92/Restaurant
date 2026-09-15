@@ -1,6 +1,0 @@
-{
-  "name": "La Barra Sabrisimo - POS & KDS Cevichería",
-  "description": "Sistema POS y KDS para Cevichería Restaurant La Barra Sabrisimo con comanda móvil, gestión de mesas, entrega de bebidas por mozos y consola multi-tenant.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

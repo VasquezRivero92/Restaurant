@@ -1,19 +1,13 @@
 {
-  "name": "react-example",
+  "name": "ordena-server",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "vite build",
     "start": "node index.js",
-    "serve": "node index.js",
-    "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "serve": "node index.js"
   },
   "dependencies": {
     "express": "^4.21.2"
-  },
-  "devDependencies": {}
+  }
 }
