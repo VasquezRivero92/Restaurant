@@ -39,9 +39,11 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
             className="flex items-center gap-3 text-left group cursor-pointer"
             aria-label="Ir al inicio"
           >
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0c3130] text-[#ffd06f] shadow-md shadow-teal-950/15 group-hover:scale-105 transition">
-              <UtensilsCrossed size={22} />
-            </span>
+            <img
+              src="/ordena-logo.png"
+              alt="ORDENA Logo"
+              className="h-11 w-11 rounded-2xl object-cover shadow-md shadow-teal-950/15 group-hover:scale-105 transition"
+            />
             <span className="leading-tight">
               <strong className="block text-lg font-black tracking-tight text-[#102f2e]">
                 ORDENA
@@ -509,9 +511,11 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
       <footer className="border-t border-slate-200 bg-[#faf8f4] px-5 py-8 sm:px-8">
         <div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 text-xs text-slate-500 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#0c3130] text-[#ffd06f] font-black text-xs">
-              O
-            </span>
+            <img
+              src="/ordena-logo.png"
+              alt="ORDENA"
+              className="h-7 w-7 rounded-lg object-cover shadow-xs"
+            />
             <span className="font-bold text-slate-700">ORDENA Restaurant Cloud</span>
             <span>•</span>
             <span>© 2026 Todos los derechos reservados</span>

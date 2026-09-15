@@ -1256,6 +1256,11 @@ export default function App() {
     );
   };
 
+  // Update chain brand details (e.g. logo, name, branding)
+  const handleUpdateChain = (updatedChain: ChainBrand) => {
+    setChains((prev) => prev.map((c) => (c.id === updatedChain.id ? updatedChain : c)));
+  };
+
   // Switch active chain and branch context
   const handleSelectChainAndBranch = (
     chainId: string,
@@ -1453,7 +1458,12 @@ export default function App() {
   const currentChain = chains.find((c) => c.id === activeChainId) || chains[0];
   const currentBranch = currentChain?.locations.find((l) => l.id === activeBranchId) || currentChain?.locations[0];
 
-  const isWideLayoutScreen = currentScreen === 'saas-console' || currentScreen === 'cocina-kds';
+  const isWideLayoutScreen =
+    currentScreen === 'saas-console' ||
+    currentScreen === 'cocina-kds' ||
+    currentScreen === 'carta-sede' ||
+    currentRole === 'admin_global' ||
+    currentRole === 'admin_general';
 
   return (
     <div className="min-h-screen bg-surface text-on-surface flex flex-col font-sans antialiased selection:bg-secondary/20 selection:text-secondary">
@@ -1484,6 +1494,7 @@ export default function App() {
             staffMembers={staffMembers}
             admins={admins}
             activeChainName={currentChain?.name || 'Restaurante'}
+            activeChainLogo={currentChain?.logoUrl}
             isTenantMode={true}
             onBackToGlobalLogin={navigateToGlobal}
           />
@@ -1511,6 +1522,7 @@ export default function App() {
               onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
               activeBranchName={currentBranch?.name || 'Sede Miraflores'}
               activeChainName={currentChain?.name}
+              activeChainLogo={currentChain?.logoUrl}
               isCloudConnected={isCloudConnected}
               onLogout={handleLogout}
             />
@@ -1616,6 +1628,7 @@ export default function App() {
                     handleSelectChainAndBranch(chainId, found?.locations[0]?.id || '', 'carta-sede');
                   }}
                   onAddLocation={handleAddLocationToChain}
+                  onUpdateChain={handleUpdateChain}
                   currentRole={currentRole}
                   currentAdminName={staffUser.name}
                   initialTab={cartaInitialTab}

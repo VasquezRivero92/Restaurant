@@ -32,6 +32,7 @@ interface ScreenCartaSedeProps {
   onSelectBranch?: (branchId: string) => void;
   onSelectChain?: (chainId: string) => void;
   onAddLocation?: (chainId: string, newLocation: BranchLocation, managerAdmin?: AdminUser) => void;
+  onUpdateChain?: (chain: ChainBrand) => void;
   currentRole?: AppRole;
   currentAdminName?: string;
   initialTab?: 'carta' | 'sedes' | 'equipo';
@@ -70,6 +71,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   onSelectBranch,
   onSelectChain,
   onAddLocation,
+  onUpdateChain,
   currentRole = 'admin_general',
   currentAdminName = 'Roberto Morales',
   initialTab,
@@ -77,6 +79,14 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
 }) => {
   const currentChain = chains.find((c) => c.id === activeChainId) || chains[0];
   const currentBranch = currentChain?.locations.find((l) => l.id === activeBranchId) || currentChain?.locations[0];
+
+  // Restaurant logo editing state
+  const [isEditingLogo, setIsEditingLogo] = useState(false);
+  const [logoInputUrl, setLogoInputUrl] = useState(currentChain?.logoUrl || '');
+
+  React.useEffect(() => {
+    setLogoInputUrl(currentChain?.logoUrl || '');
+  }, [currentChain?.id, currentChain?.logoUrl]);
 
   // Identify current logged-in admin object
   const currentAdmin = admins.find(
@@ -589,13 +599,17 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   const multiSedeStaffCount = staff.filter((s) => s.assignedBranchIds.length > 1).length;
 
   return (
-    <div className="flex flex-col w-full pb-36 pt-2 max-w-2xl mx-auto px-3 sm:px-4">
+    <div className="flex flex-col w-full pb-36 pt-2 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
       {/* Global Superadmin Management Bar */}
       {currentRole === 'admin_global' && (
         <div className="mb-3 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-3.5 rounded-2xl border-2 border-amber-400/40 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-300 border border-amber-400/40 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[22px]">admin_panel_settings</span>
+            <div className="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-300 border border-amber-400/40 flex items-center justify-center shrink-0 overflow-hidden shadow-xs">
+              {currentChain?.logoUrl ? (
+                <img src={currentChain.logoUrl} alt={currentChain.name} className="w-full h-full object-cover" />
+              ) : (
+                <span className="material-symbols-outlined text-[22px]">admin_panel_settings</span>
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -672,14 +686,18 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
         <div className="bg-primary text-on-primary rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col gap-3.5 border border-white/10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-teal-500/20 text-teal-300 border border-teal-400/30 flex items-center justify-center font-bold text-lg">
-                <span className="material-symbols-outlined text-[24px]">
-                  {currentRole === 'admin_sede'
-                    ? 'storefront'
-                    : currentRole === 'admin_global'
-                    ? 'admin_panel_settings'
-                    : 'corporate_fare'}
-                </span>
+              <div className="w-12 h-12 rounded-2xl bg-teal-500/20 text-teal-300 border border-teal-400/30 flex items-center justify-center font-bold text-lg overflow-hidden shrink-0 shadow-sm">
+                {currentChain?.logoUrl ? (
+                  <img src={currentChain.logoUrl} alt={currentChain.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="material-symbols-outlined text-[24px]">
+                    {currentRole === 'admin_sede'
+                      ? 'storefront'
+                      : currentRole === 'admin_global'
+                      ? 'admin_panel_settings'
+                      : 'corporate_fare'}
+                  </span>
+                )}
               </div>
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
@@ -977,7 +995,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
           </div>
 
           {/* Dishes List */}
-          <div className="flex flex-col gap-2.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
             {filteredDishes.map((item) => (
               <div
                 key={item.id}
@@ -1432,6 +1450,109 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                 <span className="material-symbols-outlined text-[16px]">add_location</span>
                 <span>+ Nueva Sede</span>
               </button>
+            )}
+          </div>
+
+          {/* Restaurant Branding & Logo Management Card */}
+          <div className="bg-surface-container-lowest rounded-2xl p-4 sm:p-5 shadow-sm border border-outline-variant/30 flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl bg-surface-container border border-outline-variant/40 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                  {currentChain?.logoUrl ? (
+                    <img src={currentChain.logoUrl} alt={currentChain.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="material-symbols-outlined text-[28px] text-on-surface-variant">restaurant</span>
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-extrabold text-sm sm:text-base text-primary">
+                      Logo & Identidad de Marca: {currentChain?.name}
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 text-[10px] font-extrabold">
+                      En Línea
+                    </span>
+                  </div>
+                  <p className="text-xs text-on-surface-variant mt-0.5">
+                    Este logo brandea el login con PIN de tu personal, comandas móviles, KDS de cocina y panel de control.
+                  </p>
+                </div>
+              </div>
+
+              {(currentRole === 'admin_general' || currentRole === 'admin_global') && !isEditingLogo && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLogoInputUrl(currentChain?.logoUrl || '');
+                    setIsEditingLogo(true);
+                  }}
+                  className="px-3 py-1.5 rounded-xl border border-secondary text-secondary hover:bg-secondary/10 font-extrabold text-xs flex items-center gap-1.5 self-end sm:self-auto cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                  <span>Cambiar Logo</span>
+                </button>
+              )}
+            </div>
+
+            {isEditingLogo && (
+              <div className="pt-3 border-t border-outline-variant/20 flex flex-col gap-2.5">
+                <label className="font-bold text-xs text-on-surface">
+                  URL de la imagen del logo del restaurante
+                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="url"
+                    value={logoInputUrl}
+                    onChange={(e) => setLogoInputUrl(e.target.value)}
+                    placeholder="https://... URL de la imagen del logo"
+                    className="flex-1 px-3 py-2 rounded-xl bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none font-medium"
+                  />
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (currentChain && onUpdateChain) {
+                          onUpdateChain({
+                            ...currentChain,
+                            logoUrl: logoInputUrl.trim() || undefined
+                          });
+                          triggerToast(`¡Logo de ${currentChain.name} actualizado!`);
+                        }
+                        setIsEditingLogo(false);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-black shadow-sm cursor-pointer"
+                    >
+                      Guardar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingLogo(false)}
+                      className="px-3 py-2 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                  <span className="text-[11px] text-on-surface-variant font-medium">Logos sugeridos:</span>
+                  {[
+                    { label: 'Cevichería', url: 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?auto=format&fit=crop&w=200&q=80' },
+                    { label: 'Marino Azul', url: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=200&q=80' },
+                    { label: 'Pescadería', url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=200&q=80' },
+                    { label: 'Gourmet', url: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=200&q=80' }
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setLogoInputUrl(preset.url)}
+                      className="px-2 py-0.5 rounded-md bg-surface-container hover:bg-secondary/20 text-[10px] font-bold text-secondary border border-outline-variant/20 cursor-pointer"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
 

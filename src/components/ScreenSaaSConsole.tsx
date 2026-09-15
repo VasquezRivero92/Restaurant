@@ -179,6 +179,7 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
     legalName: '',
     ruc: '',
     plan: 'Enterprise' as 'Enterprise' | 'Pro' | 'Básico',
+    logoUrl: '',
     adminName: '',
     adminEmail: '',
     adminPhone: '',
@@ -266,6 +267,7 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       ruc: chainForm.ruc.trim() || '20' + Math.floor(100000000 + Math.random() * 900000000),
       plan: chainForm.plan,
       status: 'Activa',
+      logoUrl: chainForm.logoUrl.trim() || undefined,
       adminName: genAdminName,
       adminEmail: chainForm.adminEmail.trim() || 'admin@cadena.pe',
       adminPhone: chainForm.adminPhone.trim() || '+51 987 654 321',
@@ -281,6 +283,7 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       legalName: '',
       ruc: '',
       plan: 'Enterprise',
+      logoUrl: '',
       adminName: '',
       adminEmail: '',
       adminPhone: '',
@@ -697,8 +700,10 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                   {/* Restaurant Header */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-outline-variant/20">
                     <div className="flex items-center gap-3.5">
-                      <div className="w-14 h-14 rounded-2xl bg-primary text-white flex items-center justify-center font-extrabold text-xl shadow-sm border border-secondary/20 shrink-0">
-                        {chain.id === 'la-barra' ? (
+                      <div className="w-14 h-14 rounded-2xl bg-primary text-white flex items-center justify-center font-extrabold text-xl shadow-sm border border-secondary/20 shrink-0 overflow-hidden">
+                        {chain.logoUrl ? (
+                          <img src={chain.logoUrl} alt={chain.name} className="w-full h-full object-cover" />
+                        ) : chain.id === 'la-barra' ? (
                           <span className="material-symbols-outlined text-[28px] text-teal-300">phishing</span>
                         ) : (
                           chain.name.substring(0, 2).toUpperCase()
@@ -1488,6 +1493,52 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                   </div>
                   <span className="text-[10px] text-on-surface-variant mt-0.5 block">
                     Cada restaurante tendrá su propio link exclusivo para su personal y clientes.
+                  </span>
+                </div>
+
+                {/* Restaurant Logo Field */}
+                <div className="sm:col-span-2">
+                  <label className="font-bold text-xs text-on-surface block mb-1">
+                    Logo del Restaurante (Identidad de Marca)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-2xl bg-surface-container border-2 border-dashed border-outline-variant flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
+                      {chainForm.logoUrl ? (
+                        <img src={chainForm.logoUrl} alt="Logo preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="material-symbols-outlined text-[24px] text-on-surface-variant">add_photo_alternate</span>
+                      )}
+                    </div>
+                    <div className="flex-1 flex flex-col gap-1.5">
+                      <input
+                        type="url"
+                        value={chainForm.logoUrl}
+                        onChange={(e) => setChainForm({ ...chainForm, logoUrl: e.target.value })}
+                        placeholder="https://... URL de la imagen del logo"
+                        className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none font-medium"
+                      />
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] text-on-surface-variant font-medium">Logos sugeridos:</span>
+                        {[
+                          { label: 'Cevichería', url: 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?auto=format&fit=crop&w=200&q=80' },
+                          { label: 'Marino Azul', url: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=200&q=80' },
+                          { label: 'Pescadería', url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=200&q=80' },
+                          { label: 'Gourmet', url: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=200&q=80' }
+                        ].map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => setChainForm({ ...chainForm, logoUrl: preset.url })}
+                            className="px-2 py-0.5 rounded-md bg-surface-container hover:bg-secondary/20 text-[10px] font-bold text-secondary border border-outline-variant/20 cursor-pointer"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-on-surface-variant mt-1 block">
+                    El logo brandeará la pantalla de acceso con PIN, comandas de mozos, KDS y panel administrativo de este restaurante.
                   </span>
                 </div>
 

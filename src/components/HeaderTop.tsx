@@ -13,6 +13,7 @@ interface HeaderTopProps {
   onOpenRoleSwitcher?: () => void;
   activeBranchName?: string;
   activeChainName?: string;
+  activeChainLogo?: string;
   isCloudConnected?: boolean;
   onLogout?: () => void;
 }
@@ -29,6 +30,7 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
   onOpenRoleSwitcher,
   activeBranchName = 'Sede Miraflores',
   activeChainName,
+  activeChainLogo,
   isCloudConnected = true,
   onLogout
 }) => {
@@ -83,9 +85,11 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
           className="flex items-center gap-2 sm:gap-2.5 cursor-pointer select-none group min-w-0"
         >
           <div
-            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105 ${
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover:scale-105 overflow-hidden ${
               isGlobal && currentScreen === 'saas-console'
                 ? 'bg-[#0c3130] text-[#ffd06f]'
+                : activeChainLogo
+                ? 'bg-surface-container border border-outline-variant/30'
                 : isGlobalManagingRestaurant
                 ? 'bg-teal-700 text-white'
                 : isCocina
@@ -93,15 +97,19 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
                 : 'bg-primary text-on-primary'
             }`}
           >
-            <span className="material-symbols-outlined text-[20px] sm:text-[22px]">
-              {isGlobal && currentScreen === 'saas-console'
-                ? 'public'
-                : isGlobalManagingRestaurant
-                ? 'store'
-                : isCocina
-                ? 'soup_kitchen'
-                : 'restaurant'}
-            </span>
+            {isGlobal && currentScreen === 'saas-console' ? (
+              <img src="/ordena-logo.png" alt="ORDENA" className="w-full h-full object-cover" />
+            ) : activeChainLogo ? (
+              <img src={activeChainLogo} alt={activeChainName || 'Restaurante'} className="w-full h-full object-cover" />
+            ) : (
+              <span className="material-symbols-outlined text-[20px] sm:text-[22px]">
+                {isGlobalManagingRestaurant
+                  ? 'store'
+                  : isCocina
+                  ? 'soup_kitchen'
+                  : 'restaurant'}
+              </span>
+            )}
           </div>
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1 sm:gap-1.5">

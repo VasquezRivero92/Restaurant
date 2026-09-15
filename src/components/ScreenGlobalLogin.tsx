@@ -62,9 +62,11 @@ export const ScreenGlobalLogin: React.FC<ScreenGlobalLoginProps> = ({
             )}
 
             <div className="flex items-center gap-2 pl-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#0c3130] text-[#ffd06f] font-black text-sm">
-                O
-              </span>
+              <img
+                src="/ordena-logo.png"
+                alt="ORDENA"
+                className="h-9 w-9 rounded-xl object-cover shadow-xs"
+              />
               <div>
                 <strong className="block text-sm font-extrabold tracking-tight text-[#102f2e] leading-tight">
                   ORDENA
@@ -97,9 +99,11 @@ export const ScreenGlobalLogin: React.FC<ScreenGlobalLoginProps> = ({
             <div className="p-7 sm:p-9 flex flex-col gap-6">
               {/* Header inside card */}
               <div className="flex flex-col items-center text-center gap-2">
-                <div className="w-14 h-14 rounded-2xl bg-[#0c3130] text-[#ffd06f] flex items-center justify-center shadow-lg shadow-teal-950/15 mb-1">
-                  <Lock size={26} />
-                </div>
+                <img
+                  src="/ordena-logo.png"
+                  alt="ORDENA"
+                  className="w-16 h-16 rounded-2xl shadow-xl shadow-teal-950/15 mb-1 object-cover"
+                />
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-teal-50 border border-teal-200 text-teal-800 text-[11px] font-extrabold tracking-wider uppercase">
                   <Sparkles size={12} />
                   Acceso Restringido

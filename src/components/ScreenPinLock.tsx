@@ -7,6 +7,7 @@ interface ScreenPinLockProps {
   staffMembers?: StaffMember[];
   admins?: AdminUser[];
   activeChainName?: string;
+  activeChainLogo?: string;
   isTenantMode?: boolean;
   onBackToGlobalLogin?: () => void;
 }
@@ -17,6 +18,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
   staffMembers = [],
   admins = [],
   activeChainName = 'Cevichería La Barra Sabrisimo',
+  activeChainLogo,
   isTenantMode = false,
   onBackToGlobalLogin
 }) => {
@@ -140,12 +142,18 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
 
       {/* Top Brand Header */}
       <div className="flex flex-col items-center text-center mt-6 z-10">
-        <div className="w-20 h-20 rounded-2xl bg-white/5 p-3 flex items-center justify-center border border-white/10 shadow-2xl backdrop-blur-md mb-3">
-          <img
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuBemFHcm7d_pLGEXdgD_W1iczDDc8OGtAmJ6iQcrCUFmeUWKETuKzA0oQ73FVZEA9tHLEnmbm5zmLzA9TjSBoPt8eVP-2oZF4-Uaz9Zs30XTdPq9rQZVwZakA706jnrlPzVwtMDNqd1xejo6R6OjNWOUr3vUSIukM-dSZyHqjidCUhrVwrmECC7O2_0incyxeyDtpRZMYZxaiBeOS02v7RP3ZYVoFjp7brMZ2CYVCDFEACbeE4ugsmeAQ"
-            alt="Puerto Azul Logo"
-            className="w-full h-full object-contain"
-          />
+        <div className="w-20 h-20 rounded-2xl bg-white/5 p-2.5 flex items-center justify-center border border-white/10 shadow-2xl backdrop-blur-md mb-3 overflow-hidden">
+          {activeChainLogo ? (
+            <img
+              src={activeChainLogo}
+              alt={activeChainName}
+              className="w-full h-full object-cover rounded-xl"
+            />
+          ) : (
+            <span className="material-symbols-outlined text-[36px] text-teal-300">
+              restaurant
+            </span>
+          )}
         </div>
         <h1 className="font-extrabold text-2xl tracking-tight text-white">{activeChainName}</h1>
         <p className="text-xs text-teal-300/80 font-medium mt-0.5">

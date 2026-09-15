@@ -164,6 +164,7 @@ export interface ChainBrand {
   locationsCount: number;
   locations: BranchLocation[];
   assignedCartaId?: string; // ID de la carta maestra asignada a este restaurante
+  logoUrl?: string; // URL o avatar del logo distintivo de la marca/restaurante
 }
 
 export type AppRole = 'admin_global' | 'admin_general' | 'admin_sede' | 'mesero' | 'cocina';
