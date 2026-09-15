@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { MenuItem, ScreenType, CartItem, TableItem, AppRole } from '../types';
 
 interface ScreenTomarPedidoProps {

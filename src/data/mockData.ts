@@ -1069,7 +1069,7 @@ export const INITIAL_CHAINS: ChainBrand[] = [
     adminName: 'Roberto Morales',
     adminEmail: 'roberto@labarrasabrisimo.pe',
     adminPhone: '+51 987 654 321',
-    locationsCount: 3,
+    locationsCount: 2,
     locations: [
       {
         id: 'loc-miraflores',
@@ -1098,20 +1098,6 @@ export const INITIAL_CHAINS: ChainBrand[] = [
         managerName: 'Manuel Huamán',
         managerEmail: 'manuel.h@labarrasabrisimo.pe',
         managerPhone: '+51 984 223 901'
-      },
-      {
-        id: 'loc-san-miguel',
-        name: 'Sede San Miguel Costanera',
-        address: 'Av. Costanera 850',
-        district: 'San Miguel',
-        city: 'Lima',
-        phone: '+51 1 562-4419',
-        tables: 14,
-        todaySales: 3850,
-        active: true,
-        managerName: 'Patricia Solís',
-        managerEmail: 'patricia.s@labarrasabrisimo.pe',
-        managerPhone: '+51 991 667 820'
       }
     ]
   },
@@ -1163,18 +1149,6 @@ export const INITIAL_CHAINS: ChainBrand[] = [
 
 export const INITIAL_ADMINS: AdminUser[] = [
   {
-    id: 'adm-global',
-    name: 'José Manuel Vasquez Rivero',
-    email: 'jose.vasquez@gastronomiaperu.cloud',
-    phone: '+51 999 000 111',
-    role: 'Administrador Global',
-    roleKey: 'admin_global',
-    brand: 'Plataforma SaaS Central',
-    initials: 'JV',
-    pin: '999999',
-    active: true
-  },
-  {
     id: 'adm-gen-1',
     name: 'Roberto Morales',
     email: 'roberto@labarrasabrisimo.pe',
@@ -1209,9 +1183,9 @@ export const INITIAL_ADMINS: AdminUser[] = [
     roleKey: 'admin_sede',
     brand: 'Cevichería La Barra Sabrisimo',
     brandId: 'la-barra',
-    branchName: 'Sede Principal La Mar y Sede Chorrillos',
+    branchName: 'Sede Principal La Mar',
     branchId: 'loc-miraflores',
-    assignedBranchIds: ['loc-miraflores', 'loc-chorrillos'], // Administradora Multi-Sede (Miraflores + Chorrillos)
+    assignedBranchIds: ['loc-miraflores'],
     initials: 'LR',
     pin: '777777',
     active: true
@@ -1233,22 +1207,6 @@ export const INITIAL_ADMINS: AdminUser[] = [
     active: true
   },
   {
-    id: 'adm-sede-3',
-    name: 'Patricia Solís',
-    email: 'patricia.s@labarrasabrisimo.pe',
-    phone: '+51 991 667 820',
-    role: 'Administrador de Sede',
-    roleKey: 'admin_sede',
-    brand: 'Cevichería La Barra Sabrisimo',
-    brandId: 'la-barra',
-    branchName: 'Sede San Miguel Costanera',
-    branchId: 'loc-san-miguel',
-    assignedBranchIds: ['loc-san-miguel'],
-    initials: 'PS',
-    pin: '777777',
-    active: true
-  },
-  {
     id: 'adm-sede-4',
     name: 'Ricardo Vega',
     email: 'ricardo.v@puertoazul.pe',
@@ -1265,19 +1223,19 @@ export const INITIAL_ADMINS: AdminUser[] = [
     active: true
   },
   {
-    id: 'adm-mozo-1',
-    name: 'Carlos Mendoza',
-    email: 'carlos.m@labarrasabrisimo.pe',
-    phone: '+51 965 443 221',
-    role: 'Mesero',
-    roleKey: 'mesero',
-    brand: 'Cevichería La Barra Sabrisimo',
-    brandId: 'la-barra',
-    branchName: 'Sede Principal La Mar',
-    branchId: 'loc-miraflores',
-    assignedBranchIds: ['loc-miraflores', 'loc-chorrillos'],
-    initials: 'CM',
-    pin: '123456',
+    id: 'adm-sede-5',
+    name: 'Fiorella Díaz',
+    email: 'fiorella.d@puertoazul.pe',
+    phone: '+51 975 432 109',
+    role: 'Administrador de Sede',
+    roleKey: 'admin_sede',
+    brand: 'Cevichería Puerto Azul Tradición',
+    brandId: 'puerto-azul',
+    branchName: 'Sede Callao Monumental',
+    branchId: 'loc-callao',
+    assignedBranchIds: ['loc-callao'],
+    initials: 'FD',
+    pin: '777777',
     active: true
   }
 ];

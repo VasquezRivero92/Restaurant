@@ -34,6 +34,7 @@ import { ScreenCartaSede } from './components/ScreenCartaSede';
 import { ScreenSaaSConsole } from './components/ScreenSaaSConsole';
 import { ScreenPinLock } from './components/ScreenPinLock';
 import { ScreenGlobalLogin } from './components/ScreenGlobalLogin';
+import { ScreenLanding } from './components/ScreenLanding';
 import { ModalBandejaBebidas } from './components/ModalBandejaBebidas';
 import {
   initRTDBSeedIfEmpty,
@@ -56,6 +57,7 @@ import {
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isGlobalLoginOpen, setIsGlobalLoginOpen] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('pin-lock');
   const [tables, setTables] = useState<TableItem[]>(INITIAL_TABLES);
   
@@ -1458,17 +1460,22 @@ export default function App() {
       {/* Authentication screens when not logged in or explicitly locked */}
       {(!isAuthenticated || currentScreen === 'pin-lock') ? (
         !tenantSlug ? (
-          /* ROOT URL (/): Acceso exclusivo para el Administrador Global con usuario y contraseña */
-          <ScreenGlobalLogin
-            onLoginSuccess={() => {
-              setIsAuthenticated(true);
-              setCurrentRole('admin_global');
-              setStaffUser({ name: 'José Manuel Vasquez Rivero', role: 'admin' });
-              setCurrentScreen('saas-console');
-            }}
-            chains={chains}
-            onNavigateToTenant={navigateToTenant}
-          />
+          /* ROOT URL (/): Web de Presentación de ORDENA con botón de Login arriba a la derecha */
+          isGlobalLoginOpen ? (
+            <ScreenGlobalLogin
+              onLoginSuccess={() => {
+                setIsAuthenticated(true);
+                setCurrentRole('admin_global');
+                setStaffUser({ name: 'José Manuel Vasquez Rivero', role: 'admin' });
+                setCurrentScreen('saas-console');
+              }}
+              chains={chains}
+              onNavigateToTenant={navigateToTenant}
+              onBack={() => setIsGlobalLoginOpen(false)}
+            />
+          ) : (
+            <ScreenLanding onOpenLogin={() => setIsGlobalLoginOpen(true)} />
+          )
         ) : (
           /* TENANT URL (/:slug): Terminal del Restaurante aislada con PIN de 6 dígitos */
           <ScreenPinLock

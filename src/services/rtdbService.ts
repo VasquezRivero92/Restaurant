@@ -12,12 +12,13 @@ import {
 import {
   INITIAL_TABLES,
   INITIAL_MENU_ITEMS,
-  INITIAL_KDS_TICKETS,
   INITIAL_CHAINS,
   INITIAL_ADMINS,
-  INITIAL_STAFF,
   INITIAL_MASTER_CARTAS
 } from '../data/mockData';
+
+// Carga y reinicio: solo en emulador/demo. Producción usa procesos auditados.
+const demoDataEnabled = import.meta.env.VITE_ENABLE_DEMO_DATA === 'true';
 
 // Paths in Realtime Database
 const PATHS = {
@@ -30,6 +31,45 @@ const PATHS = {
   ADMINS: 'restaurant/admins'
 };
 
+// Estado inicial permitido para una demo limpia. Mantiene las 2 empresas,
+// 4 sedes, cartas y mesas, pero elimina personal y operaciones en curso.
+function createCleanRestaurantBaseline() {
+  const chains = JSON.parse(JSON.stringify(INITIAL_CHAINS)) as ChainBrand[];
+  const branchMenus: Record<string, MenuItem[]> = {};
+
+  chains.forEach((chain) => {
+    const assignedCarta = INITIAL_MASTER_CARTAS.find((c) => c.id === chain.assignedCartaId) || INITIAL_MASTER_CARTAS[0];
+    const baseDishes = assignedCarta ? [...assignedCarta.dishes] : [...INITIAL_MENU_ITEMS];
+    chain.locations.forEach((location) => {
+      branchMenus[location.id] = JSON.parse(JSON.stringify(baseDishes));
+    });
+  });
+
+  return {
+    tables: INITIAL_TABLES.map((table) => ({
+      id: table.id,
+      number: table.number,
+      status: 'free' as const,
+      statusLabel: 'Libre',
+      zone: table.zone,
+      waiter: '',
+      diners: table.diners,
+      notes: 'Mesa disponible',
+      total: 0,
+      dishes: [],
+      drinks: []
+    })),
+    chains,
+    masterCartas: INITIAL_MASTER_CARTAS.filter((carta) =>
+      ['carta-la-barra', 'carta-puerto-azul'].includes(carta.id)
+    ),
+    branchMenus,
+    kdsTickets: [],
+    staff: [],
+    admins: INITIAL_ADMINS
+  };
+}
+
 export interface SyncStatus {
   connected: boolean;
   initialized: boolean;
@@ -38,29 +78,14 @@ export interface SyncStatus {
 
 // Check if database already has data, if empty, seed with initial mock data
 export async function initRTDBSeedIfEmpty(): Promise<boolean> {
+  if (!demoDataEnabled) return false;
   try {
     const rootRef = ref(rtdb, 'restaurant');
     const snapshot = await get(rootRef);
     
     if (!snapshot.exists()) {
-      // Build initial branch menus map
-      const initialBranchMap: Record<string, MenuItem[]> = {};
-      INITIAL_CHAINS.forEach((chain) => {
-        const assignedCarta = INITIAL_MASTER_CARTAS.find((c) => c.id === chain.assignedCartaId) || INITIAL_MASTER_CARTAS[0];
-        const baseDishes = assignedCarta ? [...assignedCarta.dishes] : [...INITIAL_MENU_ITEMS];
-        chain.locations.forEach((loc) => {
-          initialBranchMap[loc.id] = JSON.parse(JSON.stringify(baseDishes));
-        });
-      });
-
       await set(rootRef, {
-        tables: INITIAL_TABLES,
-        chains: INITIAL_CHAINS,
-        masterCartas: INITIAL_MASTER_CARTAS,
-        branchMenus: initialBranchMap,
-        kdsTickets: INITIAL_KDS_TICKETS,
-        staff: INITIAL_STAFF,
-        admins: INITIAL_ADMINS,
+        ...createCleanRestaurantBaseline(),
         initializedAt: new Date().toISOString()
       });
       console.log('Firebase Realtime Database successfully seeded from initial state');
@@ -116,20 +141,16 @@ export function subscribeToBranchMenus(callback: (menus: Record<string, MenuItem
 export function subscribeToKDSTickets(callback: (tickets: KDSTicket[]) => void) {
   const refPath = ref(rtdb, PATHS.KDS_TICKETS);
   return onValue(refPath, (snapshot) => {
-    if (snapshot.exists()) {
-      const val = snapshot.val();
-      callback(Array.isArray(val) ? val : Object.values(val));
-    }
+    const val = snapshot.val();
+    callback(snapshot.exists() ? (Array.isArray(val) ? val : Object.values(val)) : []);
   });
 }
 
 export function subscribeToStaff(callback: (staff: StaffMember[]) => void) {
   const refPath = ref(rtdb, PATHS.STAFF);
   return onValue(refPath, (snapshot) => {
-    if (snapshot.exists()) {
-      const val = snapshot.val();
-      callback(Array.isArray(val) ? val : Object.values(val));
-    }
+    const val = snapshot.val();
+    callback(snapshot.exists() ? (Array.isArray(val) ? val : Object.values(val)) : []);
   });
 }
 
@@ -201,23 +222,11 @@ export async function syncAdminsToRTDB(admins: AdminUser[]) {
 }
 
 export async function resetAllDataInRTDB() {
-  const initialBranchMap: Record<string, MenuItem[]> = {};
-  INITIAL_CHAINS.forEach((chain) => {
-    const assignedCarta = INITIAL_MASTER_CARTAS.find((c) => c.id === chain.assignedCartaId) || INITIAL_MASTER_CARTAS[0];
-    const baseDishes = assignedCarta ? [...assignedCarta.dishes] : [...INITIAL_MENU_ITEMS];
-    chain.locations.forEach((loc) => {
-      initialBranchMap[loc.id] = JSON.parse(JSON.stringify(baseDishes));
-    });
-  });
-
+  if (!demoDataEnabled) {
+    throw new Error('El reinicio de Firebase está deshabilitado fuera del entorno demo.');
+  }
   await set(ref(rtdb, 'restaurant'), {
-    tables: INITIAL_TABLES,
-    chains: INITIAL_CHAINS,
-    masterCartas: INITIAL_MASTER_CARTAS,
-    branchMenus: initialBranchMap,
-    kdsTickets: INITIAL_KDS_TICKETS,
-    staff: INITIAL_STAFF,
-    admins: INITIAL_ADMINS,
+    ...createCleanRestaurantBaseline(),
     resetAt: new Date().toISOString()
   });
 }

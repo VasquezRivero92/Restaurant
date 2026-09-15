@@ -7,6 +7,7 @@ interface ScreenMesasProps {
   onNavigate: (screen: ScreenType) => void;
   onSelectTable: (tableId: string) => void;
   onMarkDelivered: (tableId: string) => void;
+  onRequestBill: (tableId: string) => void;
   onOpenTable: (tableId: string) => void;
   onUpdateTableWaiter?: (tableId: string, newWaiterName: string) => void;
   onToggleDrinkServed?: (tableId: string, drinkId: string) => void;
@@ -22,6 +23,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
   onNavigate,
   onSelectTable,
   onMarkDelivered,
+  onRequestBill,
   onOpenTable,
   onUpdateTableWaiter,
   onToggleDrinkServed,
@@ -75,6 +77,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
   // Para mozo: alertas de cocina y bebidas filtradas a sus mesas asignadas
   const relevantAlertTables = isWaiter ? tables.filter((t) => isMyTable(t)) : tables;
   const readyCount = relevantAlertTables.filter((t) => t.status === 'ready').length;
+  const firstReadyTable = relevantAlertTables.find((t) => t.status === 'ready');
   const tablesWithPendingDrinks = relevantAlertTables.filter((t) =>
     t.drinks?.some((d) => !d.served)
   );
@@ -95,6 +98,19 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
     if (activeFilter === 'occupied') return table.status !== 'free';
     if (activeFilter === 'free') return table.status === 'free';
     return true;
+  }).sort((a, b) => {
+    // El salón siempre muestra primero lo que exige una acción inmediata.
+    const urgency: Record<TableItem['status'], number> = {
+      bill_requested: 0,
+      ready: 1,
+      cooking: 2,
+      eating: 3,
+      occupied: 4,
+      free: 5
+    };
+    const aDrinks = a.drinks?.some((drink) => !drink.served) ? -0.5 : 0;
+    const bDrinks = b.drinks?.some((drink) => !drink.served) ? -0.5 : 0;
+    return urgency[a.status] + aDrinks - (urgency[b.status] + bDrinks);
   });
 
   const handleHighlight = (tableId: string) => {
@@ -173,7 +189,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                       </span>
                     </div>
                     <p className="font-bold text-lg text-on-primary leading-tight mt-0.5">
-                      ¡Mesa 04 tiene 2 platos listos!
+                      ¡Mesa {firstReadyTable?.number} tiene {firstReadyTable?.dishes?.length || 1} {firstReadyTable?.dishes?.length === 1 ? 'plato listo' : 'platos listos'}!
                     </p>
                   </div>
                 </div>
@@ -183,12 +199,12 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
               </div>
 
               <p className="text-sm text-tertiary-fixed leading-snug">
-                Barra de Fríos: 1x Ceviche Mixto, 1x Arroz con Mariscos + Ceviche listos para pase inmediato.
+                {firstReadyTable?.dishes?.map((dish) => `${dish.qty}x ${dish.name}`).join(', ') || 'Platos listos para pase inmediato.'}
               </p>
 
               <div className="flex items-center gap-2 mt-1">
                 <button
-                  onClick={() => handleHighlight('mesa-04')}
+                  onClick={() => firstReadyTable && handleHighlight(firstReadyTable.id)}
                   className="flex-1 h-11 rounded-lg bg-on-tertiary-container hover:bg-orange-600 text-on-primary font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[20px]">room_service</span>
@@ -265,7 +281,9 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
       {/* Quick Salón Stats Matrix */}
       <div className="px-3 sm:px-4 py-2">
         <div className="grid grid-cols-4 gap-1.5 sm:gap-2.5 bg-surface-container-low p-1.5 sm:p-2 rounded-2xl border border-outline-variant/30">
-          <div 
+          <button
+            type="button"
+            aria-pressed={activeFilter === 'all'}
             onClick={() => setActiveFilter('all')}
             className={`flex flex-col items-center justify-center py-2 sm:py-2.5 px-1 rounded-xl cursor-pointer transition-all ${
               activeFilter === 'all' ? 'bg-surface shadow-sm ring-1 ring-primary/20' : 'bg-surface/60 hover:bg-surface'
@@ -273,9 +291,11 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
           >
             <span className="font-extrabold text-xl sm:text-2xl text-primary leading-none">{totalCount}</span>
             <span className="text-[10px] sm:text-xs text-on-surface-variant font-medium mt-1 truncate">Totales</span>
-          </div>
+          </button>
 
-          <div 
+          <button
+            type="button"
+            aria-pressed={activeFilter === 'occupied'}
             onClick={() => setActiveFilter('occupied')}
             className={`flex flex-col items-center justify-center py-2 sm:py-2.5 px-1 rounded-xl cursor-pointer transition-all ${
               activeFilter === 'occupied' ? 'bg-primary-container shadow-sm' : 'bg-primary-container/80 hover:bg-primary-container'
@@ -283,9 +303,11 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
           >
             <span className="font-extrabold text-xl sm:text-2xl text-secondary-container leading-none">{occupiedCount}</span>
             <span className="text-[10px] sm:text-xs text-on-primary font-medium mt-1 truncate">Ocupadas</span>
-          </div>
+          </button>
 
-          <div 
+          <button
+            type="button"
+            aria-pressed={activeFilter === 'ready'}
             onClick={() => setActiveFilter('ready')}
             className={`flex flex-col items-center justify-center py-2 sm:py-2.5 px-1 rounded-xl cursor-pointer transition-all relative overflow-hidden ${
               activeFilter === 'ready' ? 'bg-tertiary-container ring-2 ring-on-tertiary-container' : 'bg-tertiary-container/90'
@@ -295,10 +317,12 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
               <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-on-tertiary-container animate-ping"></span>
             )}
             <span className="font-extrabold text-xl sm:text-2xl text-on-tertiary leading-none">{readyCount}</span>
-            <span className="text-[10px] sm:text-xs text-tertiary-fixed font-medium mt-1 truncate">Platos</span>
-          </div>
+            <span className="text-[10px] sm:text-xs text-tertiary-fixed font-medium mt-1 truncate">Listas</span>
+          </button>
 
-          <div 
+          <button
+            type="button"
+            aria-pressed={activeFilter === 'drinks'}
             onClick={() => setActiveFilter('drinks')}
             className={`flex flex-col items-center justify-center py-2 sm:py-2.5 px-1 rounded-xl cursor-pointer transition-all relative overflow-hidden ${
               activeFilter === 'drinks' ? 'bg-amber-400 text-amber-950 ring-2 ring-amber-600' : 'bg-amber-100 text-amber-900 hover:bg-amber-200'
@@ -309,71 +333,8 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
             )}
             <span className="font-extrabold text-xl sm:text-2xl leading-none">{totalPendingGlasses}</span>
             <span className="text-[10px] sm:text-xs font-bold mt-1 truncate">Bebidas</span>
-          </div>
+          </button>
         </div>
-      </div>
-
-      {/* Floor Filter Segmented Bar */}
-      <div className="px-4 pb-2 pt-1 overflow-x-auto flex gap-2 no-scrollbar">
-        <button
-          onClick={() => setActiveFilter('all')}
-          className={`flex-shrink-0 h-10 px-3.5 rounded-full font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer ${
-            activeFilter === 'all'
-              ? 'bg-primary text-on-primary shadow-sm'
-              : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
-          }`}
-        >
-          <span className="material-symbols-outlined text-[18px]">apps</span>
-          <span>Todas ({totalCount})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveFilter('drinks')}
-          className={`flex-shrink-0 h-10 px-3.5 rounded-full font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer ${
-            activeFilter === 'drinks'
-              ? 'bg-amber-500 text-amber-950 shadow-sm ring-1 ring-amber-600'
-              : 'bg-amber-100 text-amber-900 hover:bg-amber-200'
-          }`}
-        >
-          <span className="material-symbols-outlined text-[18px]">local_bar</span>
-          <span>Bebidas ({totalPendingGlasses})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveFilter('ready')}
-          className={`flex-shrink-0 h-10 px-3.5 rounded-full font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer ${
-            activeFilter === 'ready'
-              ? 'bg-on-tertiary-container text-on-primary shadow-sm'
-              : 'bg-surface-container-high text-tertiary-container hover:bg-surface-container-highest'
-          }`}
-        >
-          <span className="w-2 h-2 rounded-full bg-on-tertiary-container animate-pulse"></span>
-          <span>Cocina Lista ({readyCount})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveFilter('occupied')}
-          className={`flex-shrink-0 h-10 px-3.5 rounded-full font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer ${
-            activeFilter === 'occupied'
-              ? 'bg-primary text-on-primary shadow-sm'
-              : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
-          }`}
-        >
-          <span className="material-symbols-outlined text-[18px]">dining</span>
-          <span>Ocupadas ({occupiedCount})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveFilter('free')}
-          className={`flex-shrink-0 h-10 px-3.5 rounded-full font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer ${
-            activeFilter === 'free'
-              ? 'bg-secondary text-on-secondary shadow-sm'
-              : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
-          }`}
-        >
-          <span className="material-symbols-outlined text-[18px]">check_circle</span>
-          <span>Libres ({freeCount})</span>
-        </button>
       </div>
 
       {/* Table Cards Layout List */}
@@ -802,11 +763,14 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                       <span>Agregar Pedido</span>
                     </button>
                     <button
-                      onClick={() => onNavigate('cuenta-cobro')}
+                      onClick={() => {
+                        onRequestBill(table.id);
+                        onNavigate('cuenta-cobro');
+                      }}
                       className="h-11 sm:h-12 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
                     >
                       <span className="material-symbols-outlined text-[18px]">request_quote</span>
-                      <span>Pedir Cuenta</span>
+                      <span>Solicitar Cuenta</span>
                     </button>
                   </div>
                 )}
