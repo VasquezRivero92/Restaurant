@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isGlobal() { return signedIn() && request.auth.token.platformAdmin == true; }
+    function tokenTenant() { return request.auth.token.tenantId; }
+    function hasTenant(restaurantId) { return signedIn() && (isGlobal() || tokenTenant() == restaurantId); }
+    function hasRole(roles) { return signedIn() && request.auth.token.role in roles; }
+    function canUseBranch(restaurantId, branchId) {
+      return isGlobal() || (hasTenant(restaurantId) && request.auth.token.branchIds != null && branchId in request.auth.token.branchIds);
+    }
+    function isTenantAdmin(restaurantId) {
+      return hasTenant(restaurantId) && hasRole(['admin_general', 'admin_sede']);
+    }
+    function isGeneralAdmin(restaurantId) {
+      return hasTenant(restaurantId) && hasRole(['admin_general']);
+    }
+
+    // Perfiles y PII: únicamente usuarios autenticados dentro de su propio tenant.
+    match /users/{userId} {
+      allow read: if signedIn() && (isGlobal() || resource.data.tenantId == tokenTenant());
+      allow create, update, delete: if isGlobal() ||
+        (hasRole(['admin_general']) && request.resource.data.tenantId == tokenTenant());
+    }
+
+    match /restaurants/{restaurantId} {
+      // El acceso público al nombre/logo/sedes se entrega por /api/public/tenant/:slug.
+      allow read: if hasTenant(restaurantId);
+      allow create, delete: if isGlobal();
+      allow update: if isGlobal() || (hasTenant(restaurantId) && hasRole(['admin_general']));
+
+      match /masterCartas/{cartaId} {
+        allow read: if hasTenant(restaurantId);
+        allow write: if isGlobal() || (hasTenant(restaurantId) && hasRole(['admin_general']));
+      }
+
+      match /branches/{branchId} {
+        allow read: if canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId);
+        allow write: if isGlobal() || (hasTenant(restaurantId) && hasRole(['admin_general']));
+
+        match /tables/{tableId} {
+          allow read: if canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId);
+          allow create, update: if canUseBranch(restaurantId, branchId) && hasRole(['mesero', 'admin_sede', 'admin_general']);
+          allow delete: if isTenantAdmin(restaurantId);
+        }
+
+        match /menu/{itemId} {
+          allow read: if canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId);
+          allow write: if isGlobal() || (canUseBranch(restaurantId, branchId) && hasRole(['admin_general', 'admin_sede']));
+        }
+
+        match /orders/{orderId} {
+          allow read: if canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId);
+          allow create: if canUseBranch(restaurantId, branchId) && hasRole(['mesero', 'admin_sede', 'admin_general']);
+          allow update: if canUseBranch(restaurantId, branchId) && hasRole(['mesero', 'cocina', 'admin_sede', 'admin_general']);
+          allow delete: if isTenantAdmin(restaurantId);
+        }
+
+        match /sales/{saleId} {
+          allow read: if isTenantAdmin(restaurantId);
+          allow write: if false;
+        }
+      }
+    }
+  }
+}

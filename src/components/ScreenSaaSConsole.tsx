@@ -5,7 +5,9 @@ interface ScreenSaaSConsoleProps {
   chains: ChainBrand[];
   admins: AdminUser[];
   masterCartas?: MasterCarta[];
-  onAddChain: (newChain: ChainBrand) => void;
+  onAddChain: (newChain: ChainBrand) => Promise<Array<{ email: string; activationLink: string }>>;
+  onUpdateChain?: (chain: ChainBrand) => void;
+  onDeleteChain?: (chainId: string) => void;
   onAddLocationToChain: (chainId: string, newLocation: BranchLocation, managerAdmin?: AdminUser) => void;
   onToggleLocation: (chainId: string, locationId: string) => void;
   onNavigate: (screen: ScreenType) => void;
@@ -22,6 +24,8 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
   admins,
   masterCartas = [],
   onAddChain,
+  onUpdateChain,
+  onDeleteChain,
   onAddLocationToChain,
   onToggleLocation,
   onNavigate,
@@ -34,15 +38,16 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
 }) => {
   // Modals state
   const [showModalNewChain, setShowModalNewChain] = useState(false);
+  const [editingChain, setEditingChain] = useState<ChainBrand | null>(null);
+  const [chainToConfirmDelete, setChainToConfirmDelete] = useState<ChainBrand | null>(null);
   const [showModalNewLocation, setShowModalNewLocation] = useState(false);
   const [selectedChainForLocation, setSelectedChainForLocation] = useState<string>(chains[0]?.id || '');
-  const [editingAdminForPin, setEditingAdminForPin] = useState<AdminUser | null>(null);
-  const [newAdminPin, setNewAdminPin] = useState<string>('');
   
   // Search & filters
   const [searchQuery, setSearchQuery] = useState('');
   const [adminTab, setAdminTab] = useState<'todos' | 'admin_global' | 'admin_general' | 'admin_sede'>('todos');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [activationLinks, setActivationLinks] = useState<Array<{ email: string; activationLink: string }>>([]);
 
   // Main View Navigation Tabs
   const [mainViewTab, setMainViewTab] = useState<'restaurantes' | 'cartas' | 'admins'>('restaurantes');
@@ -181,13 +186,34 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
     plan: 'Enterprise' as 'Enterprise' | 'Pro' | 'Básico',
     logoUrl: '',
     adminName: '',
+    adminDocType: 'DNI' as 'DNI' | 'CE' | 'Pasaporte' | 'RUC',
+    adminDocNumber: '',
     adminEmail: '',
     adminPhone: '',
     initialLocName: 'Sede Central',
     initialLocAddress: '',
     initialLocDistrict: 'Miraflores',
     initialLocTables: 16,
-    initialLocManager: ''
+    initialLocManager: '',
+    initialLocDocType: 'DNI' as 'DNI' | 'CE' | 'Pasaporte',
+    initialLocDocNumber: '',
+    initialLocEmail: ''
+  });
+
+  // Form state: Edit Restaurant
+  const [editChainForm, setEditChainForm] = useState({
+    name: '',
+    slug: '',
+    legalName: '',
+    ruc: '',
+    plan: 'Enterprise' as 'Enterprise' | 'Pro' | 'Básico',
+    status: 'Activa' as 'Activa' | 'En Onboarding' | 'Suspendida',
+    logoUrl: '',
+    adminName: '',
+    adminDocType: 'DNI' as 'DNI' | 'CE' | 'Pasaporte' | 'RUC',
+    adminDocNumber: '',
+    adminEmail: '',
+    adminPhone: ''
   });
 
   // Form state: New Branch / Sede
@@ -200,6 +226,8 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
     phone: '',
     tables: 14,
     managerName: '',
+    managerDocType: 'DNI' as 'DNI' | 'CE' | 'Pasaporte',
+    managerDocNumber: '',
     managerEmail: '',
     managerPhone: ''
   });
@@ -207,6 +235,69 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Open Edit Restaurant Modal
+  const handleOpenEditChain = (chain: ChainBrand) => {
+    setEditingChain(chain);
+    setEditChainForm({
+      name: chain.name,
+      slug: chain.slug || chain.id,
+      legalName: chain.legalName,
+      ruc: chain.ruc,
+      plan: chain.plan,
+      status: chain.status,
+      logoUrl: chain.logoUrl || '',
+      adminName: chain.adminName,
+      adminDocType: chain.adminDocType || 'DNI',
+      adminDocNumber: chain.adminDocNumber || '',
+      adminEmail: chain.adminEmail,
+      adminPhone: chain.adminPhone
+    });
+  };
+
+  // Save Edited Restaurant
+  const handleSaveEditChain = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingChain) return;
+
+    if (!editChainForm.name.trim()) {
+      showToast('El nombre del restaurante es obligatorio');
+      return;
+    }
+
+    const updatedChain: ChainBrand = {
+      ...editingChain,
+      name: editChainForm.name.trim(),
+      slug: editChainForm.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '') || editingChain.slug || editingChain.id,
+      legalName: editChainForm.legalName.trim() || `${editChainForm.name.trim()} S.A.C.`,
+      ruc: editChainForm.ruc.trim() || editingChain.ruc,
+      plan: editChainForm.plan,
+      status: editChainForm.status,
+      logoUrl: editChainForm.logoUrl.trim() || undefined,
+      adminName: editChainForm.adminName.trim() || editingChain.adminName,
+      adminDocType: editChainForm.adminDocType,
+      adminDocNumber: editChainForm.adminDocNumber.trim() || undefined,
+      adminEmail: editChainForm.adminEmail.trim() || editingChain.adminEmail,
+      adminPhone: editChainForm.adminPhone.trim() || editingChain.adminPhone
+    };
+
+    if (onUpdateChain) {
+      onUpdateChain(updatedChain);
+    }
+    setEditingChain(null);
+    showToast(`¡Restaurante "${updatedChain.name}" actualizado exitosamente!`);
+  };
+
+  // Confirm Delete Restaurant
+  const handleConfirmDeleteChain = () => {
+    if (!chainToConfirmDelete) return;
+    const targetName = chainToConfirmDelete.name;
+    if (onDeleteChain) {
+      onDeleteChain(chainToConfirmDelete.id);
+    }
+    setChainToConfirmDelete(null);
+    showToast(`Restaurante "${targetName}" y sus sedes han sido eliminados de la plataforma.`);
   };
 
   // Open Add Sede modal pre-selecting a specific restaurant
@@ -221,6 +312,8 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       phone: '',
       tables: 14,
       managerName: '',
+      managerDocType: 'DNI',
+      managerDocNumber: '',
       managerEmail: '',
       managerPhone: ''
     }));
@@ -228,7 +321,7 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
   };
 
   // Submit New Restaurant
-  const handleCreateRestaurant = (e: React.FormEvent) => {
+  const handleCreateRestaurant = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chainForm.name.trim()) {
       showToast('Ingresa el nombre comercial de la cevichería o restaurante');
@@ -251,7 +344,9 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       todaySales: 0,
       active: true,
       managerName: locAdminName,
-      managerEmail: chainForm.adminEmail || 'sede@restaurante.pe',
+      managerDocType: chainForm.initialLocDocType,
+      managerDocNumber: chainForm.initialLocDocNumber.trim() || undefined,
+      managerEmail: chainForm.initialLocEmail.trim() || chainForm.adminEmail || 'sede@restaurante.pe',
       managerPhone: chainForm.adminPhone
     };
 
@@ -269,15 +364,19 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       status: 'Activa',
       logoUrl: chainForm.logoUrl.trim() || undefined,
       adminName: genAdminName,
+      adminDocType: chainForm.adminDocType,
+      adminDocNumber: chainForm.adminDocNumber.trim() || undefined,
       adminEmail: chainForm.adminEmail.trim() || 'admin@cadena.pe',
       adminPhone: chainForm.adminPhone.trim() || '+51 987 654 321',
       locationsCount: 1,
       locations: [initialLocation]
     };
 
-    onAddChain(newChain);
-    setShowModalNewChain(false);
-    setChainForm({
+    try {
+      const links = await onAddChain(newChain);
+      setActivationLinks(links);
+      setShowModalNewChain(false);
+      setChainForm({
       name: '',
       slug: '',
       legalName: '',
@@ -285,15 +384,23 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       plan: 'Enterprise',
       logoUrl: '',
       adminName: '',
+      adminDocType: 'DNI',
+      adminDocNumber: '',
       adminEmail: '',
       adminPhone: '',
       initialLocName: 'Sede Central',
       initialLocAddress: '',
       initialLocDistrict: 'Miraflores',
       initialLocTables: 16,
-      initialLocManager: ''
-    });
-    showToast(`¡Restaurante "${newChain.name}" registrado con su Sede Matriz y desplegado en la nube!`);
+      initialLocManager: '',
+      initialLocDocType: 'DNI',
+      initialLocDocNumber: '',
+      initialLocEmail: ''
+      });
+      showToast(`¡Restaurante "${newChain.name}" registrado. Comparte los enlaces de activación mostrados.`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'No fue posible crear las identidades administrativas.');
+    }
   };
 
   // Submit New Branch (Sede)
@@ -339,6 +446,7 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       brandId: targetChain.id,
       branchName: newLocation.name,
       branchId: newLocId,
+      assignedBranchIds: [newLocId],
       initials: managerName.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() || 'AS',
       active: true
     };
@@ -740,21 +848,39 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                           }
                           showToast(`Ingresando al panel general de ${chain.name}`);
                         }}
-                        className="h-10 px-4 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-md hover:shadow-lg active:scale-95 transition-all cursor-pointer"
+                        className="h-10 px-4 rounded-xl bg-[#0c3130] hover:bg-[#124946] text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-md hover:shadow-lg active:scale-95 transition-all cursor-pointer"
                         title={`Administrar carta, sedes y equipo de ${chain.name}`}
                       >
-                        <span className="material-symbols-outlined text-[19px]">tune</span>
+                        <span className="material-symbols-outlined text-[19px] text-[#ffd06f]">tune</span>
                         <span>Administrar Restaurante</span>
                         <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
                       </button>
 
                       <button
                         onClick={() => handleOpenAddLocation(chain.id)}
-                        className="h-10 px-3 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-bold text-xs flex items-center gap-1.5 shrink-0 active:scale-95 transition-all cursor-pointer border border-outline-variant/30"
+                        className="h-10 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-1.5 shrink-0 active:scale-95 transition-all cursor-pointer border border-slate-300/80"
                         title={`Agregar una nueva sede a ${chain.name}`}
                       >
-                        <span className="material-symbols-outlined text-[18px] text-secondary">add_location_alt</span>
+                        <span className="material-symbols-outlined text-[18px] text-teal-700">add_location_alt</span>
                         <span className="hidden sm:inline">+ Sede</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleOpenEditChain(chain)}
+                        className="h-10 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs flex items-center gap-1.5 shrink-0 active:scale-95 transition-all cursor-pointer border border-amber-300"
+                        title={`Editar información y configuración de ${chain.name}`}
+                      >
+                        <span className="material-symbols-outlined text-[17px] text-amber-700">edit</span>
+                        <span className="hidden sm:inline">Editar</span>
+                      </button>
+
+                      <button
+                        onClick={() => setChainToConfirmDelete(chain)}
+                        className="h-10 px-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs flex items-center gap-1.5 shrink-0 active:scale-95 transition-all cursor-pointer border border-red-200"
+                        title={`Eliminar restaurante ${chain.name} y sus sedes`}
+                      >
+                        <span className="material-symbols-outlined text-[17px] text-red-600">delete</span>
+                        <span className="hidden sm:inline">Eliminar</span>
                       </button>
                     </div>
                   </div>
@@ -815,15 +941,20 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                         {chain.adminName.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() || 'AG'}
                       </div>
                       <div className="flex flex-col">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="px-2 py-0.2 rounded bg-primary text-on-primary font-extrabold text-[10px] uppercase tracking-wider">
                             ADMINISTRADOR GENERAL
                           </span>
                           <span className="text-xs text-on-surface-variant">de la marca</span>
+                          {chain.adminDocNumber && (
+                            <span className="px-2 py-0.2 rounded bg-slate-200 text-slate-800 font-mono font-bold text-[10px]">
+                              {chain.adminDocType || 'DNI'}: {chain.adminDocNumber}
+                            </span>
+                          )}
                         </div>
                         <span className="font-extrabold text-sm text-primary mt-0.5">{chain.adminName}</span>
                         <span className="text-xs text-on-surface-variant">
-                          {chain.adminEmail} • {chain.adminPhone}
+                          ✉️ {chain.adminEmail} • 📞 {chain.adminPhone}
                         </span>
                       </div>
                     </div>
@@ -1375,6 +1506,10 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
               </div>
 
               <div className="bg-surface-container-low rounded-xl p-2.5 text-xs text-on-surface-variant flex flex-col gap-1 border border-outline-variant/20">
+                <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  <span className="material-symbols-outlined text-[14px] text-teal-700">badge</span>
+                  <span>{admin.docType || 'DNI'}: {admin.docNumber || 'No registrado'}</span>
+                </div>
                 <div className="flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[14px]">mail</span>
                   <span className="truncate">{admin.email}</span>
@@ -1392,30 +1527,13 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                   </div>
                 )}
 
-                {/* PIN de Ingreso (6 Dígitos) */}
+                {/* Estado de la identidad administrativa */}
                 <div className="pt-1.5 mt-1 border-t border-outline-variant/15 flex items-center justify-between gap-1 flex-wrap">
                   <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[14px] text-teal-700">key</span>
-                    <span className="text-[10px] font-bold text-on-surface">PIN (6 dígitos):</span>
-                    <span className="px-1.5 py-0.5 rounded bg-slate-900 text-teal-300 font-mono font-bold text-[10px] tracking-wider">
-                      {admin.pin || (admin.roleKey === 'admin_global' ? '999999' : admin.roleKey === 'admin_general' ? '888888' : '777777')}
-                    </span>
+                    <span className="material-symbols-outlined text-[14px] text-teal-700">verified_user</span>
+                    <span className="text-[10px] font-bold text-on-surface">Acceso con usuario y contraseña</span>
                   </div>
-
-                  {(currentRole === 'admin_global' || currentRole === 'admin_general') && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingAdminForPin(admin);
-                        setNewAdminPin(admin.pin || (admin.roleKey === 'admin_global' ? '999999' : admin.roleKey === 'admin_general' ? '888888' : '777777'));
-                      }}
-                      className="text-[10px] text-teal-800 font-extrabold hover:underline cursor-pointer flex items-center gap-0.5"
-                      title="Asignar o cambiar PIN de 6 dígitos"
-                    >
-                      <span className="material-symbols-outlined text-[12px]">edit</span>
-                      <span>Cambiar PIN</span>
-                    </button>
-                  )}
+                  <span className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold ${admin.authUid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>{admin.authUid ? 'IDENTIDAD VINCULADA' : 'PENDIENTE DE VINCULAR'}</span>
                 </div>
               </div>
             </div>
@@ -1606,24 +1724,55 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                   Administrador General Designado (Dueño de la Cadena)
                 </span>
 
-                <div>
-                  <label className="font-bold text-[11px] text-on-surface block mb-0.5">
-                    Nombre Completo del Administrador General
-                  </label>
-                  <input
-                    type="text"
-                    value={chainForm.adminName}
-                    onChange={(e) => setChainForm({ ...chainForm, adminName: e.target.value })}
-                    placeholder="ej. Roberto Morales Sánchez"
-                    className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none"
-                    required
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="font-bold text-[11px] text-on-surface block mb-0.5">
+                      Tipo Documento *
+                    </label>
+                    <select
+                      value={chainForm.adminDocType}
+                      onChange={(e) => setChainForm({ ...chainForm, adminDocType: e.target.value as any })}
+                      className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none font-bold"
+                    >
+                      <option value="DNI">DNI (8 dígitos)</option>
+                      <option value="CE">Carnet Extr. (CE)</option>
+                      <option value="Pasaporte">Pasaporte</option>
+                      <option value="RUC">RUC (11 dígitos)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-bold text-[11px] text-on-surface block mb-0.5">
+                      N° de Documento *
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={chainForm.adminDocType === 'DNI' ? 8 : chainForm.adminDocType === 'RUC' ? 11 : 15}
+                      value={chainForm.adminDocNumber}
+                      onChange={(e) => setChainForm({ ...chainForm, adminDocNumber: e.target.value.replace(chainForm.adminDocType === 'DNI' || chainForm.adminDocType === 'RUC' ? /\D/g : /[^a-zA-Z0-9]/g, '') })}
+                      placeholder={chainForm.adminDocType === 'DNI' ? '41892301' : 'Número'}
+                      className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none font-mono font-bold"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-[11px] text-on-surface block mb-0.5">
+                      Nombre Completo *
+                    </label>
+                    <input
+                      type="text"
+                      value={chainForm.adminName}
+                      onChange={(e) => setChainForm({ ...chainForm, adminName: e.target.value })}
+                      placeholder="Roberto Morales Sánchez"
+                      className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none font-medium"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="font-bold text-[11px] text-on-surface block mb-0.5">
-                      Email Corporativo
+                      Email Corporativo *
                     </label>
                     <input
                       type="email"
@@ -1631,6 +1780,7 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                       onChange={(e) => setChainForm({ ...chainForm, adminEmail: e.target.value })}
                       placeholder="roberto@restaurante.pe"
                       className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none"
+                      required
                     />
                   </div>
                   <div>
@@ -1836,18 +1986,47 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                   Esta persona tendrá acceso exclusivo para gestionar la carta del día, platos agotados, mesas y equipo de mozos de esta sede específica.
                 </p>
 
-                <div>
-                  <label className="font-bold text-[11px] text-on-surface block mb-0.5">
-                    Nombre Completo del Administrador de Sede *
-                  </label>
-                  <input
-                    type="text"
-                    value={locationForm.managerName}
-                    onChange={(e) => setLocationForm({ ...locationForm, managerName: e.target.value })}
-                    placeholder="ej. Fernando Castro Poma"
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-lowest text-xs text-on-surface border border-outline-variant/30 focus:outline-none font-medium"
-                    required
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="font-bold text-[11px] text-on-surface block mb-0.5">
+                      Tipo Documento *
+                    </label>
+                    <select
+                      value={locationForm.managerDocType}
+                      onChange={(e) => setLocationForm({ ...locationForm, managerDocType: e.target.value as any })}
+                      className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none font-bold"
+                    >
+                      <option value="DNI">DNI (8 dígitos)</option>
+                      <option value="CE">Carnet Extr. (CE)</option>
+                      <option value="Pasaporte">Pasaporte</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-bold text-[11px] text-on-surface block mb-0.5">
+                      N° de Documento *
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={locationForm.managerDocType === 'DNI' ? 8 : 15}
+                      value={locationForm.managerDocNumber}
+                      onChange={(e) => setLocationForm({ ...locationForm, managerDocNumber: e.target.value.replace(locationForm.managerDocType === 'DNI' ? /\D/g : /[^a-zA-Z0-9]/g, '') })}
+                      placeholder={locationForm.managerDocType === 'DNI' ? '48201945' : 'Número'}
+                      className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-[11px] text-on-surface block mb-0.5">
+                      Nombre Completo *
+                    </label>
+                    <input
+                      type="text"
+                      value={locationForm.managerName}
+                      onChange={(e) => setLocationForm({ ...locationForm, managerName: e.target.value })}
+                      placeholder="Fernando Castro Poma"
+                      className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none font-medium"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -2357,90 +2536,353 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
         </div>
       )}
 
-      {/* MODAL: ASIGNAR PIN DE 6 DÍGITOS A ADMINISTRADOR */}
-      {editingAdminForPin && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-outline-variant/40 animate-in zoom-in-95">
-            <div className="px-5 py-4 bg-primary text-on-primary flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-teal-300 text-[22px]">vpn_key</span>
+      {/* ========================================================================= */}
+      {/* MODAL: EDITAR RESTAURANTE / CADENA (ADMIN GLOBAL) */}
+      {/* ========================================================================= */}
+      {editingChain && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden border border-slate-200 animate-in zoom-in-95 my-8 max-h-[92vh] flex flex-col">
+            <div className="px-6 py-4 bg-[#0c3130] text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-[#ffd06f]">
+                  <span className="material-symbols-outlined text-[24px]">edit_square</span>
+                </div>
                 <div>
-                  <h3 className="font-extrabold text-sm text-white">Asignar PIN de 6 Dígitos</h3>
-                  <p className="text-[11px] text-teal-200">{editingAdminForPin.name} ({editingAdminForPin.role})</p>
+                  <h3 className="font-extrabold text-base text-white">
+                    Editar Restaurante: {editingChain.name}
+                  </h3>
+                  <p className="text-xs text-teal-200">
+                    Modifica datos de la empresa, logo, plan y administrador general.
+                  </p>
                 </div>
               </div>
               <button
-                onClick={() => setEditingAdminForPin(null)}
-                className="w-7 h-7 rounded-full hover:bg-white/10 flex items-center justify-center text-white cursor-pointer"
+                onClick={() => setEditingChain(null)}
+                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white transition-colors cursor-pointer"
               >
-                <span className="material-symbols-outlined text-[18px]">close</span>
+                <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (newAdminPin.length !== 6 || !/^\d{6}$/.test(newAdminPin)) {
-                  setToastMessage('El PIN debe tener exactamente 6 dígitos numéricos');
-                  setTimeout(() => setToastMessage(null), 3000);
-                  return;
-                }
-                if (onUpdateAdmin) {
-                  onUpdateAdmin({
-                    ...editingAdminForPin,
-                    pin: newAdminPin
-                  });
-                  setToastMessage(`¡PIN de 6 dígitos asignado para ${editingAdminForPin.name}!`);
-                  setTimeout(() => setToastMessage(null), 3000);
-                }
-                setEditingAdminForPin(null);
-              }}
-              className="p-5 flex flex-col gap-4"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="font-bold text-xs text-on-surface">Nuevo PIN de Terminal *</label>
-                  <button
-                    type="button"
-                    onClick={() => setNewAdminPin(Math.floor(100000 + Math.random() * 900000).toString())}
-                    className="text-[10px] text-teal-700 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
-                  >
-                    <span className="material-symbols-outlined text-[13px]">autorenew</span>
-                    <span>Generar PIN</span>
-                  </button>
+            <form onSubmit={handleSaveEditChain} className="p-6 overflow-y-auto flex flex-col gap-4">
+              {/* Restaurant Commercial & Fiscal Info */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="font-bold text-xs text-slate-800 block mb-1">
+                    Nombre Comercial del Restaurante / Marca *
+                  </label>
+                  <input
+                    type="text"
+                    value={editChainForm.name}
+                    onChange={(e) => setEditChainForm({ ...editChainForm, name: e.target.value })}
+                    placeholder="ej. Cevichería La Barra Chalaca"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 text-xs sm:text-sm text-slate-900 border border-slate-300 focus:outline-none focus:bg-white font-bold"
+                    required
+                  />
                 </div>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={newAdminPin}
-                  onChange={(e) => setNewAdminPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="999999"
-                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-base font-mono font-extrabold tracking-widest text-primary border border-outline-variant/30 focus:outline-none text-center"
-                  required
-                  autoFocus
-                />
-                <p className="text-[11px] text-on-surface-variant mt-1.5 leading-relaxed">
-                  Como <strong>Administrador General / Global</strong>, este PIN de 6 dígitos permitirá a este usuario autenticarse en terminales de acceso.
-                </p>
+
+                <div className="sm:col-span-2">
+                  <label className="font-bold text-xs text-slate-800 block mb-1">
+                    Enlace Directo del Restaurante (URL Slug)
+                  </label>
+                  <div className="flex items-center rounded-xl bg-slate-50 border border-slate-300 overflow-hidden px-3 py-1.5 focus-within:ring-2 focus-within:ring-[#0c3130]/20">
+                    <span className="text-xs text-slate-500 font-mono select-none">
+                      {window.location.origin}/
+                    </span>
+                    <input
+                      type="text"
+                      value={editChainForm.slug}
+                      onChange={(e) => setEditChainForm({ ...editChainForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+                      placeholder="la-barra-chalaca"
+                      className="flex-1 bg-transparent text-xs sm:text-sm text-slate-900 font-mono font-bold focus:outline-none ml-0.5"
+                    />
+                  </div>
+                </div>
+
+                {/* Restaurant Logo Field */}
+                <div className="sm:col-span-2">
+                  <label className="font-bold text-xs text-slate-800 block mb-1">
+                    Logo del Restaurante (Identidad de Marca)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
+                      {editChainForm.logoUrl ? (
+                        <img src={editChainForm.logoUrl} alt="Logo preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="material-symbols-outlined text-[24px] text-slate-400">add_photo_alternate</span>
+                      )}
+                    </div>
+                    <div className="flex-1 flex flex-col gap-1.5">
+                      <input
+                        type="url"
+                        value={editChainForm.logoUrl}
+                        onChange={(e) => setEditChainForm({ ...editChainForm, logoUrl: e.target.value })}
+                        placeholder="https://... URL de la imagen del logo"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-50 text-xs text-slate-900 border border-slate-300 focus:outline-none font-medium"
+                      />
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] text-slate-500 font-medium">Logos sugeridos:</span>
+                        {[
+                          { label: 'Cevichería', url: 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?auto=format&fit=crop&w=200&q=80' },
+                          { label: 'Marino Azul', url: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=200&q=80' },
+                          { label: 'Pescadería', url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=200&q=80' },
+                          { label: 'Gourmet', url: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=200&q=80' }
+                        ].map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => setEditChainForm({ ...editChainForm, logoUrl: preset.url })}
+                            className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-teal-50 text-[10px] font-bold text-teal-800 border border-slate-200 cursor-pointer"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-xs text-slate-800 block mb-1">
+                    Razón Social Legal
+                  </label>
+                  <input
+                    type="text"
+                    value={editChainForm.legalName}
+                    onChange={(e) => setEditChainForm({ ...editChainForm, legalName: e.target.value })}
+                    placeholder="Inversiones El Pulpo S.A.C."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 text-xs text-slate-900 border border-slate-300 focus:outline-none font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-xs text-slate-800 block mb-1">
+                    RUC SUNAT (11 dígitos)
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={11}
+                    value={editChainForm.ruc}
+                    onChange={(e) => setEditChainForm({ ...editChainForm, ruc: e.target.value })}
+                    placeholder="20XXXXXXXXX"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 text-xs text-slate-900 border border-slate-300 focus:outline-none font-mono font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-xs text-slate-800 block mb-1">
+                    Plan de Licencia SaaS
+                  </label>
+                  <select
+                    value={editChainForm.plan}
+                    onChange={(e) => setEditChainForm({ ...editChainForm, plan: e.target.value as any })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 text-xs text-slate-900 border border-slate-300 focus:outline-none font-bold"
+                  >
+                    <option value="Enterprise">Enterprise (Sedes Ilimitadas)</option>
+                    <option value="Pro">Pro (Hasta 3 Sedes)</option>
+                    <option value="Básico">Básico (1 Sede)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-xs text-slate-800 block mb-1">
+                    Estado Operativo
+                  </label>
+                  <select
+                    value={editChainForm.status}
+                    onChange={(e) => setEditChainForm({ ...editChainForm, status: e.target.value as any })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 text-xs text-slate-900 border border-slate-300 focus:outline-none font-bold"
+                  >
+                    <option value="Activa">Activa</option>
+                    <option value="En Onboarding">En Onboarding</option>
+                    <option value="Suspendida">Suspendida</option>
+                  </select>
+                </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant/20">
+              {/* General Admin Information */}
+              <div className="bg-[#0c3130]/5 p-4 rounded-xl border border-[#0c3130]/20 flex flex-col gap-2.5">
+                <span className="font-extrabold text-xs text-[#0c3130] uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] text-teal-700">person</span>
+                  Administrador General Designado
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="font-bold text-[11px] text-slate-800 block mb-0.5">
+                      Tipo Documento *
+                    </label>
+                    <select
+                      value={editChainForm.adminDocType}
+                      onChange={(e) => setEditChainForm({ ...editChainForm, adminDocType: e.target.value as any })}
+                      className="w-full px-3 py-1.5 rounded-lg bg-white text-xs border border-slate-300 focus:outline-none font-bold"
+                    >
+                      <option value="DNI">DNI (8 dígitos)</option>
+                      <option value="CE">Carnet Extr. (CE)</option>
+                      <option value="Pasaporte">Pasaporte</option>
+                      <option value="RUC">RUC (11 dígitos)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-bold text-[11px] text-slate-800 block mb-0.5">
+                      N° de Documento *
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={editChainForm.adminDocType === 'DNI' ? 8 : editChainForm.adminDocType === 'RUC' ? 11 : 15}
+                      value={editChainForm.adminDocNumber}
+                      onChange={(e) => setEditChainForm({ ...editChainForm, adminDocNumber: e.target.value.replace(editChainForm.adminDocType === 'DNI' || editChainForm.adminDocType === 'RUC' ? /\D/g : /[^a-zA-Z0-9]/g, '') })}
+                      placeholder={editChainForm.adminDocType === 'DNI' ? '41892301' : 'Número'}
+                      className="w-full px-3 py-1.5 rounded-lg bg-white text-xs border border-slate-300 focus:outline-none font-mono font-bold"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-[11px] text-slate-800 block mb-0.5">
+                      Nombre Completo *
+                    </label>
+                    <input
+                      type="text"
+                      value={editChainForm.adminName}
+                      onChange={(e) => setEditChainForm({ ...editChainForm, adminName: e.target.value })}
+                      placeholder="Roberto Morales Sánchez"
+                      className="w-full px-3 py-1.5 rounded-lg bg-white text-xs border border-slate-300 focus:outline-none font-medium"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-bold text-[11px] text-slate-800 block mb-0.5">
+                      Email Corporativo *
+                    </label>
+                    <input
+                      type="email"
+                      value={editChainForm.adminEmail}
+                      onChange={(e) => setEditChainForm({ ...editChainForm, adminEmail: e.target.value })}
+                      placeholder="roberto@restaurante.pe"
+                      className="w-full px-3 py-1.5 rounded-lg bg-white text-xs border border-slate-300 focus:outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-[11px] text-slate-800 block mb-0.5">
+                      WhatsApp / Móvil
+                    </label>
+                    <input
+                      type="tel"
+                      value={editChainForm.adminPhone}
+                      onChange={(e) => setEditChainForm({ ...editChainForm, adminPhone: e.target.value })}
+                      placeholder="+51 987 654 321"
+                      className="w-full px-3 py-1.5 rounded-lg bg-white text-xs border border-slate-300 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
                 <button
                   type="button"
-                  onClick={() => setEditingAdminForPin(null)}
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container cursor-pointer"
+                  onClick={() => setEditingChain(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-[#0c3130] hover:bg-[#124946] text-white font-extrabold text-xs flex items-center gap-2 shadow-md cursor-pointer active:scale-95"
                 >
-                  <span className="material-symbols-outlined text-[16px]">save</span>
-                  <span>Guardar PIN</span>
+                  <span className="material-symbols-outlined text-[18px] text-[#ffd06f]">save</span>
+                  <span>Guardar Cambios</span>
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: CONFIRMAR ELIMINACIÓN DE RESTAURANTE (ADMIN GLOBAL) */}
+      {/* ========================================================================= */}
+      {chainToConfirmDelete && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-red-200 animate-in zoom-in-95">
+            <div className="px-5 py-4 bg-red-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white">
+                  <span className="material-symbols-outlined text-[24px]">delete_forever</span>
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-white">
+                    Eliminar Restaurante
+                  </h3>
+                  <p className="text-xs text-red-100">Acción de alto impacto administrativo</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setChainToConfirmDelete(null)}
+                className="w-7 h-7 rounded-full hover:bg-white/20 flex items-center justify-center text-white cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <div className="p-5 flex flex-col gap-4">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3.5 flex items-start gap-3">
+                <span className="material-symbols-outlined text-red-600 text-[24px] shrink-0 mt-0.5">
+                  warning
+                </span>
+                <div className="flex flex-col text-xs text-red-900 leading-relaxed">
+                  <span className="font-extrabold text-sm text-red-950 mb-1">
+                    ¿Estás seguro de eliminar permanentemente a "{chainToConfirmDelete.name}"?
+                  </span>
+                  <p>
+                    Se eliminarán de la nube sus <strong>{chainToConfirmDelete.locations.length} sede(s)</strong>, los accesos con PIN de su personal y la vinculación a cartas maestras.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-[#0c3130] text-white flex items-center justify-center font-bold text-lg shrink-0 overflow-hidden">
+                  {chainToConfirmDelete.logoUrl ? (
+                    <img src={chainToConfirmDelete.logoUrl} alt={chainToConfirmDelete.name} className="w-full h-full object-cover" />
+                  ) : (
+                    chainToConfirmDelete.name.substring(0, 2).toUpperCase()
+                  )}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-extrabold text-sm text-slate-900 truncate">
+                    {chainToConfirmDelete.name}
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    RUC: {chainToConfirmDelete.ruc} • {chainToConfirmDelete.locations.length} sede(s)
+                  </span>
+                  <span className="text-[11px] text-slate-600">
+                    Admin: {chainToConfirmDelete.adminName}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setChainToConfirmDelete(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteChain}
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                  <span>Sí, Eliminar Definitivamente</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -2451,6 +2893,25 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
             check_circle
           </span>
           <span>{toastMessage}</span>
+        </div>
+      )}
+      {activationLinks.length > 0 && (
+        <div className="fixed inset-x-4 bottom-6 z-60 mx-auto max-w-2xl rounded-2xl border border-teal-300 bg-white p-4 shadow-2xl">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="font-extrabold text-sm text-primary">Enlaces de activación</h3>
+              <p className="mt-1 text-xs text-on-surface-variant">Compártelos de forma segura: cada administrador define su propia contraseña.</p>
+            </div>
+            <button type="button" onClick={() => setActivationLinks([])} className="text-xs font-bold text-on-surface-variant">Cerrar</button>
+          </div>
+          <div className="mt-3 space-y-2">
+            {activationLinks.map(({ email, activationLink }) => (
+              <div key={email} className="flex items-center justify-between gap-3 rounded-xl bg-surface-container-low p-2.5">
+                <span className="min-w-0 truncate text-xs font-bold text-primary">{email}</span>
+                <button type="button" onClick={() => void navigator.clipboard.writeText(activationLink)} className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-on-primary">Copiar enlace</button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

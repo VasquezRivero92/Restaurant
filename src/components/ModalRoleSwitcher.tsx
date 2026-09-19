@@ -1,5 +1,5 @@
 import React from 'react';
-import { AppRole } from '../types';
+import { AdminUser, AppRole, StaffMember } from '../types';
 
 interface ModalRoleSwitcherProps {
   isOpen: boolean;
@@ -10,6 +10,10 @@ interface ModalRoleSwitcherProps {
   onToggleFrame?: () => void;
   onResetData?: () => void;
   onLogout?: () => void;
+  admins?: AdminUser[];
+  staffMembers?: StaffMember[];
+  activeBranchName?: string;
+  activeChainName?: string;
 }
 
 export const ModalRoleSwitcher: React.FC<ModalRoleSwitcherProps> = ({
@@ -20,9 +24,19 @@ export const ModalRoleSwitcher: React.FC<ModalRoleSwitcherProps> = ({
   isMobileFrame = false,
   onToggleFrame,
   onResetData,
-  onLogout
+  onLogout,
+  admins = [],
+  staffMembers = [],
+  activeBranchName = '',
+  activeChainName = ''
 }) => {
   if (!isOpen) return null;
+
+  const waiterName = staffMembers.find((s) => s.roleKey === 'mesero')?.name || 'Mozo de Salón';
+  const chefName = staffMembers.find((s) => s.roleKey === 'cocina')?.name || 'Chef de Cocina';
+  const sedeAdminName = admins.find((a) => a.roleKey === 'admin_sede')?.name || 'Administrador de Sede';
+  const genAdminName = admins.find((a) => a.roleKey === 'admin_general')?.name || 'Administrador General';
+  const globalAdminName = admins.find((a) => a.roleKey === 'admin_global')?.name || 'Administrador Global';
 
   const rolesList: {
     key: AppRole;
@@ -37,8 +51,8 @@ export const ModalRoleSwitcher: React.FC<ModalRoleSwitcherProps> = ({
     {
       key: 'mesero',
       title: 'Mozo de Salón',
-      person: 'Carlos Mendoza',
-      scope: 'Sede Miraflores • Salón Central',
+      person: waiterName,
+      scope: activeBranchName ? `${activeBranchName} • Salón Central` : 'Salón Operativo',
       icon: 'room_service',
       badge: 'OPERATIVO',
       badgeColor: 'bg-teal-100 text-teal-800 border-teal-300',
@@ -47,7 +61,7 @@ export const ModalRoleSwitcher: React.FC<ModalRoleSwitcherProps> = ({
     {
       key: 'cocina',
       title: 'Personal de Cocina (Chef KDS)',
-      person: 'Chef Mario Quispe',
+      person: chefName,
       scope: 'Fogones & Estación Fríos (Exclusivo Cocina)',
       icon: 'soup_kitchen',
       badge: 'SOLO COCINA',
@@ -57,8 +71,8 @@ export const ModalRoleSwitcher: React.FC<ModalRoleSwitcherProps> = ({
     {
       key: 'admin_sede',
       title: 'Administrador de Sede',
-      person: 'Roberto Morales',
-      scope: 'Sede Miraflores (Gestión local)',
+      person: sedeAdminName,
+      scope: activeBranchName ? `${activeBranchName} (Gestión local)` : 'Sede Activa',
       icon: 'storefront',
       badge: 'ADMIN SEDE',
       badgeColor: 'bg-blue-100 text-blue-800 border-blue-300',
@@ -67,8 +81,8 @@ export const ModalRoleSwitcher: React.FC<ModalRoleSwitcherProps> = ({
     {
       key: 'admin_general',
       title: 'Administrador General',
-      person: 'Mariana Alva',
-      scope: 'Cadena "La Barra Sabrisimo" (3 Sedes)',
+      person: genAdminName,
+      scope: activeChainName ? `Cadena "${activeChainName}"` : 'Todas las Sedes de la Marca',
       icon: 'corporate_fare',
       badge: 'DUEÑO / CADENA',
       badgeColor: 'bg-purple-100 text-purple-800 border-purple-300',
@@ -77,7 +91,7 @@ export const ModalRoleSwitcher: React.FC<ModalRoleSwitcherProps> = ({
     {
       key: 'admin_global',
       title: 'Administrador Global',
-      person: 'José Manuel Vasquez Rivero',
+      person: globalAdminName,
       scope: 'Plataforma SaaS Cloud (Multi-Empresa)',
       icon: 'public',
       badge: 'SUPERADMIN',
@@ -128,11 +142,7 @@ export const ModalRoleSwitcher: React.FC<ModalRoleSwitcherProps> = ({
                     onClose();
                   } else {
                     onClose();
-                    if (onLogout) {
-                      onLogout();
-                    } else {
-                      onSelectRole(r.key);
-                    }
+                    onSelectRole(r.key);
                   }
                 }}
                 className={`p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex flex-col gap-2 relative ${

@@ -48,6 +48,8 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
         return 'Caja & Cobro POS';
       case 'carta-sede':
         return 'Panel General • Carta & Sedes';
+      case 'dashboard-admin':
+        return 'Resumen administrativo';
       case 'saas-console':
         return 'Consola SaaS Global';
       default:
@@ -61,6 +63,8 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
         return 'Jefe Cocina';
       case 'mesero':
         return 'Mozo Salón';
+      case 'cajero':
+        return 'Cajero POS';
       case 'admin_sede':
         return 'Admin Sede';
       case 'admin_general':
@@ -81,7 +85,7 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
       <div className="flex items-center justify-between gap-2 max-w-7xl mx-auto">
         {/* Left: Brand Identity & Subtitle */}
         <div
-          onClick={() => onNavigate(isGlobal ? 'saas-console' : isCocina ? 'cocina-kds' : 'mesas')}
+          onClick={() => onNavigate(isGlobal ? 'saas-console' : isCocina ? 'cocina-kds' : currentRole === 'mesero' ? 'mesas' : currentRole === 'cajero' ? 'cuenta-cobro' : 'dashboard-admin')}
           className="flex items-center gap-2 sm:gap-2.5 cursor-pointer select-none group min-w-0"
         >
           <div
@@ -141,10 +145,10 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                     : 'bg-amber-50 text-amber-700 border border-amber-200'
                 }`}
-                title="Conectado en tiempo real a Firebase Realtime Database"
+              title="Conectado en tiempo real a Cloud Firestore"
               >
                 <span className="material-symbols-outlined text-[11px]">cloud_done</span>
-                <span>Firebase RTDB</span>
+                <span>Firestore</span>
               </span>
             </div>
           </div>
@@ -164,7 +168,7 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
             </button>
           )}
 
-          <button
+          {onOpenRoleSwitcher ? <button
             onClick={onOpenRoleSwitcher}
             className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-full bg-surface-container hover:bg-surface-container-high border border-outline-variant/30 text-on-surface transition-all active:scale-95 cursor-pointer shadow-xs"
             title="Cambiar perfil de usuario y permisos del menú"
@@ -178,6 +182,8 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
                 ? 'storefront'
                 : currentRole === 'cocina'
                 ? 'soup_kitchen'
+                : currentRole === 'cajero'
+                ? 'point_of_sale'
                 : 'room_service'}
             </span>
             <span className="font-extrabold text-[11px] sm:text-xs text-primary whitespace-nowrap">
@@ -187,7 +193,7 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
               ({staffName})
             </span>
             <span className="material-symbols-outlined text-[14px] text-on-surface-variant">expand_more</span>
-          </button>
+          </button> : <div className="flex items-center gap-1.5 rounded-full border border-outline-variant/30 bg-surface-container px-2.5 py-1"><span className="font-extrabold text-[11px] sm:text-xs text-primary">{getRoleDisplayName()}</span><span className="hidden max-w-[120px] truncate text-[10px] text-on-surface-variant md:inline">{staffName}</span></div>}
         </div>
 
         {/* Right: Operational Actions */}
@@ -206,7 +212,7 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
           )}
 
           {/* Kitchen alerts button */}
-          <button
+          {currentRole !== 'cajero' && <button
             onClick={() => onNavigate('cocina-kds')}
             aria-label="Alertas de cocina"
             className="relative w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:text-primary active:scale-95 transition-all cursor-pointer"
@@ -219,9 +225,9 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
             {alertsCount > 0 && (
               <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-error ring-2 ring-surface"></span>
             )}
-          </button>
+          </button>}
 
-          {/* Botón Cerrar Sesión (Bloquear terminal con PIN de 6 dígitos) */}
+          {/* Cierre de sesión según el método de autenticación del perfil */}
           <button
             onClick={() => {
               if (onLogout) onLogout();
@@ -229,7 +235,7 @@ export const HeaderTop: React.FC<HeaderTopProps> = ({
             }}
             aria-label="Cerrar sesión y bloquear terminal"
             className="h-8 sm:h-9 px-2 sm:px-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 border border-red-500/20 flex items-center gap-1 shrink-0 active:scale-90 transition-all shadow-xs cursor-pointer"
-            title="Cerrar sesión (Requiere PIN de 6 dígitos para reingresar)"
+            title="Cerrar sesión de forma segura"
           >
             <span className="material-symbols-outlined text-[17px] sm:text-[19px]">lock</span>
             <span className="hidden sm:inline text-[11px] font-bold">Cerrar Sesión</span>

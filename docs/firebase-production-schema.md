@@ -1,50 +1,43 @@
-# Firebase Realtime Database: modelo de producción
+# Cloud Firestore: modelo de producción
 
-El árbol actual `restaurant/*` mezcla todas las sedes, usa arreglos y permite que
-cada cambio reemplace una colección completa. No es apto para varias sedes ni
-para concurrencia de mozos, caja y cocina. La estructura de destino es:
+Proyecto de destino: `restaurant-4e0ee`, base `(default)`.
+
+## Colecciones
 
 ```text
-tenants/{tenantId}/
-  profile/{name, ruc, plan, status, createdAt, updatedAt}
-  branches/{branchId}/
-    profile/{name, timezone, active, ...}
-    catalog/items/{itemId}
-    staff/{staffId}
-    operational/
-      tables/{tableId}
-      orders/{orderId}
-      kdsTickets/{ticketId}
-      payments/{paymentId}
-      shifts/{shiftId}
-      audit/{eventId}
+restaurants/{restaurantId}             perfil y sedes de la empresa
+admins/{firebaseAuthUid}                perfil, rol y sedes permitidas
+masterCartas/{cartaId}                  catálogo maestro
+branchMenus/{branchId}/items/{itemId}   carta publicada por sede
+staff/{staffId}                         personal y hash del PIN
+tables/{tableId}                        mesa con branchId
+kdsTickets/{ticketId}                   comanda con branchId
 ```
 
-## Decisiones obligatorias
+Los administradores se autentican con correo y contraseña en Firebase
+Authentication. El identificador del documento `admins` debe ser el mismo UID
+de Authentication. Sus custom claims son `role`, `tenantId`, `branchIds` y,
+solo para plataforma, `platformAdmin: true`.
 
-- Los nodos se guardan como mapas por ID, nunca como arreglos. Así una mesa u
-  orden se actualiza sin sobrescribir a las demás.
-- `orders`, `payments` y `audit` son inmutables o append-only. Una anulación se
-  registra como evento; no se borra una venta.
-- Todas las entidades llevan `id`, `createdAt`, `updatedAt`, `createdBy` y,
-  cuando corresponda, `updatedBy`. Los tiempos se generan en servidor con
-  `ServerValue.TIMESTAMP`.
-- La lectura operativa se limita a la sede activa. No se escucha el tenant ni
-  todas las mesas de la cadena.
-- El token de Firebase Auth debe contener `tenantId`, `role` y, solo para la
-  plataforma, `platformAdmin`. Los custom claims se asignan exclusivamente
-  desde un entorno administrativo con Firebase Admin SDK.
+El personal de salón y cocina entrega su PIN únicamente a `POST /api/auth/pin`.
+El servidor compara bcrypt contra `staff.pinHash` y devuelve un custom token de
+alcance limitado. Firestore nunca expone el PIN ni su hash al cliente operativo.
 
-## Despliegue seguro
+## Migración
 
-1. Cree Firebase Auth y asigne custom claims a administradores y mozos.
-2. Configure las variables `VITE_FIREBASE_*` por ambiente y mantenga
-   `VITE_ENABLE_DEMO_DATA=false` fuera del emulador.
-3. Migre `restaurant/*` a `tenants/{tenantId}/branches/{branchId}` mediante un
-   proceso backend con Admin SDK; no ejecute `set()` desde un navegador.
-4. Adapte la app para actualizar rutas individuales con `update()` o
-   transacciones, y cree pagos/auditoría en Cloud Functions.
-5. Pruebe `database.rules.json` con Emulator Suite para mozo, administrador de
-   sede, administrador general y plataforma.
-6. Despliegue con `firebase deploy --only database` solo después de migrar la
-   app a `tenants/*`; las reglas bloquean a propósito el árbol demo actual.
+El script `scripts/migrate-rtdb-to-firestore.mjs` copia el árbol histórico
+`restaurant/*` de Realtime Database, separa cada registro en documentos,
+incorpora `branchId` y convierte los PIN a bcrypt.
+
+Variables requeridas para ejecutarlo:
+
+```powershell
+$env:GOOGLE_APPLICATION_CREDENTIALS='C:\ruta\service-account.json'
+$env:FIREBASE_PROJECT_ID='restaurant-4e0ee'
+$env:FIREBASE_DATABASE_URL='https://ORIGEN.firebaseio.com'
+node scripts/migrate-rtdb-to-firestore.mjs
+```
+
+Después de validar conteos y accesos, despliegue `firestore.rules` e índices con
+Firebase CLI. Mantenga `VITE_ENABLE_DEMO_DATA=false` y `ENABLE_DEMO_DATA=false`
+en producción.

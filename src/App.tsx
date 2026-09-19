@@ -35,6 +35,7 @@ import { ScreenSaaSConsole } from './components/ScreenSaaSConsole';
 import { ScreenPinLock } from './components/ScreenPinLock';
 import { ScreenGlobalLogin } from './components/ScreenGlobalLogin';
 import { ScreenLanding } from './components/ScreenLanding';
+import { ScreenAdminDashboard } from './components/ScreenAdminDashboard';
 import { ModalBandejaBebidas } from './components/ModalBandejaBebidas';
 import {
   initRTDBSeedIfEmpty,
@@ -869,6 +870,7 @@ export default function App() {
   // 3b. Waiter removes an already ordered dish directly from the table order view
   const handleRemoveTableDish = (tableId: string, dishIndex: number, reason: string = 'A solicitud del cliente') => {
     let removedDishName = '';
+    let removedDishId: string | undefined = undefined;
     let tableNumber = '';
 
     setTables((prev) =>
@@ -879,6 +881,7 @@ export default function App() {
         if (!targetDish) return tbl;
 
         removedDishName = targetDish.name;
+        removedDishId = targetDish.id;
         const pricePerUnit =
           targetDish.price ||
           (tbl.total && tbl.dishes && tbl.dishes.length > 0
@@ -922,10 +925,18 @@ export default function App() {
         prev
           .map((ticket) => {
             if (!ticket.table.includes(tableNumber)) return ticket;
+            let removedOne = false;
             const updatedItems = ticket.items.filter((item) => {
-              const cleanItem = item.name.toLowerCase().trim();
-              const cleanDish = removedDishName.toLowerCase().trim();
-              return !cleanDish.includes(cleanItem) && !cleanItem.includes(cleanDish);
+              if (removedDishId && item.id) {
+                return item.id !== removedDishId;
+              }
+              const cleanItem = item.name.replace(/^\d+x\s*/i, '').toLowerCase().trim();
+              const cleanDish = removedDishName.replace(/^\d+x\s*/i, '').toLowerCase().trim();
+              if (!removedOne && (cleanItem === cleanDish || cleanItem.includes(cleanDish) || cleanDish.includes(cleanItem))) {
+                removedOne = true;
+                return false;
+              }
+              return true;
             });
             const allServedAndReady =
               updatedItems.length > 0 && updatedItems.every((i) => i.isReady && i.isServed);
@@ -1184,6 +1195,7 @@ export default function App() {
       roleKey: 'admin_general',
       brand: newChain.name,
       brandId: newChain.id,
+      assignedBranchIds: newChain.locations.map((loc) => loc.id),
       initials: newChain.adminName.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() || 'AG',
       active: true
     };
@@ -1201,6 +1213,7 @@ export default function App() {
       brandId: newChain.id,
       branchName: initialLoc?.name || 'Sede Principal',
       branchId: initialLoc?.id || '',
+      assignedBranchIds: initialLoc?.id ? [initialLoc.id] : [],
       initials: (initialLoc?.managerName || 'AS').split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() || 'AS',
       active: true
     };
@@ -1256,9 +1269,57 @@ export default function App() {
     );
   };
 
-  // Update chain brand details (e.g. logo, name, branding)
+  // Update chain brand details (e.g. logo, name, branding, and designated general admin)
   const handleUpdateChain = (updatedChain: ChainBrand) => {
     setChains((prev) => prev.map((c) => (c.id === updatedChain.id ? updatedChain : c)));
+
+    // Synchronize or assign the General Admin in admins list
+    if (updatedChain.adminName || updatedChain.adminEmail) {
+      setAdmins((prev) => {
+        const existingIdx = prev.findIndex(
+          (a) => a.brandId === updatedChain.id && a.roleKey === 'admin_general'
+        );
+        if (existingIdx >= 0) {
+          const updated = [...prev];
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            name: updatedChain.adminName || updated[existingIdx].name,
+            email: updatedChain.adminEmail || updated[existingIdx].email,
+            phone: updatedChain.adminPhone || updated[existingIdx].phone,
+            docType: updatedChain.adminDocType || updated[existingIdx].docType,
+            docNumber: updatedChain.adminDocNumber || updated[existingIdx].docNumber,
+            brand: updatedChain.name,
+            assignedBranchIds: updatedChain.locations.map((loc) => loc.id),
+            initials: (updatedChain.adminName || 'AG').split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase()
+          };
+          return updated;
+        } else {
+          // If no admin_general was linked yet, register them now
+          const newGenAdmin: AdminUser = {
+            id: `adm-gen-${Date.now()}`,
+            name: updatedChain.adminName || 'Administrador General',
+            email: updatedChain.adminEmail || '',
+            phone: updatedChain.adminPhone || '',
+            docType: updatedChain.adminDocType,
+            docNumber: updatedChain.adminDocNumber,
+            role: 'Administrador General',
+            roleKey: 'admin_general',
+            brand: updatedChain.name,
+            brandId: updatedChain.id,
+            assignedBranchIds: updatedChain.locations.map((loc) => loc.id),
+            initials: (updatedChain.adminName || 'AG').split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase(),
+            active: true
+          };
+          return [newGenAdmin, ...prev];
+        }
+      });
+    }
+  };
+
+  // Delete chain and its associated branch/admin data
+  const handleDeleteChain = (chainId: string) => {
+    setChains((prev) => prev.filter((c) => c.id !== chainId));
+    setAdmins((prev) => prev.filter((a) => a.brandId !== chainId));
   };
 
   // Switch active chain and branch context
@@ -1457,6 +1518,16 @@ export default function App() {
 
   const currentChain = chains.find((c) => c.id === activeChainId) || chains[0];
   const currentBranch = currentChain?.locations.find((l) => l.id === activeBranchId) || currentChain?.locations[0];
+  const currentAdmin = admins.find((admin) => admin.name.toLowerCase() === staffUser.name.toLowerCase()) 
+    || admins.find((admin) => admin.roleKey === currentRole)
+    || (['admin_sede', 'admin_general', 'admin_global'].includes(currentRole) ? {
+        id: 'adm-current',
+        name: staffUser.name || 'Administrador',
+        role: currentRole === 'admin_general' ? 'Administrador General' : currentRole === 'admin_global' ? 'Administrador Global' : 'Administrador de Sede',
+        roleKey: currentRole,
+        assignedBranchIds: activeBranchId ? [activeBranchId] : (currentChain?.locations.map((l) => l.id) || []),
+        active: true
+      } as AdminUser : undefined);
 
   const isWideLayoutScreen =
     currentScreen === 'saas-console' ||
@@ -1543,6 +1614,18 @@ export default function App() {
                   onOpenDrinksTray={() => setIsDrinksTrayOpen(true)}
                   currentRole={currentRole}
                   currentUserName={staffUser.name}
+                />
+              )}
+
+              {currentScreen === 'dashboard-admin' && currentChain && currentAdmin && (
+                <ScreenAdminDashboard
+                  admin={currentAdmin}
+                  chain={currentChain}
+                  activeBranchId={activeBranchId}
+                  tables={tables}
+                  tickets={kdsTickets}
+                  onSelectBranch={setActiveBranchId}
+                  onNavigate={handleNavigate}
                 />
               )}
 
@@ -1642,6 +1725,8 @@ export default function App() {
                   admins={admins}
                   masterCartas={masterCartas}
                   onAddChain={handleAddChain}
+                  onUpdateChain={handleUpdateChain}
+                  onDeleteChain={handleDeleteChain}
                   onAddLocationToChain={handleAddLocationToChain}
                   onToggleLocation={handleToggleLocation}
                   onNavigate={handleNavigate}

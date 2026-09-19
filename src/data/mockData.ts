@@ -1151,14 +1151,31 @@ export const INITIAL_CHAINS: ChainBrand[] = [
 
 export const INITIAL_ADMINS: AdminUser[] = [
   {
+    id: 'adm-global-1',
+    name: 'José Manuel Vasquez Rivero',
+    docType: 'DNI',
+    docNumber: '10203040',
+    email: 'admin@ordena.pe',
+    phone: '+51 999 888 777',
+    role: 'Administrador Global',
+    roleKey: 'admin_global',
+    assignedBranchIds: [],
+    initials: 'JV',
+    pin: '999999',
+    active: true
+  },
+  {
     id: 'adm-gen-1',
     name: 'Roberto Morales',
+    docType: 'DNI',
+    docNumber: '41892301',
     email: 'roberto@labarrasabrisimo.pe',
     phone: '+51 987 654 321',
     role: 'Administrador General',
     roleKey: 'admin_general',
     brand: 'Cevichería La Barra Sabrisimo',
     brandId: 'la-barra',
+    assignedBranchIds: ['loc-miraflores', 'loc-chorrillos', 'loc-san-miguel'],
     initials: 'RM',
     pin: '888888',
     active: true
@@ -1166,12 +1183,15 @@ export const INITIAL_ADMINS: AdminUser[] = [
   {
     id: 'adm-gen-2',
     name: 'Giancarlo Rossi',
+    docType: 'DNI',
+    docNumber: '42901844',
     email: 'giancarlo@puertoazul.pe',
     phone: '+51 998 334 112',
     role: 'Administrador General',
     roleKey: 'admin_general',
     brand: 'Cevichería Puerto Azul Tradición',
     brandId: 'puerto-azul',
+    assignedBranchIds: ['loc-barranco', 'loc-callao'],
     initials: 'GR',
     pin: '888888',
     active: true
@@ -1179,6 +1199,8 @@ export const INITIAL_ADMINS: AdminUser[] = [
   {
     id: 'adm-sede-1',
     name: 'Lucía Ramos',
+    docType: 'DNI',
+    docNumber: '47109283',
     email: 'lucia.ramos@labarrasabrisimo.pe',
     phone: '+51 976 112 345',
     role: 'Administrador de Sede',
@@ -1195,6 +1217,8 @@ export const INITIAL_ADMINS: AdminUser[] = [
   {
     id: 'adm-sede-2',
     name: 'Manuel Huamán',
+    docType: 'DNI',
+    docNumber: '45321098',
     email: 'manuel.h@labarrasabrisimo.pe',
     phone: '+51 984 223 901',
     role: 'Administrador de Sede',
@@ -1211,6 +1235,8 @@ export const INITIAL_ADMINS: AdminUser[] = [
   {
     id: 'adm-sede-4',
     name: 'Ricardo Vega',
+    docType: 'DNI',
+    docNumber: '43991204',
     email: 'ricardo.v@puertoazul.pe',
     phone: '+51 988 776 543',
     role: 'Administrador de Sede',
@@ -1227,6 +1253,8 @@ export const INITIAL_ADMINS: AdminUser[] = [
   {
     id: 'adm-sede-5',
     name: 'Fiorella Díaz',
+    docType: 'DNI',
+    docNumber: '46882190',
     email: 'fiorella.d@puertoazul.pe',
     phone: '+51 975 432 109',
     role: 'Administrador de Sede',
@@ -1246,7 +1274,11 @@ export const INITIAL_STAFF: StaffMember[] = [
   {
     id: 'stf-1',
     name: 'Carlos Mendoza',
+    docType: 'DNI',
+    docNumber: '48201945',
+    email: 'carlos.m@labarrasabrisimo.pe',
     role: 'Mozo Principal',
+    roleKey: 'mesero',
     pin: '123456',
     phone: '+51 965 443 221',
     assignedBranchIds: ['loc-miraflores', 'loc-chorrillos'], // Asignado a más de una sede
@@ -1259,7 +1291,11 @@ export const INITIAL_STAFF: StaffMember[] = [
   {
     id: 'stf-2',
     name: 'Rosa Paredes',
+    docType: 'DNI',
+    docNumber: '47901823',
+    email: 'rosa.p@labarrasabrisimo.pe',
     role: 'Moza Salón',
+    roleKey: 'mesero',
     pin: '234567',
     phone: '+51 988 112 990',
     assignedBranchIds: ['loc-miraflores'],
@@ -1272,7 +1308,11 @@ export const INITIAL_STAFF: StaffMember[] = [
   {
     id: 'stf-3',
     name: 'Jorge Benítez',
+    docType: 'DNI',
+    docNumber: '46309812',
+    email: 'jorge.b@labarrasabrisimo.pe',
     role: 'Mozo Terraza',
+    roleKey: 'mesero',
     pin: '345678',
     phone: '+51 977 443 881',
     assignedBranchIds: ['loc-miraflores', 'loc-chorrillos'], // Asignado a ambas sedes por Lucía Ramos
@@ -1285,7 +1325,11 @@ export const INITIAL_STAFF: StaffMember[] = [
   {
     id: 'stf-4',
     name: 'Walter Quispe',
+    docType: 'DNI',
+    docNumber: '45129034',
+    email: 'walter.q@labarrasabrisimo.pe',
     role: 'Barman / Bebidas',
+    roleKey: 'mesero',
     pin: '456789',
     phone: '+51 955 889 001',
     assignedBranchIds: ['loc-miraflores'],
@@ -1298,7 +1342,11 @@ export const INITIAL_STAFF: StaffMember[] = [
   {
     id: 'stf-5',
     name: 'Marilú Chávez',
+    docType: 'DNI',
+    docNumber: '44892019',
+    email: 'marilu.c@labarrasabrisimo.pe',
     role: 'Cajera POS',
+    roleKey: 'cajero',
     pin: '567890',
     phone: '+51 944 332 119',
     assignedBranchIds: ['loc-miraflores', 'loc-chorrillos', 'loc-san-miguel'], // Multi-sede en 3 locales
@@ -1311,7 +1359,11 @@ export const INITIAL_STAFF: StaffMember[] = [
   {
     id: 'stf-6',
     name: 'Julio Cárdenas',
+    docType: 'DNI',
+    docNumber: '43901844',
+    email: 'julio.c@labarrasabrisimo.pe',
     role: 'Mozo Salón',
+    roleKey: 'mesero',
     pin: '678901',
     phone: '+51 933 221 004',
     assignedBranchIds: ['loc-chorrillos'],
@@ -1324,7 +1376,11 @@ export const INITIAL_STAFF: StaffMember[] = [
   {
     id: 'stf-7',
     name: 'Mario Quispe',
+    docType: 'DNI',
+    docNumber: '42881902',
+    email: 'mario.q@labarrasabrisimo.pe',
     role: 'Jefe de Cocina KDS',
+    roleKey: 'cocina',
     pin: '555555',
     phone: '+51 988 123 456',
     assignedBranchIds: ['loc-miraflores'],

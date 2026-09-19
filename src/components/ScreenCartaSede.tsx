@@ -328,20 +328,38 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [staffName, setStaffName] = useState('');
   const [staffRole, setStaffRole] = useState('Mozo Salón');
-  const [staffPin, setStaffPin] = useState('123456');
+  const [staffDocType, setStaffDocType] = useState<'DNI' | 'CE' | 'Pasaporte'>('DNI');
+  const [staffDocNumber, setStaffDocNumber] = useState('');
+  const [staffEmail, setStaffEmail] = useState('');
+  const [staffPin, setStaffPin] = useState('');
   const [staffPhone, setStaffPhone] = useState('');
   const [staffTablesZone, setStaffTablesZone] = useState('Mesas 1 a 6');
   const [staffShift, setStaffShift] = useState('Turno Mañana');
   const [staffAssignedBranches, setStaffAssignedBranches] = useState<string[]>([currentBranch?.id || 'loc-miraflores']);
   const [staffActive, setStaffActive] = useState(true);
 
-  // Permission check: Solo el Administrador General o Global puede asignar/cambiar PINs
+  // Solo la administración de la marca puede crear, editar o eliminar personal.
   const canManagePin = currentRole === 'admin_global' || currentRole === 'admin_general';
+  const canManageStaff = canManagePin;
+
+  const getStaffRoleKey = (role: string): AppRole => {
+    const normalized = role.toLowerCase();
+    if (normalized.includes('cocin')) return 'cocina';
+    if (normalized.includes('caj')) return 'cajero';
+    return 'mesero';
+  };
 
   const openAddStaffModal = () => {
+    if (!canManageStaff) {
+      triggerToast('Solo el Administrador General o Global puede gestionar personal.');
+      return;
+    }
     setEditingStaffId(null);
     setStaffName('');
     setStaffRole('Mozo Salón');
+    setStaffDocType('DNI');
+    setStaffDocNumber('');
+    setStaffEmail('');
     setStaffPin(Math.floor(100000 + Math.random() * 900000).toString());
     setStaffPhone('');
     setStaffTablesZone('Mesas 1 a 6');
@@ -353,10 +371,17 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   };
 
   const openEditStaffModal = (member: StaffMember) => {
+    if (!canManageStaff) {
+      triggerToast('Solo el Administrador General o Global puede gestionar personal.');
+      return;
+    }
     setEditingStaffId(member.id);
     setStaffName(member.name);
     setStaffRole(member.role);
-    setStaffPin(member.pin || '123456');
+    setStaffDocType(member.docType || 'DNI');
+    setStaffDocNumber(member.docNumber || '');
+    setStaffEmail(member.email || '');
+    setStaffPin('');
     setStaffPhone(member.phone || '');
     setStaffTablesZone(member.tablesZone || 'Mesas 1 a 6');
     setStaffShift(member.shift || 'Turno Mañana');
@@ -393,6 +418,10 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
 
   const handleSaveStaff = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageStaff) {
+      triggerToast('No tienes permiso para gestionar personal.');
+      return;
+    }
     if (!staffName.trim()) {
       triggerToast('Ingresa el nombre del colaborador');
       return;
@@ -415,7 +444,11 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
         id: editingStaffId,
         name: staffName.trim(),
         role: staffRole,
+        roleKey: getStaffRoleKey(staffRole),
         pin: staffPin.trim(),
+        docType: staffDocType,
+        docNumber: staffDocNumber.trim() || undefined,
+        email: staffEmail.trim() || undefined,
         phone: staffPhone.trim() || undefined,
         tablesZone: staffTablesZone.trim(),
         shift: staffShift,
@@ -432,7 +465,11 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
         id: `stf-${Date.now()}`,
         name: staffName.trim(),
         role: staffRole,
+        roleKey: getStaffRoleKey(staffRole),
         pin: staffPin.trim(),
+        docType: staffDocType,
+        docNumber: staffDocNumber.trim() || undefined,
+        email: staffEmail.trim() || undefined,
         phone: staffPhone.trim() || undefined,
         tablesZone: staffTablesZone.trim(),
         shift: staffShift,
@@ -1212,6 +1249,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
             {/* Button: + Agregar Personal */}
             <button
               onClick={openAddStaffModal}
+              disabled={!canManageStaff}
               className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all cursor-pointer shrink-0 min-h-[44px]"
             >
               <span className="material-symbols-outlined text-[20px]">person_add</span>
@@ -1298,7 +1336,16 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                           )}
                         </div>
 
-                        <div className="flex items-center gap-2 text-xs text-on-surface-variant mt-0.5 flex-wrap">
+                        <div className="flex items-center gap-2 text-xs text-on-surface-variant mt-1 flex-wrap">
+                          <span className="px-2 py-0.5 rounded bg-slate-100 font-mono text-[11px] font-bold text-slate-800 border border-slate-200">
+                            {member.docType || 'DNI'}: {member.docNumber || 'No registrado'}
+                          </span>
+                          {member.email && (
+                            <span className="text-[11px] text-slate-600 truncate max-w-[200px]">
+                              ✉️ {member.email}
+                            </span>
+                          )}
+                          <span>•</span>
                           <span>{member.tablesZone || 'Zona General'}</span>
                           <span>•</span>
                           <span>{member.shift || 'Turno Completo'}</span>
@@ -1320,6 +1367,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                             <button
                               type="button"
                               onClick={() => openEditStaffModal(member)}
+                              disabled={!canManageStaff}
                               className="text-[10px] text-teal-700 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
                             >
                               <span>Cambiar PIN</span>
@@ -1345,6 +1393,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                       {/* Edit Button */}
                       <button
                         onClick={() => openEditStaffModal(member)}
+                        disabled={!canManageStaff}
                         title="Editar personal y asignación de sedes"
                         className="p-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-primary transition-colors cursor-pointer"
                       >
@@ -1352,7 +1401,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                       </button>
 
                       {/* Delete Button */}
-                      {onDeleteStaff && (
+                      {canManageStaff && onDeleteStaff && (
                         <button
                           onClick={() => {
                             if (window.confirm(`¿Eliminar al colaborador ${member.name}?`)) {
@@ -1378,6 +1427,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                       </span>
                       <button
                         onClick={() => openEditStaffModal(member)}
+                        disabled={!canManageStaff}
                         className="text-primary font-bold hover:underline cursor-pointer"
                       >
                         Cambiar Sedes
@@ -1418,6 +1468,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                 </p>
                 <button
                   onClick={openAddStaffModal}
+                  disabled={!canManageStaff}
                   className="px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold mt-1"
                 >
                   + Registrar el primer colaborador
@@ -2248,18 +2299,65 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
             <form onSubmit={handleSaveStaff} className="flex-1 flex flex-col overflow-hidden min-h-0">
               {/* Cuerpo del Formulario desplazable */}
               <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-4 overscroll-contain">
-                <div>
-                  <label className="font-bold text-xs text-on-surface block mb-1">
-                    Nombre Completo *
-                  </label>
-                  <input
-                    type="text"
-                    value={staffName}
-                    onChange={(e) => setStaffName(e.target.value)}
-                    placeholder="ej. Daniel Quispe Ramos"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold min-h-[44px]"
-                    required
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="font-bold text-xs text-on-surface block mb-1">
+                      Tipo de Doc. *
+                    </label>
+                    <select
+                      value={staffDocType}
+                      onChange={(e) => setStaffDocType(e.target.value as any)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold min-h-[44px]"
+                    >
+                      <option value="DNI">DNI (8 dígitos)</option>
+                      <option value="CE">Carnet Extr. (CE)</option>
+                      <option value="Pasaporte">Pasaporte</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="font-bold text-xs text-on-surface block mb-1">
+                      N° de Documento *
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={staffDocType === 'DNI' ? 8 : 15}
+                      value={staffDocNumber}
+                      onChange={(e) => setStaffDocNumber(e.target.value.replace(staffDocType === 'DNI' ? /\D/g : /[^a-zA-Z0-9]/g, ''))}
+                      placeholder={staffDocType === 'DNI' ? '48201945' : 'N° Documento'}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono font-bold min-h-[44px]"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="font-bold text-xs text-on-surface block mb-1">
+                      Nombre Completo *
+                    </label>
+                    <input
+                      type="text"
+                      value={staffName}
+                      onChange={(e) => setStaffName(e.target.value)}
+                      placeholder="ej. Daniel Quispe Ramos"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold min-h-[44px]"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-xs text-on-surface block mb-1">
+                      Correo Electrónico *
+                    </label>
+                    <input
+                      type="email"
+                      value={staffEmail}
+                      onChange={(e) => setStaffEmail(e.target.value)}
+                      placeholder="daniel.quispe@restaurante.pe"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[44px]"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -2309,7 +2407,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                           maxLength={6}
                           value={staffPin}
                           onChange={(e) => setStaffPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                          placeholder="123456"
+                          placeholder="6 dígitos"
                           className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low text-sm font-mono font-bold tracking-widest text-primary border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[44px]"
                           required
                         />

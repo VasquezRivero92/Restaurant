@@ -103,8 +103,30 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           }
         ];
 
+      case 'cajero':
+        return [
+          {
+            id: 'cuenta-cobro',
+            label: 'Caja y Cobro',
+            icon: 'point_of_sale',
+            badge: pendingBillsCount > 0 ? pendingBillsCount : null,
+            badgeColor: 'bg-emerald-600'
+          },
+          {
+            id: 'pin-lock',
+            label: 'Cerrar Sesión',
+            icon: 'lock',
+            action: () => (onLogout ? onLogout() : onNavigate('pin-lock'))
+          }
+        ];
+
       case 'admin_sede':
         return [
+          {
+            id: 'dashboard-admin',
+            label: 'Resumen',
+            icon: 'dashboard'
+          },
           {
             id: 'mesas',
             label: 'Salón',
@@ -143,6 +165,11 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
       case 'admin_general':
         return [
+          {
+            id: 'dashboard-admin',
+            label: 'Mis Sedes',
+            icon: 'dashboard'
+          },
           {
             id: 'mesas',
             label: 'Salón Mesas',

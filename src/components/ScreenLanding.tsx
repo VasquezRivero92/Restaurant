@@ -364,7 +364,7 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
                     },
                     {
                       title: 'Seguridad basada en roles y PIN rápido',
-                      desc: 'Acceso seguro con PIN de 6 dígitos para mozos, cocineros y administradores de sede.'
+                      desc: 'PIN de 6 dígitos para salón y cocina; usuario y contraseña para todos los administradores.'
                     },
                     {
                       title: 'Acceso en la nube desde cualquier equipo',

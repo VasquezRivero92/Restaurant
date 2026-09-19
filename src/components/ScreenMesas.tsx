@@ -34,6 +34,9 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
 }) => {
   const isWaiter = currentRole === 'mesero';
   const isAdmin = currentRole === 'admin_sede' || currentRole === 'admin_general' || currentRole === 'admin_global';
+  const canManageService = isWaiter || isAdmin;
+  const canCollectPayment = canManageService || currentRole === 'cajero';
+  const canCollectOtherWaiterPayments = isAdmin || currentRole === 'cajero';
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'ready' | 'drinks' | 'occupied' | 'free'>('all');
   const [scopeMode, setScopeMode] = useState<'my_tables' | 'all'>(isWaiter ? 'my_tables' : 'all');
@@ -396,13 +399,20 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                   )}
                 </div>
 
-                <button
-                  onClick={() => onOpenTable(table.id)}
-                  className="w-full h-11 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow cursor-pointer min-h-[44px]"
-                >
-                  <span className="material-symbols-outlined text-[18px]">add</span>
-                  <span>Abrir Mesa {table.number} {isWaiter ? '(Autoasignarme y Tomar Pedido)' : ''}</span>
-                </button>
+                {canManageService ? (
+                  <button
+                    onClick={() => onOpenTable(table.id)}
+                    className="w-full h-11 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all shadow cursor-pointer min-h-[44px]"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">add</span>
+                    <span>Abrir Mesa {table.number} {isWaiter ? '(Autoasignarme y Tomar Pedido)' : ''}</span>
+                  </button>
+                ) : (
+                  <div className="w-full py-2.5 px-3 rounded-xl bg-surface-container text-xs text-on-surface-variant font-medium text-center border border-outline-variant/30 flex items-center justify-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px]">lock</span>
+                    <span>La apertura de mesas es exclusiva de salón</span>
+                  </div>
+                )}
               </div>
             );
           }
@@ -483,7 +493,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                       <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-extrabold text-[10px] animate-pulse whitespace-nowrap">
                         ⏳ Por Servir
                       </span>
-                      {onServeAllDrinks && !isOtherWaiterTable && (
+                      {canManageService && onServeAllDrinks && !isOtherWaiterTable && (
                         <button
                           onClick={() => onServeAllDrinks(table.id)}
                           className="h-7 px-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] sm:text-[11px] flex items-center gap-1 shadow-sm active:scale-95 transition-all cursor-pointer"
@@ -528,7 +538,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                         </div>
                       </div>
 
-                      {onToggleDrinkServed && !isOtherWaiterTable && (
+                      {canManageService && onToggleDrinkServed && !isOtherWaiterTable && (
                         <button
                           onClick={() => onToggleDrinkServed(table.id, drink.id)}
                           className={`h-7 px-2.5 rounded-lg font-bold text-[10px] sm:text-[11px] flex items-center gap-1 transition-all active:scale-95 cursor-pointer shrink-0 ${
@@ -609,7 +619,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                 {renderDrinksSection()}
 
                 {/* Action Button: restricted for other waiters */}
-                {isOtherWaiterTable ? (
+                {!canManageService || isOtherWaiterTable ? (
                   <div className="w-full py-2.5 px-3 rounded-xl bg-surface-container text-xs text-on-surface-variant font-medium text-center border border-outline-variant/30 flex items-center justify-center gap-1.5">
                     <span className="material-symbols-outlined text-[16px] text-amber-600">lock</span>
                     <span>Mesa asignada a <strong>{table.waiter}</strong> • Solo su mozo puede entregar</span>
@@ -673,7 +683,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                 )}
 
                 {/* Action Buttons: restricted for other waiters */}
-                {isOtherWaiterTable ? (
+                {(!canCollectPayment || (isOtherWaiterTable && !canCollectOtherWaiterPayments)) ? (
                   <div className="w-full py-2.5 px-3 rounded-xl bg-surface-container text-xs text-on-surface-variant font-medium text-center border border-outline-variant/30 flex items-center justify-center gap-1.5">
                     <span className="material-symbols-outlined text-[16px] text-amber-600">lock</span>
                     <span>Mesa a cargo de <strong>{table.waiter}</strong> • Cobro exclusivo por su mozo</span>
@@ -745,7 +755,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                 {renderDrinksSection()}
 
                 {/* Action Buttons: restricted for other waiters */}
-                {isOtherWaiterTable ? (
+                {!canManageService || isOtherWaiterTable ? (
                   <div className="w-full py-2.5 px-3 rounded-xl bg-surface-container text-xs text-on-surface-variant font-medium text-center border border-outline-variant/30 flex items-center justify-center gap-1.5">
                     <span className="material-symbols-outlined text-[16px] text-slate-500">lock</span>
                     <span>Mesa a cargo de <strong>{table.waiter}</strong> • Seguimiento exclusivo de su mozo</span>
@@ -832,7 +842,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
               {renderDrinksSection()}
 
               {/* Action Buttons: restricted for other waiters */}
-              {isOtherWaiterTable ? (
+              {!canManageService || isOtherWaiterTable ? (
                 <div className="w-full py-2.5 px-3 rounded-xl bg-surface-container text-xs text-on-surface-variant font-medium text-center border border-outline-variant/30 flex items-center justify-center gap-1.5">
                   <span className="material-symbols-outlined text-[16px] text-slate-500">lock</span>
                   <span>Mesa a cargo de <strong>{table.waiter}</strong> • En preparación para su mozo</span>

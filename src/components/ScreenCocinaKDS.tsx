@@ -110,6 +110,10 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
 
   // 2. Waiters mark an individual dish as served in salon
   const handleItemServed = (ticketId: string, itemIndex: number, itemName: string, tableStr: string) => {
+    if (!isWaiter && !isAdmin) {
+      showToast('⚠️ Permiso denegado: Solo el mozo o un administrador puede marcar un plato como servido');
+      return;
+    }
     if (onMarkDishServed) {
       onMarkDishServed(ticketId, itemIndex);
     }
@@ -155,6 +159,10 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
   };
 
   const handleServeEntireTicket = (ticketId: string, tableStr: string) => {
+    if (!isWaiter && !isAdmin) {
+      showToast('⚠️ Permiso denegado: Solo el mozo o un administrador puede marcar un pedido como servido');
+      return;
+    }
     if (onMarkAllDishesServed) {
       onMarkAllDishesServed(ticketId);
     } else {
@@ -772,7 +780,7 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
                             )}
 
                             {/* 2. Mozo Button: Marcar este plato servido */}
-                            {isItemReady && !isItemServed && (
+                            {isItemReady && !isItemServed && (isWaiter || isAdmin) && (
                               <button
                                 onClick={() =>
                                   handleItemServed(ticket.id, itemIndex, item.name, ticket.table)
@@ -829,7 +837,7 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
                 {/* Footer Action Buttons on the Ticket */}
                 <div className="pt-2 border-t border-outline-variant/20 mt-auto flex flex-col gap-2">
                   {/* Case A: Waiter Actions when dishes are ready */}
-                  {readyUnservedCount > 0 && (
+                  {readyUnservedCount > 0 && (isWaiter || isAdmin) && (
                     <div className="flex flex-col gap-1.5 w-full">
                       <button
                         onClick={() => handleServeEntireTicket(ticket.id, ticket.table)}
