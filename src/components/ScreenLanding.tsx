@@ -35,6 +35,7 @@ import {
   Store,
   Timer,
   TrendingUp,
+  Users,
   UtensilsCrossed,
   Volume2,
   Wine,
@@ -127,8 +128,8 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
               <strong className="block text-lg font-black tracking-tight text-[#102f2e]">
                 ORDENA
               </strong>
-              <small className="block text-[10px] font-extrabold uppercase tracking-[0.16em] text-teal-700">
-                Restaurant Cloud
+              <small className="block text-[11px] font-bold text-teal-800 leading-tight max-w-[280px]">
+                Sistema de gestión para restaurantes y cadenas
               </small>
             </span>
           </button>
@@ -201,7 +202,7 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
             <div className="mx-auto max-w-3xl text-center">
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-teal-800/15 bg-white px-4 py-1.5 text-xs font-black text-teal-900 shadow-xs">
                 <Sparkles size={14} className="text-teal-700" />
-                <span>ORDENA RESTAURANT CLOUD • TECNOLOGÍA EN TIEMPO REAL</span>
+                <span>ORDENA • Sistema de gestión para restaurantes y cadenas</span>
               </div>
 
               <h1 className="text-4xl font-black leading-[1.08] tracking-[-0.05em] text-[#102f2e] sm:text-6xl sm:leading-[1.08]">
@@ -1782,7 +1783,7 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
 
             <div className="max-w-2xl relative z-10">
               <span className="text-xs font-black uppercase tracking-[0.16em] text-[#ffd06f]">
-                ORDENA Restaurant Cloud
+                ORDENA • Sistema de gestión para restaurantes y cadenas
               </span>
               <h2 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
                 Lleva la operación de tu restaurante al siguiente nivel hoy mismo.
@@ -1817,8 +1818,8 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
               className="h-8 w-8 rounded-xl object-cover shadow-xs"
             />
             <div>
-              <strong className="block font-black text-slate-800">ORDENA Restaurant Cloud</strong>
-              <span className="text-[11px] text-slate-500">Sincronización en tiempo real para restaurantes y cadenas</span>
+              <strong className="block font-black text-slate-800 text-sm">ORDENA</strong>
+              <span className="text-[11px] text-slate-500">Sistema de gestión para restaurantes y cadenas</span>
             </div>
           </div>
 
