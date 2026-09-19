@@ -849,7 +849,7 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
                           badgeColor = 'bg-teal-100 text-teal-800';
                           badgeText = 'En Cocina';
                         } else if (t.status === 'listo') {
-                          borderClass = 'border-amber-400 bg-amber-50/70 ring-2 ring-amber-400/40 animate-pulse';
+                          borderClass = 'border-amber-400 bg-amber-50/70 ring-2 ring-amber-400/30';
                           badgeColor = 'bg-amber-400 text-slate-950 font-black';
                           badgeText = '¡Plato Listo!';
                         } else if (t.status === 'cuenta') {
