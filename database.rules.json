@@ -1,0 +1,43 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "tenants": {
+      "$tenantId": {
+        ".read": "auth != null && (auth.token.platformAdmin === true || auth.token.tenantId === $tenantId)",
+        "branches": {
+          "$branchId": {
+            "operational": {
+              "tables": {
+                "$tableId": {
+                  ".write": "auth != null && (auth.token.platformAdmin === true || (auth.token.tenantId === $tenantId && (auth.token.role === 'mesero' || auth.token.role === 'admin_sede' || auth.token.role === 'admin_general')))",
+                  ".validate": "newData.hasChildren(['id', 'number', 'status', 'updatedAt']) && newData.child('id').val() === $tableId && newData.child('number').isString() && newData.child('status').isString() && newData.child('updatedAt').isNumber()"
+                }
+              },
+              "orders": {
+                "$orderId": {
+                  ".write": "auth != null && (auth.token.platformAdmin === true || (auth.token.tenantId === $tenantId && (auth.token.role === 'mesero' || auth.token.role === 'admin_sede' || auth.token.role === 'admin_general')))",
+                  ".validate": "newData.hasChildren(['id', 'tableId', 'status', 'createdAt', 'updatedAt', 'createdBy']) && newData.child('id').val() === $orderId && newData.child('tableId').isString() && newData.child('status').isString() && newData.child('createdAt').isNumber() && newData.child('updatedAt').isNumber() && newData.child('createdBy').val() === auth.uid",
+                  ".indexOn": ["status", "tableId", "updatedAt", "createdAt"]
+                }
+              },
+              "kdsTickets": {
+                "$ticketId": {
+                  ".write": "auth != null && (auth.token.platformAdmin === true || (auth.token.tenantId === $tenantId && (auth.token.role === 'cocina' || auth.token.role === 'admin_sede' || auth.token.role === 'admin_general')))",
+                  ".validate": "newData.hasChildren(['id', 'orderId', 'status', 'createdAt', 'updatedAt']) && newData.child('id').val() === $ticketId && newData.child('orderId').isString() && newData.child('status').isString() && newData.child('createdAt').isNumber() && newData.child('updatedAt').isNumber()",
+                  ".indexOn": ["status", "orderId", "updatedAt"]
+                }
+              }
+            },
+            "catalog": {
+              ".write": "auth != null && (auth.token.platformAdmin === true || (auth.token.tenantId === $tenantId && auth.token.role === 'admin_general'))"
+            },
+            "staff": {
+              ".write": "auth != null && (auth.token.platformAdmin === true || (auth.token.tenantId === $tenantId && auth.token.role === 'admin_sede'))"
+            }
+          }
+        }
+      }
+    }
+  }
+}
