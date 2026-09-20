@@ -196,6 +196,15 @@ export default function App() {
     setFirestoreScope(activeChainId, activeBranchId);
   }, [activeChainId, activeBranchId]);
 
+  // Banderas para asegurar que los datos recibidos desde la nube no se reenvíen a la base de datos
+  const isRemoteTables = React.useRef(false);
+  const isRemoteMenus = React.useRef(false);
+  const isRemoteTickets = React.useRef(false);
+  const isRemoteChains = React.useRef(false);
+  const isRemoteCartas = React.useRef(false);
+  const isRemoteStaff = React.useRef(false);
+  const isRemoteAdmins = React.useRef(false);
+
   // 1. Suscripción a datos de la sede activa (Mesas, KDS, Carta de la sede)
   // Solo se suscribe si existe una sede y tenant activos para evitar lecturas innecesarias
   React.useEffect(() => {
@@ -204,6 +213,7 @@ export default function App() {
 
     const unsubTables = subscribeToTables((cloudTables) => {
       if (cloudTables && cloudTables.length > 0) {
+        isRemoteTables.current = true;
         setTables(cloudTables);
         setIsCloudConnected(true);
       }
@@ -211,6 +221,7 @@ export default function App() {
 
     const unsubMenus = subscribeToBranchMenus((cloudMenus) => {
       if (cloudMenus && Object.keys(cloudMenus).length > 0) {
+        isRemoteMenus.current = true;
         setBranchMenus(cloudMenus);
         setIsCloudConnected(true);
       }
@@ -218,6 +229,7 @@ export default function App() {
 
     const unsubTickets = subscribeToKDSTickets((cloudTickets) => {
       if (cloudTickets) {
+        isRemoteTickets.current = true;
         setKdsTickets(cloudTickets);
         setIsCloudConnected(true);
       }
@@ -240,6 +252,7 @@ export default function App() {
 
     const unsubChains = subscribeToChains((cloudChains) => {
       if (cloudChains && cloudChains.length > 0) {
+        isRemoteChains.current = true;
         setChains(cloudChains);
         setIsCloudConnected(true);
       }
@@ -247,6 +260,7 @@ export default function App() {
 
     const unsubCartas = subscribeToMasterCartas((cloudCartas) => {
       if (cloudCartas && cloudCartas.length > 0) {
+        isRemoteCartas.current = true;
         setMasterCartas(cloudCartas);
         setIsCloudConnected(true);
       }
@@ -254,6 +268,7 @@ export default function App() {
 
     const unsubStaff = subscribeToStaff((cloudStaff) => {
       if (cloudStaff && cloudStaff.length > 0) {
+        isRemoteStaff.current = true;
         setStaffMembers(cloudStaff);
         setIsCloudConnected(true);
       }
@@ -261,6 +276,7 @@ export default function App() {
 
     const unsubAdmins = subscribeToAdmins((cloudAdmins) => {
       if (cloudAdmins && cloudAdmins.length > 0) {
+        isRemoteAdmins.current = true;
         setAdmins(cloudAdmins);
         setIsCloudConnected(true);
       }
@@ -274,11 +290,16 @@ export default function App() {
     };
   }, [activeChainId, currentScreen, tenantSlug]);
 
-  // Sincronización diferencial con debounce para agrupar cambios rápidos
+  // Sincronización diferencial con debounce y protección contra bucles
   const isInitialMount = React.useRef(true);
+
   React.useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
+      return;
+    }
+    if (isRemoteTables.current) {
+      isRemoteTables.current = false;
       return;
     }
     const timer = window.setTimeout(() => {
@@ -289,6 +310,10 @@ export default function App() {
 
   React.useEffect(() => {
     if (isInitialMount.current) return;
+    if (isRemoteTickets.current) {
+      isRemoteTickets.current = false;
+      return;
+    }
     const timer = window.setTimeout(() => {
       syncKDSTicketsToRTDB(kdsTickets);
     }, 250);
@@ -297,6 +322,10 @@ export default function App() {
 
   React.useEffect(() => {
     if (isInitialMount.current) return;
+    if (isRemoteMenus.current) {
+      isRemoteMenus.current = false;
+      return;
+    }
     const timer = window.setTimeout(() => {
       syncBranchMenusToRTDB(branchMenus);
     }, 300);
@@ -305,6 +334,10 @@ export default function App() {
 
   React.useEffect(() => {
     if (isInitialMount.current) return;
+    if (isRemoteCartas.current) {
+      isRemoteCartas.current = false;
+      return;
+    }
     const timer = window.setTimeout(() => {
       syncMasterCartasToRTDB(masterCartas);
     }, 300);
@@ -313,6 +346,10 @@ export default function App() {
 
   React.useEffect(() => {
     if (isInitialMount.current) return;
+    if (isRemoteChains.current) {
+      isRemoteChains.current = false;
+      return;
+    }
     const timer = window.setTimeout(() => {
       syncChainsToRTDB(chains);
     }, 400);
@@ -321,6 +358,10 @@ export default function App() {
 
   React.useEffect(() => {
     if (isInitialMount.current) return;
+    if (isRemoteStaff.current) {
+      isRemoteStaff.current = false;
+      return;
+    }
     const timer = window.setTimeout(() => {
       syncStaffToRTDB(staffMembers);
     }, 400);
@@ -329,6 +370,10 @@ export default function App() {
 
   React.useEffect(() => {
     if (isInitialMount.current) return;
+    if (isRemoteAdmins.current) {
+      isRemoteAdmins.current = false;
+      return;
+    }
     const timer = window.setTimeout(() => {
       syncAdminsToRTDB(admins);
     }, 400);

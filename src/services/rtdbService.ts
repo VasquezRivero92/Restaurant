@@ -309,14 +309,13 @@ export const syncChainsToRTDB = async (items: ChainBrand[]) => {
     const restPayload = clean({
       ...chainMeta,
       locations: locations || [],
-      locationsCount: (locations || []).length,
-      updatedAt: Date.now()
+      locationsCount: (locations || []).length
     });
     const cacheKey = getDocKey('restaurants', chain.id);
     const serialized = JSON.stringify(restPayload);
 
     if (syncedCache.get(cacheKey) !== serialized) {
-      await setDoc(doc(firestoreDb, 'restaurants', chain.id), restPayload, { merge: true });
+      await setDoc(doc(firestoreDb, 'restaurants', chain.id), { ...restPayload, updatedAt: Date.now() }, { merge: true });
       syncedCache.set(cacheKey, serialized);
     }
 
@@ -324,8 +323,7 @@ export const syncChainsToRTDB = async (items: ChainBrand[]) => {
       const branchColl = `restaurants/${chain.id}/branches`;
       await syncCollectionDifferential(branchColl, locations, (loc) => ({
         ...loc,
-        restaurantId: chain.id,
-        updatedAt: Date.now()
+        restaurantId: chain.id
       }));
     }
   }
