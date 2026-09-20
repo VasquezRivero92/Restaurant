@@ -111,7 +111,55 @@ export function subscribeToKDSTickets(callback: (items: KDSTicket[]) => void) {
     const orders: KDSTicket[] = [];
 
     for (const docSnap of snapshot.docs) {
-      const item = { id: docSnap.id, ...(docSnap.data() as object) } as KDSTicket;
+      const data = docSnap.data() as Record<string, unknown>;
+      const rawItems = Array.isArray(data.items) ? data.items : [];
+      const normalizedItems: KDSTicketItem[] = rawItems.map((rawItem: unknown, idx: number) => {
+        const it = (rawItem && typeof rawItem === 'object' ? rawItem : {}) as Record<string, unknown>;
+        const isReady = Boolean(it.isReady || it.status === 'ready');
+        const isServed = Boolean(it.isServed || it.status === 'served');
+        return {
+          id: (it.id as string) || `item-${docSnap.id}-${idx}`,
+          dishId: typeof it.dishId === 'number' ? it.dishId : undefined,
+          name: (it.name as string) || 'Plato',
+          qty: typeof it.qty === 'number' ? it.qty : 1,
+          price: typeof it.price === 'number' ? it.price : 0,
+          substation: (it.substation as string) || (it.station as string) || 'COCINA',
+          notes: (it.notes as string) || '',
+          isReady,
+          isServed,
+          status: isServed ? ('served' as const) : isReady ? ('ready' as const) : ((it.status as string) === 'preparing' ? 'cooking' : (it.status as string) || 'cooking'),
+          readyAt: (it.readyAt as string) || undefined,
+          servedAt: (it.servedAt as string) || undefined
+        } as KDSTicketItem;
+      });
+
+      const rawStatus = data.status as string;
+      const normalizedStatus: KDSTicket['status'] =
+        rawStatus === 'served'
+          ? 'served'
+          : rawStatus === 'ready'
+          ? 'ready'
+          : rawStatus === 'preparing' || rawStatus === 'cooking'
+          ? 'cooking'
+          : 'pending';
+
+      const tableName = (data.table as string) || (data.tableName as string) || (data.tableNumber ? `Mesa ${data.tableNumber}` : `Comanda #${docSnap.id}`);
+
+      const item: KDSTicket = {
+        id: docSnap.id,
+        table: tableName,
+        station: (data.station as KDSTicket['station']) || 'calientes',
+        status: normalizedStatus,
+        waiter: (data.waiter as string) || 'Mozo de Turno',
+        elapsed: (data.elapsed as string) || (data.timeElapsed as string) || 'Hace 5m',
+        time: (data.time as string) || '13:30',
+        createdAt: typeof data.createdAt === 'number' ? data.createdAt : Date.now(),
+        arrivalOrder: typeof data.arrivalOrder === 'number' ? data.arrivalOrder : (parseInt(docSnap.id.replace(/\D/g, ''), 10) || 1),
+        drinksNote: data.drinksNote as string | undefined,
+        items: normalizedItems,
+        branchId: (data.branchId as string) || scope.branchId
+      };
+
       orders.push(item);
       currentIds.add(docSnap.id);
       syncedCache.set(getDocKey(collPath, docSnap.id), JSON.stringify(clean(item)));
@@ -251,21 +299,31 @@ async function syncCollectionDifferential<T extends { id: string | number }>(
     return;
   }
 
-  const batch = writeBatch(firestoreDb);
+  try {
+    const batch = writeBatch(firestoreDb);
 
-  for (const item of itemsToUpdate) {
-    batch.set(doc(firestoreDb, collPath, item.id), item.payload, { merge: true });
-    syncedCache.set(getDocKey(collPath, item.id), item.serialized);
-    if (knownIds) knownIds.add(item.id);
+    for (const item of itemsToUpdate) {
+      batch.set(doc(firestoreDb, collPath, item.id), item.payload, { merge: true });
+    }
+
+    for (const delId of idsToDelete) {
+      batch.delete(doc(firestoreDb, collPath, delId));
+    }
+
+    await batch.commit();
+
+    for (const item of itemsToUpdate) {
+      syncedCache.set(getDocKey(collPath, item.id), item.serialized);
+      if (knownIds) knownIds.add(item.id);
+    }
+
+    for (const delId of idsToDelete) {
+      syncedCache.delete(getDocKey(collPath, delId));
+      if (knownIds) knownIds.delete(delId);
+    }
+  } catch (err) {
+    console.warn(`[RTDB/Firestore Sync Warning] No se pudo guardar cambios en '${collPath}':`, err);
   }
-
-  for (const delId of idsToDelete) {
-    batch.delete(doc(firestoreDb, collPath, delId));
-    syncedCache.delete(getDocKey(collPath, delId));
-    if (knownIds) knownIds.delete(delId);
-  }
-
-  await batch.commit();
 }
 
 export const syncTablesToRTDB = async (items: TableItem[]) => {

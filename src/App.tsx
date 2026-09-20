@@ -300,7 +300,49 @@ export default function App() {
     const unsubTickets = subscribeToKDSTickets((cloudTickets) => {
       if (cloudTickets) {
         isRemoteTickets.current = true;
-        setKdsTickets(cloudTickets);
+        setKdsTickets((prevTickets) => {
+          if (!prevTickets || prevTickets.length === 0) return cloudTickets;
+          return cloudTickets.map((cTicket) => {
+            const localTicket = prevTickets.find((lt) => lt.id === cTicket.id);
+            if (!localTicket) return cTicket;
+
+            const mergedItems = cTicket.items.map((cItem, idx) => {
+              const lItem =
+                localTicket.items[idx] ||
+                localTicket.items.find((li) => li.id === cItem.id || li.name === cItem.name);
+              if (!lItem) return cItem;
+              const isReady = Boolean(cItem.isReady || lItem.isReady);
+              const isServed = Boolean(cItem.isServed || lItem.isServed);
+              return {
+                ...cItem,
+                isReady,
+                isServed,
+                status: isServed
+                  ? ('served' as const)
+                  : isReady
+                  ? ('ready' as const)
+                  : cItem.status,
+                readyAt: cItem.readyAt || lItem.readyAt,
+                servedAt: cItem.servedAt || lItem.servedAt
+              };
+            });
+
+            const allReady = mergedItems.every((i) => i.isReady);
+            const allServed = mergedItems.every((i) => i.isServed);
+
+            return {
+              ...cTicket,
+              items: mergedItems,
+              status: allServed
+                ? ('served' as const)
+                : allReady
+                ? ('ready' as const)
+                : localTicket.status === 'ready'
+                ? ('ready' as const)
+                : cTicket.status
+            };
+          });
+        });
         setIsCloudConnected(true);
       }
     });
@@ -875,14 +917,15 @@ export default function App() {
           return {
             ...item,
             isReady: true,
-            readyAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            status: 'ready' as const,
+            readyAt: item.readyAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           };
         });
-        isAllReady = newItems.every((i) => i.isReady);
+        isAllReady = newItems.every((i) => i.isReady || (i as any).status === 'ready');
         return {
           ...t,
           items: newItems,
-          status: isAllReady ? 'ready' : t.status === 'pending' ? 'cooking' : t.status
+          status: isAllReady ? 'ready' : (t.status === 'pending' ? 'cooking' : (t.status as string) === 'preparing' ? 'cooking' : t.status)
         };
       })
     );
@@ -923,10 +966,13 @@ export default function App() {
             ...item,
             isReady: true,
             isServed: true,
-            servedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            status: 'served' as const,
+            servedAt: item.servedAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           };
         });
-        isAllServedAndReady = newItems.every((i) => i.isReady && i.isServed);
+        isAllServedAndReady = newItems.every(
+          (i) => (i.isReady || (i as any).status === 'ready') && (i.isServed || (i as any).status === 'served')
+        );
         return {
           ...t,
           items: newItems,
@@ -1155,7 +1201,12 @@ export default function App() {
         return {
           ...t,
           status: 'ready',
-          items: t.items.map((i) => ({ ...i, isReady: true }))
+          items: t.items.map((i) => ({
+            ...i,
+            isReady: true,
+            status: 'ready' as const,
+            readyAt: i.readyAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }))
         };
       })
     );
@@ -1184,7 +1235,13 @@ export default function App() {
         return {
           ...t,
           status: 'served',
-          items: t.items.map((i) => ({ ...i, isReady: true, isServed: true }))
+          items: t.items.map((i) => ({
+            ...i,
+            isReady: true,
+            isServed: true,
+            status: 'served' as const,
+            servedAt: i.servedAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }))
         };
       })
     );

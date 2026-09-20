@@ -195,12 +195,26 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
   // THE CARD DISAPPEARS WHEN ALL ITEMS IN THE ORDER ARE PREPARED AND SERVED!
   const allActiveTickets = tickets.filter((t) => {
     if (t.status === 'served') return false;
-    const allDishesCompleted = t.items.length > 0 && t.items.every((i) => i.isReady && i.isServed);
+    const allDishesCompleted =
+      t.items.length > 0 &&
+      t.items.every(
+        (i) =>
+          (i.isReady || (i as any).status === 'ready' || (i as any).status === 'served') &&
+          (i.isServed || (i as any).status === 'served')
+      );
     return !allDishesCompleted;
   });
 
   const allCompletedTickets = tickets.filter((t) => {
-    return t.status === 'served' || (t.items.length > 0 && t.items.every((i) => i.isReady && i.isServed));
+    return (
+      t.status === 'served' ||
+      (t.items.length > 0 &&
+        t.items.every(
+          (i) =>
+            (i.isReady || (i as any).status === 'ready' || (i as any).status === 'served') &&
+            (i.isServed || (i as any).status === 'served')
+        ))
+    );
   });
 
   // El mesero SÓLO ve las comandas de sus mesas asignadas en todo el proceso
@@ -239,7 +253,15 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
 
   // Total ready plates waiting to be served by waiters
   const totalReadyToPickupPlates = activeTickets.reduce((acc, t) => {
-    return acc + t.items.filter((i) => i.isReady && !i.isServed).length;
+    return (
+      acc +
+      t.items.filter(
+        (i) =>
+          (i.isReady || (i as any).status === 'ready') &&
+          !i.isServed &&
+          (i as any).status !== 'served'
+      ).length
+    );
   }, 0);
 
   return (
@@ -573,10 +595,18 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
           {sortedTickets.map((ticket, queueIndex) => {
             const isFirstInQueue = queueIndex === 0 && activeTab === 'active';
             const totalItems = ticket.items.length;
-            const readyItemsCount = ticket.items.filter((i) => i.isReady).length;
-            const servedItemsCount = ticket.items.filter((i) => i.isServed).length;
-            const readyUnservedCount = ticket.items.filter((i) => i.isReady && !i.isServed).length;
-            const pendingCookingCount = ticket.items.filter((i) => !i.isReady).length;
+            const readyItemsCount = ticket.items.filter(
+              (i) => i.isReady || (i as any).status === 'ready' || (i as any).status === 'served'
+            ).length;
+            const servedItemsCount = ticket.items.filter(
+              (i) => i.isServed || (i as any).status === 'served'
+            ).length;
+            const readyUnservedCount = ticket.items.filter(
+              (i) => (i.isReady || (i as any).status === 'ready') && !i.isServed && (i as any).status !== 'served'
+            ).length;
+            const pendingCookingCount = ticket.items.filter(
+              (i) => !i.isReady && (i as any).status !== 'ready' && (i as any).status !== 'served'
+            ).length;
 
             const isAllReady = totalItems > 0 && readyItemsCount === totalItems;
             const hasAnyReady = readyItemsCount > 0;
@@ -617,7 +647,7 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">
                         <span className="font-black text-base sm:text-lg text-primary leading-tight">
-                          {ticket.table}
+                          {ticket.table || (ticket as any).tableName || ((ticket as any).tableNumber ? `Mesa ${(ticket as any).tableNumber}` : 'Mesa')}
                         </span>
                         <span className="font-mono text-xs text-on-surface-variant font-bold bg-surface-container px-2 py-0.5 rounded-md">
                           #{ticket.id}
@@ -626,7 +656,7 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
                       <div className="flex items-center gap-2 text-xs text-on-surface-variant mt-0.5 flex-wrap">
                         <span className="flex items-center gap-1 font-bold text-primary">
                           <span className="material-symbols-outlined text-[14px]">person</span>
-                          <span>Mozo: {ticket.waiter}</span>
+                          <span>Mozo: {ticket.waiter || (ticket as any).waiterName || 'Mozo de Turno'}</span>
                         </span>
                         <span>•</span>
                         <span className="font-medium">{ticket.time || '13:30'}</span>
@@ -648,7 +678,7 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
                       }`}
                     >
                       <span className="material-symbols-outlined text-[14px]">schedule</span>
-                      <span>{ticket.elapsed}</span>
+                      <span>{ticket.elapsed || (ticket as any).timeElapsed || '05:00 min'}</span>
                     </div>
 
                     <span className="text-[10px] font-extrabold text-on-surface-variant uppercase mt-1">
@@ -687,8 +717,8 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
                 {/* Dish Items List with Granular Controls */}
                 <div className="flex flex-col gap-2 my-1">
                   {ticket.items.map((item, itemIndex) => {
-                    const isItemReady = !!item.isReady;
-                    const isItemServed = !!item.isServed;
+                    const isItemReady = Boolean(item.isReady || (item as any).status === 'ready' || (item as any).status === 'served');
+                    const isItemServed = Boolean(item.isServed || (item as any).status === 'served');
 
                     return (
                       <div
@@ -727,7 +757,7 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
                                   {item.name}
                                 </span>
                                 <span className="text-[10px] bg-surface-container px-1.5 py-0.5 rounded font-bold text-on-surface-variant uppercase">
-                                  {item.substation}
+                                  {item.substation || (item as any).station || 'COCINA'}
                                 </span>
                               </div>
 

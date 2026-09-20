@@ -40,7 +40,7 @@ service cloud.firestore {
 
         match /tables/{tableId} {
           allow read: if canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId);
-          allow create, update: if canUseBranch(restaurantId, branchId) && hasRole(['mesero', 'admin_sede', 'admin_general']);
+          allow create, update: if (canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId)) && hasRole(['mesero', 'cocina', 'admin_sede', 'admin_general']);
           allow delete: if isTenantAdmin(restaurantId);
         }
 
@@ -51,8 +51,8 @@ service cloud.firestore {
 
         match /orders/{orderId} {
           allow read: if canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId);
-          allow create: if canUseBranch(restaurantId, branchId) && hasRole(['mesero', 'admin_sede', 'admin_general']);
-          allow update: if canUseBranch(restaurantId, branchId) && hasRole(['mesero', 'cocina', 'admin_sede', 'admin_general']);
+          allow create: if (canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId)) && hasRole(['mesero', 'admin_sede', 'admin_general']);
+          allow update: if (canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId)) && hasRole(['mesero', 'cocina', 'admin_sede', 'admin_general']);
           allow delete: if isTenantAdmin(restaurantId);
         }
 
