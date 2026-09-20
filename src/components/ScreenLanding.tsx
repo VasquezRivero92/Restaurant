@@ -2,8 +2,13 @@ import React, { useState } from 'react';
 import {
   AlertCircle,
   ArrowRight,
+  ArrowUpRight,
+  Award,
+  BadgeCheck,
   BarChart3,
   Bell,
+  Building2,
+  Calculator,
   Check,
   CheckCircle2,
   ChefHat,
@@ -14,19 +19,25 @@ import {
   Coffee,
   CreditCard,
   DollarSign,
+  FileSpreadsheet,
+  FileText,
   Flame,
   HelpCircle,
   Laptop,
   Layers,
   LayoutGrid,
   Lock,
+  MessageSquare,
   Minus,
+  Percent,
+  Phone,
   Play,
   Plus,
   QrCode,
   Receipt,
   RefreshCw,
   Search,
+  Send,
   ShieldCheck,
   SlidersHorizontal,
   Smartphone,
@@ -47,7 +58,7 @@ interface ScreenLandingProps {
   onOpenLogin: () => void;
 }
 
-type ShowcaseTab = 'comandera' | 'kds' | 'mesas' | 'cobro' | 'admin';
+type ShowcaseTab = 'comandera' | 'kds' | 'mesas' | 'cobro' | 'admin' | 'carta';
 
 export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => {
   const [activeTab, setActiveTab] = useState<ShowcaseTab>('comandera');
@@ -58,6 +69,8 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
   // 1. Comandera State
   const [comanderaCategory, setComanderaCategory] = useState<'ceviches' | 'trios' | 'bebidas'>('ceviches');
   const [selectedPortion, setSelectedPortion] = useState<'Personal' | 'Fuente' | 'Familiar'>('Personal');
+  const [selectedSpice, setSelectedSpice] = useState<'Sin ají' | 'Moderado' | 'Bien Bravo'>('Moderado');
+  const [selectedNotes, setSelectedNotes] = useState<string[]>(['Ají aparte']);
   const [cevicheQty, setCevicheQty] = useState(1);
   const [bebidaQty, setBebidaQty] = useState(2);
   const [immediateDrinks, setImmediateDrinks] = useState(true);
@@ -78,11 +91,38 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
   const [selectedTipPercent, setSelectedTipPercent] = useState<number>(10);
   const [splitCount, setSplitCount] = useState<number>(1);
   const [paymentMethod, setPaymentMethod] = useState<'yape' | 'tarjeta' | 'efectivo'>('yape');
+  const [billingDocType, setBillingDocType] = useState<'boleta' | 'factura'>('boleta');
+  const [receivedCash, setReceivedCash] = useState<number>(160);
 
   // 5. Admin Dashboard State
   const [selectedBranch, setSelectedBranch] = useState<'miraflores' | 'san-isidro'>('miraflores');
   const [isCevichePaused, setIsCevichePaused] = useState(false);
   const [isLangostinosPaused, setIsLangostinosPaused] = useState(true);
+
+  // 6. Master Carta & Recipe Mockup State
+  const [selectedDishRecipe, setSelectedDishRecipe] = useState<'ceviche' | 'lomo' | 'pisco'>('ceviche');
+  const [recipeBranchPrices, setRecipeBranchPrices] = useState({
+    ceviche: { miraflores: 20.00, sanIsidro: 22.00, cost: 7.80, prepTime: '8 min', station: 'Cevichería / Fríos' },
+    lomo: { miraflores: 32.00, sanIsidro: 35.00, cost: 13.50, prepTime: '12 min', station: 'Wok & Frituras' },
+    pisco: { miraflores: 18.00, sanIsidro: 20.00, cost: 4.90, prepTime: '4 min', station: 'Barra Principal' },
+  });
+
+  // --- Interactive Business ROI Calculator State ---
+  const [calcTables, setCalcTables] = useState<number>(20);
+  const [calcTurns, setCalcTurns] = useState<number>(3);
+  const [calcTicket, setCalcTicket] = useState<number>(85);
+
+  // --- Specialized Segment Matcher State ---
+  const [selectedSegment, setSelectedSegment] = useState<'cevicheria' | 'polleria' | 'restobar' | 'cadenas'>('cevicheria');
+
+  // --- Demo Request & Contact Modal State ---
+  const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
+  const [demoRestaurant, setDemoRestaurant] = useState('');
+  const [demoContact, setDemoContact] = useState('');
+  const [demoPhone, setDemoPhone] = useState('');
+  const [demoBranches, setDemoBranches] = useState('1');
+  const [demoCity, setDemoCity] = useState('Lima');
+  const [demoSuccess, setDemoSuccess] = useState(false);
 
   const triggerMockToast = (msg: string) => {
     setSimulatedToast(msg);
@@ -93,11 +133,29 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const toggleNote = (note: string) => {
+    if (selectedNotes.includes(note)) {
+      setSelectedNotes(selectedNotes.filter((n) => n !== note));
+      triggerMockToast(`Nota "${note}" removida`);
+    } else {
+      setSelectedNotes([...selectedNotes, note]);
+      triggerMockToast(`Nota "${note}" agregada a comanda`);
+    }
+  };
+
   // Calculations for Cobro Mockup
   const baseBill = 145.00;
   const tipAmount = (baseBill * selectedTipPercent) / 100;
   const totalBill = baseBill + tipAmount;
   const perPerson = totalBill / splitCount;
+  const cashChange = Math.max(0, receivedCash - totalBill);
+
+  // Calculations for ROI Calculator
+  const monthlyTablesServed = calcTables * calcTurns * 30;
+  const estimatedMonthlyRevenue = monthlyTablesServed * calcTicket;
+  // Ahorro promedio del 14% por optimización de rotación (12 min menos por mesa) y cero errores de comanda
+  const monthlyExtraRevenue = Math.round(estimatedMonthlyRevenue * 0.14);
+  const extraTablesWeekend = Math.round(calcTables * 0.45 * 8);
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#fffdf9] text-slate-900 font-sans selection:bg-teal-700/20 selection:text-teal-950">
@@ -142,13 +200,28 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
           </button>
 
           {/* Navigation Links */}
-          <nav className="hidden items-center gap-7 text-sm font-bold text-slate-600 lg:flex">
+          <nav className="hidden items-center gap-5 text-sm font-bold text-slate-600 xl:flex">
             <button
               type="button"
               onClick={() => scrollTo('pantallas')}
               className="hover:text-teal-800 transition cursor-pointer"
             >
-              Pantallas del App
+              Pantallas en Vivo
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollTo('soluciones')}
+              className="hover:text-teal-800 transition cursor-pointer"
+            >
+              Por Negocio
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollTo('calculadora')}
+              className="hover:text-teal-800 transition cursor-pointer flex items-center gap-1 text-teal-800"
+            >
+              <Calculator size={14} className="text-amber-600" />
+              <span>Calculadora ROI</span>
             </button>
             <button
               type="button"
@@ -173,6 +246,13 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
             </button>
             <button
               type="button"
+              onClick={() => scrollTo('planes')}
+              className="hover:text-teal-800 transition cursor-pointer font-extrabold text-[#e46d3f]"
+            >
+              Planes
+            </button>
+            <button
+              type="button"
               onClick={() => scrollTo('faq')}
               className="hover:text-teal-800 transition cursor-pointer"
             >
@@ -180,28 +260,38 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
             </button>
           </nav>
 
-          {/* Login Button at Top Right */}
-          <div className="flex items-center gap-3">
+          {/* Action Buttons at Top Right */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => setIsDemoModalOpen(true)}
+              className="hidden sm:inline-flex h-11 items-center gap-2 rounded-xl bg-amber-500/15 border border-amber-500/30 px-4 text-xs font-black text-[#854d0e] transition hover:bg-amber-500/25 cursor-pointer"
+            >
+              <Sparkles size={14} className="text-amber-600" />
+              <span>Solicitar Demo</span>
+            </button>
+
             <button
               type="button"
               onClick={onOpenLogin}
-              className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#0c3130] px-5 text-sm font-extrabold text-white shadow-lg shadow-teal-950/15 transition hover:-translate-y-0.5 hover:bg-[#124946] active:translate-y-0 cursor-pointer"
+              className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#0c3130] px-4 sm:px-5 text-xs sm:text-sm font-extrabold text-white shadow-lg shadow-teal-950/15 transition hover:-translate-y-0.5 hover:bg-[#124946] active:translate-y-0 cursor-pointer"
             >
               <Lock size={15} className="text-[#ffd06f]" />
-              <span className="hidden sm:inline">Iniciar Sesión</span>
-              <span className="sm:hidden">Acceso</span>
+              <span>Iniciar Sesión</span>
               <ArrowRight size={16} />
             </button>
           </div>
         </div>
       </header>
 
-      <nav aria-label="Navegación rápida" className="sticky top-20 z-30 flex border-b border-slate-200 bg-white/95 px-3 py-2 backdrop-blur lg:hidden">
-        <div className="ux-tab-strip mx-auto w-full max-w-xl justify-between">
-          <button type="button" onClick={() => scrollTo('pantallas')} className="ux-touch-target shrink-0 rounded-xl px-3 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Pantallas</button>
-          <button type="button" onClick={() => scrollTo('flujo')} className="ux-touch-target shrink-0 rounded-xl px-3 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Cómo funciona</button>
-          <button type="button" onClick={() => scrollTo('modulos')} className="ux-touch-target shrink-0 rounded-xl px-3 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Módulos</button>
-          <button type="button" onClick={() => scrollTo('faq')} className="ux-touch-target shrink-0 rounded-xl px-3 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Preguntas</button>
+      <nav aria-label="Navegación rápida" className="sticky top-20 z-30 flex border-b border-slate-200 bg-white/95 px-3 py-2 backdrop-blur lg:hidden overflow-x-auto">
+        <div className="ux-tab-strip mx-auto w-full max-w-xl justify-between gap-1">
+          <button type="button" onClick={() => scrollTo('pantallas')} className="ux-touch-target shrink-0 rounded-xl px-2.5 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Pantallas</button>
+          <button type="button" onClick={() => scrollTo('soluciones')} className="ux-touch-target shrink-0 rounded-xl px-2.5 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Por Negocio</button>
+          <button type="button" onClick={() => scrollTo('calculadora')} className="ux-touch-target shrink-0 rounded-xl px-2.5 text-xs font-black text-amber-700 hover:bg-amber-50">ROI / Ahorro</button>
+          <button type="button" onClick={() => scrollTo('flujo')} className="ux-touch-target shrink-0 rounded-xl px-2.5 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Flujo</button>
+          <button type="button" onClick={() => scrollTo('planes')} className="ux-touch-target shrink-0 rounded-xl px-2.5 text-xs font-black text-[#e46d3f] hover:bg-orange-50">Planes</button>
+          <button type="button" onClick={() => scrollTo('faq')} className="ux-touch-target shrink-0 rounded-xl px-2.5 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Preguntas</button>
         </div>
       </nav>
 
@@ -216,9 +306,16 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
 
           <div className="mx-auto max-w-7xl">
             <div className="mx-auto max-w-3xl text-center">
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-teal-800/15 bg-white px-4 py-1.5 text-xs font-black text-teal-900 shadow-xs">
-                <Sparkles size={14} className="text-teal-700" />
-                <span>ORDENA • Sistema de gestión para restaurantes y cadenas</span>
+              <div className="mb-5 inline-flex flex-wrap items-center justify-center gap-2 rounded-full border border-teal-800/15 bg-white px-4 py-1.5 text-xs font-black text-teal-900 shadow-xs">
+                <span className="flex items-center gap-1.5 text-teal-800">
+                  <Sparkles size={14} className="text-teal-700" />
+                  ORDENA Cloud • Gastronomía Ágil
+                </span>
+                <span className="text-slate-300">•</span>
+                <span className="flex items-center gap-1 text-emerald-700 font-black">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Latencia &lt; 0.5s Realtime
+                </span>
               </div>
 
               <h1 className="text-[clamp(2.35rem,7vw,4rem)] font-black leading-[1.06] tracking-[-0.045em] text-[#102f2e]">
@@ -226,7 +323,7 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
               </h1>
 
               <p className="mt-6 text-base leading-relaxed text-slate-600 sm:text-xl font-normal">
-                Conecta las <strong>comanderas táctiles de los mozos</strong>, el <strong>KDS de cocina en tiempo real</strong>, el <strong>mapa inteligente de mesas</strong> y el <strong>cobro rápido</strong> en una sola plataforma en la nube sin papel ni complicaciones.
+                Conecta las <strong>comanderas táctiles de los mozos</strong>, el <strong>KDS de cocina en tiempo real</strong>, el <strong>mapa inteligente de mesas</strong>, el <strong>control de stock en vivo</strong> y el <strong>cobro rápido</strong> en una sola plataforma en la nube sin papel ni complicaciones.
               </p>
 
               <div className="mt-8 flex flex-col items-center justify-center gap-3.5 sm:flex-row">
@@ -241,39 +338,77 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
                 </button>
                 <button
                   type="button"
-                  onClick={onOpenLogin}
-                  className="w-full sm:w-auto inline-flex h-13 items-center justify-center gap-2 rounded-xl border border-slate-900/20 bg-white px-7 text-sm font-extrabold text-[#102f2e] shadow-xs transition hover:border-teal-800/40 hover:bg-slate-50 active:scale-98 cursor-pointer"
+                  onClick={() => setIsDemoModalOpen(true)}
+                  className="w-full sm:w-auto inline-flex h-13 items-center justify-center gap-2 rounded-xl bg-[#0c3130] px-7 text-sm font-extrabold text-[#ffd06f] shadow-lg shadow-teal-950/20 transition hover:bg-[#144342] active:scale-98 cursor-pointer"
                 >
-                  <Lock size={17} className="text-teal-800" />
-                  <span>Ingresar a mi Restaurante</span>
+                  <Sparkles size={17} />
+                  <span>Solicitar Demo Guiada</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenLogin}
+                  className="w-full sm:w-auto inline-flex h-13 items-center justify-center gap-2 rounded-xl border border-slate-900/20 bg-white px-6 text-sm font-extrabold text-[#102f2e] shadow-xs transition hover:border-teal-800/40 hover:bg-slate-50 active:scale-98 cursor-pointer"
+                >
+                  <Lock size={16} className="text-teal-800" />
+                  <span>Ingresar</span>
                 </button>
               </div>
 
+              {/* Quick interactive role switcher pills */}
+              <div className="mt-8 pt-6 border-t border-slate-200/70 flex flex-col items-center gap-2.5">
+                <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
+                  Explorar simulación interactiva por puesto de trabajo:
+                </span>
+                <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+                  {[
+                    { id: 'comandera', label: '📱 Mozo (Comandera)' },
+                    { id: 'kds', label: '👨‍🍳 Cocina (KDS FIFO)' },
+                    { id: 'mesas', label: '🗺️ Supervisor (Mesas)' },
+                    { id: 'cobro', label: '🧾 Caja (Pre-cuenta & Yape)' },
+                    { id: 'admin', label: '📊 Dueño (Panel & Stock 86)' },
+                    { id: 'carta', label: '📋 Chef (Carta & Recetas)' },
+                  ].map((role) => (
+                    <button
+                      key={role.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveTab(role.id as ShowcaseTab);
+                        scrollTo('pantallas');
+                        triggerMockToast(`Cambiando a vista de ${role.label}`);
+                      }}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 font-bold text-slate-700 shadow-2xs hover:border-teal-700 hover:text-teal-900 hover:bg-teal-50 transition cursor-pointer"
+                    >
+                      {role.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Real-time stats pills */}
-              <div className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+              <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
                 <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
                   <span className="flex items-center justify-center gap-1 text-xl sm:text-2xl font-black text-[#102f2e]">
-                    Tiempo real
+                    &lt; 0.5s
                   </span>
                   <p className="mt-1 text-xs font-bold text-slate-500">Sincronización a Cocina</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
                   <span className="flex items-center justify-center gap-1 text-xl sm:text-2xl font-black text-teal-800">
-                    Multi-sede
+                    Multi-Sede
                   </span>
                   <p className="mt-1 text-xs font-bold text-slate-500">Operación Centralizada</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
                   <span className="flex items-center justify-center gap-1 text-xl sm:text-2xl font-black text-[#e46d3f]">
-                    FIFO
+                    Regla FIFO
                   </span>
-                  <p className="mt-1 text-xs font-bold text-slate-500">Prioridad de Comandas</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">Prioridad Estricta en Cocina</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
                   <span className="flex items-center justify-center gap-1 text-xl sm:text-2xl font-black text-emerald-700">
-                    Caja
+                    0% Comisión
                   </span>
-                  <p className="mt-1 text-xs font-bold text-slate-500">Cobro y Arqueo Integrados</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">Sin Cobros por Comanda</p>
                 </div>
               </div>
             </div>
@@ -288,13 +423,13 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
             <div className="text-center max-w-3xl mx-auto">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3.5 py-1 text-xs font-black uppercase tracking-[0.2em] text-[#ffd06f]">
                 <Layers size={14} />
-                Explorador Interactivo
+                Explorador Interactivo en Vivo
               </span>
               <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
                 Pantallas reales creadas para la máxima velocidad de servicio.
               </h2>
               <p className="mt-4 text-sm sm:text-base leading-relaxed text-teal-100/90">
-                Haz clic en cada pestaña para experimentar cómo interactúa cada área de tu restaurante: desde el mozo tomando la orden en el teléfono, hasta la pantalla táctil de la cocina y el cierre de caja.
+                Haz clic en cada pestaña para experimentar cómo interactúa cada área de tu restaurante: desde el mozo tomando la orden en el teléfono, hasta la pantalla táctil de la cocina, el control de recetas y el cierre de caja.
               </p>
             </div>
 
@@ -305,7 +440,8 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
                 { id: 'kds', label: 'Pantalla KDS', role: 'Cocina & Bar', icon: ChefHat },
                 { id: 'mesas', label: 'Mapa de Salón', role: 'Supervisión', icon: LayoutGrid },
                 { id: 'cobro', label: 'Pre-Cuenta & Cobro', role: 'Caja', icon: Receipt },
-                { id: 'admin', label: 'Panel SaaS & Sedes', role: 'Gerencia', icon: BarChart3 },
+                { id: 'admin', label: 'Panel SaaS & Stock 86', role: 'Gerencia', icon: BarChart3 },
+                { id: 'carta', label: 'Carta & Recetas', role: 'Costos & Sedes', icon: FileSpreadsheet },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const isCurrent = activeTab === tab.id;
@@ -337,27 +473,30 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
               {/* Context Summary Bar for active screen */}
               <div className="mb-6 flex flex-col gap-3 rounded-2xl bg-white/10 p-4 text-xs sm:flex-row sm:items-center sm:justify-between sm:text-sm border border-white/10">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#ffd06f] text-[#0c3130] font-black">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#ffd06f] text-[#0c3130] font-black shrink-0">
                     {activeTab === 'comandera' && <Smartphone size={16} />}
                     {activeTab === 'kds' && <ChefHat size={16} />}
                     {activeTab === 'mesas' && <LayoutGrid size={16} />}
                     {activeTab === 'cobro' && <Receipt size={16} />}
                     {activeTab === 'admin' && <BarChart3 size={16} />}
+                    {activeTab === 'carta' && <FileSpreadsheet size={16} />}
                   </span>
                   <div>
                     <h3 className="font-extrabold text-white text-base">
                       {activeTab === 'comandera' && 'Comandera Táctil para Teléfonos y Tablets'}
-                      {activeTab === 'kds' && 'KDS Pantalla de Cocina & Barra en Tiempo Real'}
+                      {activeTab === 'kds' && 'KDS Pantalla de Cocina & Barra con Cola FIFO'}
                       {activeTab === 'mesas' && 'Monitor de Mesas con Semáforo de Tiempos'}
                       {activeTab === 'cobro' && 'Módulo de Facturación, Pre-Cuenta y División'}
-                      {activeTab === 'admin' && 'Consola Central SaaS y Gestión Multi-Sede'}
+                      {activeTab === 'admin' && 'Consola Central SaaS y Control de Stock "Plato 86"'}
+                      {activeTab === 'carta' && 'Gestión de Carta Maestra, Escandallo y Precios por Sede'}
                     </h3>
                     <p className="text-xs text-teal-200">
-                      {activeTab === 'comandera' && 'Toma de pedidos en mesa con modificadores, notas de alergia y despacho directo.'}
-                      {activeTab === 'kds' && 'Separación por partidas (frío, caliente, barra), cronómetro y alerta de plato listo.'}
-                      {activeTab === 'mesas' && 'Control visual instantáneo de qué mesa necesita atención, cuál tiene platos listos o pide la cuenta.'}
+                      {activeTab === 'comandera' && 'Toma de pedidos en mesa con modificadores, notas de alergia y despacho inmediato de bebidas.'}
+                      {activeTab === 'kds' && 'Separación por partidas (frío, caliente, barra), cronómetro visual y aviso sonoro de plato listo.'}
+                      {activeTab === 'mesas' && 'Control visual de qué mesa necesita atención, cuál tiene platos listos o pide la cuenta.'}
                       {activeTab === 'cobro' && 'División exacta entre comensales, cálculo de propina y pago con Yape, Plin o POS.'}
-                      {activeTab === 'admin' && 'Pausa platos agotados por sede al instante para evitar errores de venta.'}
+                      {activeTab === 'admin' && 'Pausa platos agotados por sede al instante para evitar errores de venta en salón.'}
+                      {activeTab === 'carta' && 'Asigna recetas con costo unitario, calcula márgenes de insumos y fija precios por sucursal en segundos.'}
                     </p>
                   </div>
                 </div>
@@ -427,11 +566,20 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
                       {/* Phone Menu Items Scroll Area */}
                       <div className="flex-1 overflow-y-auto p-3 space-y-3">
                         {comanderaCategory === 'ceviches' && (
-                          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-xs">
+                          <div className={`rounded-2xl border p-3 shadow-xs transition ${isCevichePaused ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200 bg-white'}`}>
                             <div className="flex justify-between items-start">
                               <div>
-                                <span className="text-[10px] font-bold uppercase text-teal-800">Partida Fría</span>
-                                <h5 className="text-sm font-black text-slate-900">Ceviche de Pescado</h5>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] font-bold uppercase text-teal-800">Partida Fría</span>
+                                  {isCevichePaused && (
+                                    <span className="rounded-md bg-rose-600 px-1.5 py-0.5 text-[9px] font-black uppercase text-white">
+                                      Agotado (86)
+                                    </span>
+                                  )}
+                                </div>
+                                <h5 className={`text-sm font-black ${isCevichePaused ? 'text-rose-950 line-through' : 'text-slate-900'}`}>
+                                  Ceviche de Pescado
+                                </h5>
                                 <p className="text-[11px] text-slate-500">Pesca del día, leche de tigre, camote glaseado y choclo.</p>
                               </div>
                               <span className="text-sm font-black text-[#0c3130]">
@@ -439,47 +587,112 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
                               </span>
                             </div>
 
-                            {/* Portion selector buttons */}
-                            <div className="mt-2.5 flex items-center gap-1.5">
-                              {(['Personal', 'Fuente', 'Familiar'] as const).map((sz) => (
-                                <button
-                                  key={sz}
-                                  type="button"
-                                  onClick={() => setSelectedPortion(sz)}
-                                  className={`flex-1 rounded-lg py-1 text-[10px] font-extrabold cursor-pointer border ${
-                                    selectedPortion === sz
-                                      ? 'border-teal-700 bg-teal-50 text-teal-900 font-black'
-                                      : 'border-slate-200 bg-slate-50 text-slate-600'
-                                  }`}
-                                >
-                                  {sz}
-                                </button>
-                              ))}
-                            </div>
-
-                            {/* Quantity Counter & Notes */}
-                            <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2">
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md">
-                                🌶️ Nota: Sin ají
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => setCevicheQty(Math.max(1, cevicheQty - 1))}
-                                  className="h-6 w-6 rounded-md bg-slate-100 font-bold flex items-center justify-center hover:bg-slate-200"
-                                >
-                                  <Minus size={12} />
-                                </button>
-                                <span className="text-xs font-black w-4 text-center">{cevicheQty}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => setCevicheQty(cevicheQty + 1)}
-                                  className="h-6 w-6 rounded-md bg-teal-800 text-white font-bold flex items-center justify-center hover:bg-teal-700"
-                                >
-                                  <Plus size={12} />
-                                </button>
+                            {isCevichePaused ? (
+                              <div className="mt-3 rounded-xl border border-rose-200 bg-white p-2.5 text-center">
+                                <span className="text-xs font-black text-rose-700 flex items-center justify-center gap-1">
+                                  <AlertCircle size={14} /> Plato Pausado en Sede Miraflores
+                                </span>
+                                <p className="text-[10px] text-slate-500 mt-0.5">
+                                  El administrador pausó este plato por falta de insumo. Los mozos no pueden ordenarlo.
+                                </p>
                               </div>
-                            </div>
+                            ) : (
+                              <>
+                                {/* Portion selector buttons */}
+                                <div className="mt-2.5 flex items-center gap-1.5">
+                                  {(['Personal', 'Fuente', 'Familiar'] as const).map((sz) => (
+                                    <button
+                                      key={sz}
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedPortion(sz);
+                                        triggerMockToast(`Porción ${sz} seleccionada`);
+                                      }}
+                                      className={`flex-1 rounded-lg py-1 text-[10px] font-extrabold cursor-pointer border ${
+                                        selectedPortion === sz
+                                          ? 'border-teal-700 bg-teal-50 text-teal-900 font-black'
+                                          : 'border-slate-200 bg-slate-50 text-slate-600'
+                                      }`}
+                                    >
+                                      {sz}
+                                    </button>
+                                  ))}
+                                </div>
+
+                                {/* Spice Level Selector */}
+                                <div className="mt-2.5">
+                                  <span className="text-[10px] font-bold text-slate-500 block mb-1">Nivel de picante:</span>
+                                  <div className="flex gap-1">
+                                    {(['Sin ají', 'Moderado', 'Bien Bravo'] as const).map((spice) => (
+                                      <button
+                                        key={spice}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedSpice(spice);
+                                          triggerMockToast(`Picante: ${spice}`);
+                                        }}
+                                        className={`flex-1 rounded-lg py-0.5 text-[9px] font-black cursor-pointer border transition ${
+                                          selectedSpice === spice
+                                            ? 'bg-amber-100 border-amber-400 text-amber-900'
+                                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                        }`}
+                                      >
+                                        {spice === 'Sin ají' ? '🟢 Sin ají' : spice === 'Moderado' ? '🟡 Moderado' : '🔴 Bravo'}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* Culinary Notes Pills (Click to toggle) */}
+                                <div className="mt-2.5">
+                                  <span className="text-[10px] font-bold text-slate-500 block mb-1">Notas de preparación:</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {['Ají aparte', 'Sin culantro', 'Cebolla lavada', 'Punto de sal'].map((note) => {
+                                      const isSelected = selectedNotes.includes(note);
+                                      return (
+                                        <button
+                                          key={note}
+                                          type="button"
+                                          onClick={() => toggleNote(note)}
+                                          className={`rounded-md px-1.5 py-0.5 text-[9px] font-extrabold cursor-pointer transition border ${
+                                            isSelected
+                                              ? 'bg-teal-700 border-teal-800 text-white'
+                                              : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'
+                                          }`}
+                                        >
+                                          {isSelected ? '✓ ' : '+ '}{note}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                {/* Quantity Counter & Notes */}
+                                <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2">
+                                  <div className="flex items-center gap-1 text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-md truncate max-w-[170px]">
+                                    <span>🌶️ {selectedSpice}</span>
+                                    {selectedNotes.length > 0 && <span>• {selectedNotes.join(', ')}</span>}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setCevicheQty(Math.max(1, cevicheQty - 1))}
+                                      className="h-6 w-6 rounded-md bg-slate-100 font-bold flex items-center justify-center hover:bg-slate-200 cursor-pointer"
+                                    >
+                                      <Minus size={12} />
+                                    </button>
+                                    <span className="text-xs font-black w-4 text-center">{cevicheQty}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setCevicheQty(cevicheQty + 1)}
+                                      className="h-6 w-6 rounded-md bg-teal-800 text-white font-bold flex items-center justify-center hover:bg-teal-700 cursor-pointer"
+                                    >
+                                      <Plus size={12} />
+                                    </button>
+                                  </div>
+                                </div>
+                              </>
+                            )}
                           </div>
                         )}
 
@@ -493,7 +706,7 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
                               <button
                                 type="button"
                                 onClick={() => triggerMockToast('Trío Marino agregado al carrito')}
-                                className="rounded-lg bg-teal-800 px-3 py-1 text-xs font-bold text-white hover:bg-teal-700"
+                                className="rounded-lg bg-teal-800 px-3 py-1 text-xs font-bold text-white hover:bg-teal-700 cursor-pointer"
                               >
                                 + Agregar
                               </button>
@@ -1059,15 +1272,47 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
                       )}
                     </div>
 
+                    {/* Voucher Type Selector */}
+                    <div className="mt-3 flex gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBillingDocType('boleta');
+                          triggerMockToast('Comprobante: Boleta Electrónica seleccionada');
+                        }}
+                        className={`flex-1 rounded-xl py-1.5 font-bold border cursor-pointer transition ${
+                          billingDocType === 'boleta'
+                            ? 'bg-teal-800 text-white border-teal-800'
+                            : 'bg-slate-100 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        📄 Boleta Electrónica
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBillingDocType('factura');
+                          triggerMockToast('Comprobante: Factura Electrónica (con RUC)');
+                        }}
+                        className={`flex-1 rounded-xl py-1.5 font-bold border cursor-pointer transition ${
+                          billingDocType === 'factura'
+                            ? 'bg-teal-800 text-white border-teal-800'
+                            : 'bg-slate-100 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        🏢 Factura con RUC
+                      </button>
+                    </div>
+
                     {/* Payment methods */}
                     <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                       <button
                         type="button"
                         onClick={() => {
                           setPaymentMethod('yape');
-                          triggerMockToast('Cobro registrado vía Yape / Plin');
+                          triggerMockToast('Cobro seleccionado vía Yape / Plin');
                         }}
-                        className={`rounded-xl py-2 font-black cursor-pointer border text-center ${
+                        className={`rounded-xl py-2 font-black cursor-pointer border text-center transition ${
                           paymentMethod === 'yape'
                             ? 'bg-purple-800 text-white border-purple-800'
                             : 'bg-white text-purple-950 border-slate-200'
@@ -1079,9 +1324,9 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
                         type="button"
                         onClick={() => {
                           setPaymentMethod('tarjeta');
-                          triggerMockToast('Cobro registrado vía Tarjeta POS');
+                          triggerMockToast('Cobro seleccionado vía Tarjeta POS');
                         }}
-                        className={`rounded-xl py-2 font-black cursor-pointer border text-center ${
+                        className={`rounded-xl py-2 font-black cursor-pointer border text-center transition ${
                           paymentMethod === 'tarjeta'
                             ? 'bg-teal-800 text-white border-teal-800'
                             : 'bg-white text-slate-900 border-slate-200'
@@ -1093,9 +1338,9 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
                         type="button"
                         onClick={() => {
                           setPaymentMethod('efectivo');
-                          triggerMockToast('Cobro registrado en Efectivo');
+                          triggerMockToast('Cobro seleccionado en Efectivo');
                         }}
-                        className={`rounded-xl py-2 font-black cursor-pointer border text-center ${
+                        className={`rounded-xl py-2 font-black cursor-pointer border text-center transition ${
                           paymentMethod === 'efectivo'
                             ? 'bg-emerald-800 text-white border-emerald-800'
                             : 'bg-white text-slate-900 border-slate-200'
@@ -1105,13 +1350,46 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
                       </button>
                     </div>
 
+                    {/* Dynamic payment feedback */}
+                    {paymentMethod === 'yape' && (
+                      <div className="mt-3 rounded-xl bg-purple-50 border border-purple-200 p-2.5 text-center">
+                        <div className="flex items-center justify-center gap-1.5 text-purple-950 font-black text-xs">
+                          <QrCode size={15} className="text-purple-700" /> Código QR Generado al Toque
+                        </div>
+                        <p className="text-[10px] text-purple-700 mt-0.5">
+                          El comensal escanea desde su app bancaria y la confirmación se valida en pantalla.
+                        </p>
+                      </div>
+                    )}
+
+                    {paymentMethod === 'efectivo' && (
+                      <div className="mt-3 rounded-xl bg-emerald-50 border border-emerald-200 p-2.5 text-xs">
+                        <div className="flex justify-between items-center text-emerald-950 font-bold mb-1">
+                          <span>Efectivo Recibido:</span>
+                          <div className="flex items-center gap-1">
+                            <span>S/</span>
+                            <input
+                              type="number"
+                              value={receivedCash}
+                              onChange={(e) => setReceivedCash(Number(e.target.value))}
+                              className="w-16 bg-white border border-emerald-300 rounded px-1.5 py-0.5 font-black text-right text-xs"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center text-emerald-900 font-black border-t border-emerald-200/80 pt-1">
+                          <span>Vuelto a entregar:</span>
+                          <span className="text-sm font-black text-emerald-800">S/ {cashChange.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Close table button */}
                     <button
                       type="button"
                       onClick={() => triggerMockToast('✅ Mesa 06 cobrada y liberada para el siguiente comensal')}
                       className="mt-3 w-full rounded-xl bg-[#e46d3f] py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-[#ca5b32] cursor-pointer shadow-md"
                     >
-                      Cobrar y Liberar Mesa
+                      Cobrar S/ {totalBill.toFixed(2)} y Liberar Mesa
                     </button>
                   </div>
 
@@ -1309,6 +1587,613 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
                   </div>
                 </div>
               )}
+
+              {/* ------------------------------------------------------------- */}
+              {/* TAB 6: CARTA MAESTRA, RECETAS Y SEDES                          */}
+              {/* ------------------------------------------------------------- */}
+              {activeTab === 'carta' && (
+                <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] items-start">
+                  {/* Master Carta & Recipe Mockup */}
+                  <div className="rounded-3xl border border-white/15 bg-[#142928] p-5 text-white shadow-2xl space-y-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-[#ffd06f]">
+                          Ingeniería de Menú & Escandallo
+                        </span>
+                        <h4 className="text-base font-black text-white">Carta Maestra y Costos por Sede</h4>
+                      </div>
+                      <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-bold text-emerald-300 border border-emerald-500/30">
+                        Sincronización en Vivo
+                      </span>
+                    </div>
+
+                    {/* Dish Selector */}
+                    <div>
+                      <span className="text-xs font-bold text-teal-200 block mb-2">Selecciona un plato para auditar costos y precios:</span>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { id: 'ceviche', name: 'Ceviche Clásico', tag: 'Partida Fría' },
+                          { id: 'lomo', name: 'Lomo Saltado', tag: 'Wok & Fuego' },
+                          { id: 'pisco', name: 'Pisco Sour Cat.', tag: 'Barra' },
+                        ].map((d) => (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedDishRecipe(d.id as any);
+                              triggerMockToast(`Editando receta y precios de ${d.name}`);
+                            }}
+                            className={`rounded-2xl p-2.5 text-left border transition cursor-pointer ${
+                              selectedDishRecipe === d.id
+                                ? 'bg-[#ffd06f] text-[#0c3130] border-[#ffd06f] shadow-md scale-102 font-black'
+                                : 'bg-white/5 border-white/10 text-white hover:bg-white/10'
+                            }`}
+                          >
+                            <span className="block text-xs font-black leading-tight">{d.name}</span>
+                            <span className={`block text-[10px] font-semibold mt-0.5 ${selectedDishRecipe === d.id ? 'text-teal-950 font-bold' : 'text-teal-300'}`}>{d.tag}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Active Dish Detail & Multi-branch Prices */}
+                    {(() => {
+                      const dish = recipeBranchPrices[selectedDishRecipe];
+                      const marginMiraflores = ((dish.miraflores - dish.cost) / dish.miraflores * 100).toFixed(1);
+                      const marginSanIsidro = ((dish.sanIsidro - dish.cost) / dish.sanIsidro * 100).toFixed(1);
+                      return (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            <div className="rounded-2xl bg-white/5 border border-white/10 p-3">
+                              <span className="text-[10px] uppercase font-bold text-teal-300">Costo Insumos (Escandallo)</span>
+                              <strong className="block text-lg font-black text-rose-300 mt-0.5">S/ {dish.cost.toFixed(2)}</strong>
+                              <small className="text-[10px] text-teal-200">Porción individual</small>
+                            </div>
+                            <div className="rounded-2xl bg-white/5 border border-white/10 p-3">
+                              <span className="text-[10px] uppercase font-bold text-teal-300">Margen Bruto (Miraflores)</span>
+                              <strong className="block text-lg font-black text-emerald-400 mt-0.5">{marginMiraflores}%</strong>
+                              <small className="text-[10px] text-teal-200">PVP: S/ {dish.miraflores.toFixed(2)}</small>
+                            </div>
+                            <div className="rounded-2xl bg-white/5 border border-white/10 p-3 col-span-2 sm:col-span-1">
+                              <span className="text-[10px] uppercase font-bold text-teal-300">Margen Bruto (San Isidro)</span>
+                              <strong className="block text-lg font-black text-emerald-400 mt-0.5">{marginSanIsidro}%</strong>
+                              <small className="text-[10px] text-teal-200">PVP: S/ {dish.sanIsidro.toFixed(2)}</small>
+                            </div>
+                          </div>
+
+                          {/* Branch Price Inputs Simulator */}
+                          <div className="rounded-2xl bg-white/5 border border-white/10 p-3.5 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-black text-white">Precios Diferenciados por Sede:</span>
+                              <span className="text-[10px] text-teal-300">Modifica en vivo</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                              <div className="rounded-xl bg-white/5 p-2.5 border border-white/10">
+                                <span className="text-[10px] text-teal-200 font-bold block">Sede Miraflores:</span>
+                                <div className="flex items-center gap-1 mt-1">
+                                  <span className="font-bold text-teal-300">S/</span>
+                                  <input
+                                    type="number"
+                                    value={dish.miraflores}
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value);
+                                      setRecipeBranchPrices((prev) => ({
+                                        ...prev,
+                                        [selectedDishRecipe]: { ...prev[selectedDishRecipe], miraflores: val },
+                                      }));
+                                    }}
+                                    className="w-full bg-white/10 border border-white/20 rounded px-2 py-1 text-white font-black text-xs"
+                                  />
+                                </div>
+                              </div>
+                              <div className="rounded-xl bg-white/5 p-2.5 border border-white/10">
+                                <span className="text-[10px] text-teal-200 font-bold block">Sede San Isidro:</span>
+                                <div className="flex items-center gap-1 mt-1">
+                                  <span className="font-bold text-teal-300">S/</span>
+                                  <input
+                                    type="number"
+                                    value={dish.sanIsidro}
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value);
+                                      setRecipeBranchPrices((prev) => ({
+                                        ...prev,
+                                        [selectedDishRecipe]: { ...prev[selectedDishRecipe], sanIsidro: val },
+                                      }));
+                                    }}
+                                    className="w-full bg-white/10 border border-white/20 rounded px-2 py-1 text-white font-black text-xs"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Recipe Insumos Checklist */}
+                          <div className="rounded-2xl bg-white/5 border border-white/10 p-3.5">
+                            <span className="text-xs font-black text-white block mb-2">Desglose de Receta & Insumos Críticos:</span>
+                            <div className="space-y-1.5 text-xs">
+                              {selectedDishRecipe === 'ceviche' && (
+                                <>
+                                  <div className="flex justify-between text-teal-100">
+                                    <span>• Pesca del día fresca (corvina / lenguado) [200g]</span>
+                                    <strong className="text-white">S/ 5.80</strong>
+                                  </div>
+                                  <div className="flex justify-between text-teal-100">
+                                    <span>• Limón sutil seleccionado [4 unidades]</span>
+                                    <strong className="text-white">S/ 0.90</strong>
+                                  </div>
+                                  <div className="flex justify-between text-teal-100">
+                                    <span>• Camote glaseado, choclo y ají limo [porción]</span>
+                                    <strong className="text-white">S/ 1.10</strong>
+                                  </div>
+                                </>
+                              )}
+                              {selectedDishRecipe === 'lomo' && (
+                                <>
+                                  <div className="flex justify-between text-teal-100">
+                                    <span>• Lomo fino vacuno en dados [220g]</span>
+                                    <strong className="text-white">S/ 9.80</strong>
+                                  </div>
+                                  <div className="flex justify-between text-teal-100">
+                                    <span>• Papa amarilla frita y cebolla roja gruesa</span>
+                                    <strong className="text-white">S/ 2.20</strong>
+                                  </div>
+                                  <div className="flex justify-between text-teal-100">
+                                    <span>• Salsas maestras (sillao, vinagre, ostión) + Arroz</span>
+                                    <strong className="text-white">S/ 1.50</strong>
+                                  </div>
+                                </>
+                              )}
+                              {selectedDishRecipe === 'pisco' && (
+                                <>
+                                  <div className="flex justify-between text-teal-100">
+                                    <span>• Pisco Quebranta puro destilado [3 oz]</span>
+                                    <strong className="text-white">S/ 3.20</strong>
+                                  </div>
+                                  <div className="flex justify-between text-teal-100">
+                                    <span>• Jarabe de goma artesanal y zumo de limón [1 oz c/u]</span>
+                                    <strong className="text-white">S/ 0.90</strong>
+                                  </div>
+                                  <div className="flex justify-between text-teal-100">
+                                    <span>• Clara de huevo pasteurizada + Gotas de Amargo de Angostura</span>
+                                    <strong className="text-white">S/ 0.80</strong>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => triggerMockToast('✅ ¡Cambios de carta y recetas sincronizados a todas las sedes en < 0.5s!')}
+                            className="w-full rounded-2xl bg-[#ffd06f] py-3 text-xs font-black uppercase tracking-wider text-[#0c3130] hover:bg-[#f3c25b] cursor-pointer shadow-lg transition active:scale-98"
+                          >
+                            🚀 Publicar Actualización de Carta a Todas las Sedes
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Highlights Column for Carta */}
+                  <div className="space-y-4">
+                    <div className="rounded-2xl bg-white/10 p-5 border border-white/10">
+                      <div className="flex items-center gap-2 text-[#ffd06f] font-black text-sm">
+                        <FileSpreadsheet size={16} /> Escandallo y Costeo en Tiempo Real
+                      </div>
+                      <p className="mt-2 text-xs leading-relaxed text-teal-100/90">
+                        Calcula automáticamente el costo por porción en base a tus recetas maestras. Si el precio del limón o la pesca sube en el mercado mayorista, sabes de inmediato cómo afecta tu margen bruto.
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-white/10 p-5 border border-white/10">
+                      <div className="flex items-center gap-2 text-teal-300 font-black text-sm">
+                        <Building2 size={16} /> Carta Maestra con Precios por Sede
+                      </div>
+                      <p className="mt-2 text-xs leading-relaxed text-teal-100/90">
+                        ¿Tu local de San Isidro tiene costos de alquiler o perfil de cliente distinto al de Miraflores o Surco? Fija precios diferenciados para el mismo plato sin tener que duplicar tu carta ni crear sistemas separados.
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-white/10 p-5 border border-white/10">
+                      <div className="flex items-center gap-2 text-emerald-300 font-black text-sm">
+                        <CheckCircle2 size={16} /> Despacho Automático a Estaciones
+                      </div>
+                      <p className="mt-2 text-xs leading-relaxed text-teal-100/90">
+                        Cada plato sabe a qué pantalla de cocina o barra debe enviarse: los fríos van a cevichería, los salteados al wok y los cócteles al bar, eliminando gritos y confusiones.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* ========================================================================= */}
+        {/* SOLUTIONS BY RESTAURANT SEGMENT                                           */}
+        {/* ========================================================================= */}
+        <section id="soluciones" className="border-b border-slate-200/80 bg-[#fbf9f4] px-5 py-24 sm:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="text-center max-w-3xl mx-auto">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-800/10 px-3.5 py-1 text-xs font-black uppercase tracking-[0.2em] text-teal-900">
+                <Store size={14} />
+                Especialización Gastronómica
+              </span>
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-[#102f2e] sm:text-5xl">
+                Diseñado para el ritmo exacto de tu formato gastronómico.
+              </h2>
+              <p className="mt-4 text-sm sm:text-base leading-relaxed text-slate-600">
+                Una cevichería no opera igual que una pollería ni un restobar. ORDENA se adapta a las reglas operativas de cada cocina.
+              </p>
+            </div>
+
+            {/* Segment Selector Tabs */}
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+              {[
+                { id: 'cevicheria', label: '🐟 Cevicherías & Marisquerías' },
+                { id: 'polleria', label: '🍗 Pollerías & Brasas' },
+                { id: 'restobar', label: '🍸 Restobares & Cafeterías' },
+                { id: 'cadenas', label: '🏢 Cadenas & Franquicias' },
+              ].map((seg) => (
+                <button
+                  key={seg.id}
+                  type="button"
+                  onClick={() => setSelectedSegment(seg.id as any)}
+                  className={`rounded-2xl px-5 py-3 text-xs sm:text-sm font-extrabold transition cursor-pointer ${
+                    selectedSegment === seg.id
+                      ? 'bg-[#0c3130] text-[#ffd06f] shadow-lg scale-102'
+                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  {seg.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Segment Display Card */}
+            <div className="mt-10 rounded-3xl border border-slate-200/80 bg-white p-6 sm:p-10 shadow-xl">
+              {selectedSegment === 'cevicheria' && (
+                <div className="grid gap-8 lg:grid-cols-2 items-center">
+                  <div>
+                    <span className="text-xs font-black uppercase tracking-wider text-teal-800">
+                      Cevicherías & Comida Marina
+                    </span>
+                    <h3 className="mt-2 text-2xl sm:text-3xl font-black text-slate-900">
+                      Velocidad en el limón, control de picantes y partidas frías.
+                    </h3>
+                    <p className="mt-3 text-sm text-slate-600 leading-relaxed">
+                      El pescado fresco no espera. Si la comanda se retrasa, el ceviche se sancocha en limón o la fritura se enfría. Con ORDENA, los mozos especifican sin equivocarse el nivel de ají, cebolla lavada y ají aparte en segundos.
+                    </p>
+                    <div className="mt-6 space-y-3 text-xs sm:text-sm text-slate-700">
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 size={16} className="text-teal-700 shrink-0" />
+                        <span><strong>Separación Frío vs Caliente:</strong> Ceviches salen en 6 min y jaleas al minuto 12 sincronizados.</span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 size={16} className="text-teal-700 shrink-0" />
+                        <span><strong>Pausa inmediata por pesca agotada:</strong> Si se acabó el lenguado, ningún mozo lo ofrece más.</span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 size={16} className="text-teal-700 shrink-0" />
+                        <span><strong>Chicha y cervezas al instante:</strong> Despacho prioritario de bebidas para amenizar la espera.</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl bg-teal-50/70 border border-teal-200/80 p-6 space-y-4">
+                    <div className="flex items-center justify-between border-b border-teal-200/80 pb-3">
+                      <span className="text-xs font-black uppercase text-teal-900">Beneficio Comprobado</span>
+                      <span className="rounded-full bg-teal-700 text-white px-2.5 py-0.5 text-[10px] font-black">-14 min por mesa</span>
+                    </div>
+                    <blockquote className="text-sm font-medium text-teal-950 italic">
+                      &ldquo;Los fines de semana con 30 mesas esperando, antes era un caos de notas en papel manchadas de rocoto. Hoy la cocina marina saca los platos en orden estricto de llegada y nadie reclama demoras.&rdquo;
+                    </blockquote>
+                    <div className="text-xs font-black text-teal-900">
+                      Cevichería Puerto Marino • 2 locales en Lima
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedSegment === 'polleria' && (
+                <div className="grid gap-8 lg:grid-cols-2 items-center">
+                  <div>
+                    <span className="text-xs font-black uppercase tracking-wider text-orange-700">
+                      Pollerías & Carnes a las Brasas
+                    </span>
+                    <h3 className="mt-2 text-2xl sm:text-3xl font-black text-slate-900">
+                      Alto volumen en hora punta, combos familiares y rotación express.
+                    </h3>
+                    <p className="mt-3 text-sm text-slate-600 leading-relaxed">
+                      El domingo a la 1:00 PM la rotación de salón es vertiginosa. Se necesitan comandas en 3 toques: 1/4, 1/2 o 1 Pollo a la brasa con papas crocantes, ensalada cocida o fresca, y despacho masivo de bebidas.
+                    </p>
+                    <div className="mt-6 space-y-3 text-xs sm:text-sm text-slate-700">
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 size={16} className="text-orange-600 shrink-0" />
+                        <span><strong>Toma de pedido en 10 segundos:</strong> Botones táctiles gigantes para los combos más vendidos.</span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 size={16} className="text-orange-600 shrink-0" />
+                        <span><strong>Monitores de horno y freidoras sincronizados:</strong> Control de papas y pollos en proceso.</span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 size={16} className="text-orange-600 shrink-0" />
+                        <span><strong>Cobro ultra rápido con Yape/Plin:</strong> Evita colas interminables en la puerta de salida.</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl bg-orange-50/70 border border-orange-200/80 p-6 space-y-4">
+                    <div className="flex items-center justify-between border-b border-orange-200/80 pb-3">
+                      <span className="text-xs font-black uppercase text-orange-900">Beneficio Comprobado</span>
+                      <span className="rounded-full bg-orange-600 text-white px-2.5 py-0.5 text-[10px] font-black">+28% rotación domingos</span>
+                    </div>
+                    <blockquote className="text-sm font-medium text-orange-950 italic">
+                      &ldquo;Pudimos aumentar 1.5 vueltas más por mesa cada fin de semana. El mozo cobra con el celular y la mesa queda libre al instante.&rdquo;
+                    </blockquote>
+                    <div className="text-xs font-black text-orange-900">
+                      Brasas Doradas • Cadena de 4 locales
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedSegment === 'restobar' && (
+                <div className="grid gap-8 lg:grid-cols-2 items-center">
+                  <div>
+                    <span className="text-xs font-black uppercase tracking-wider text-purple-700">
+                      Restobares, Bares & Cafeterías
+                    </span>
+                    <h3 className="mt-2 text-2xl sm:text-3xl font-black text-slate-900">
+                      Cuentas divididas entre amigos, coctelería veloz y control de licores.
+                    </h3>
+                    <p className="mt-3 text-sm text-slate-600 leading-relaxed">
+                      En las noches de restobar, los grupos de amigos piden rondas de tragos y al final piden dividir la cuenta entre 4, 6 u 8 personas pagando parte en tarjeta y parte con Yape. ORDENA resuelve esto en 1 solo clic.
+                    </p>
+                    <div className="mt-6 space-y-3 text-xs sm:text-sm text-slate-700">
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 size={16} className="text-purple-600 shrink-0" />
+                        <span><strong>División matemática exacta:</strong> Sin necesidad de usar la calculadora del mozo ni redondear mal.</span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 size={16} className="text-purple-600 shrink-0" />
+                        <span><strong>Monitor dedicado de Barra:</strong> Los barmans ven la comanda al instante y preparan los cócteles sin demoras.</span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 size={16} className="text-purple-600 shrink-0" />
+                        <span><strong>Control de botellas y mermas:</strong> Escandallo por onza para cuidar los licores de alta gama.</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl bg-purple-50/70 border border-purple-200/80 p-6 space-y-4">
+                    <div className="flex items-center justify-between border-b border-purple-200/80 pb-3">
+                      <span className="text-xs font-black uppercase text-purple-900">Beneficio Comprobado</span>
+                      <span className="rounded-full bg-purple-600 text-white px-2.5 py-0.5 text-[10px] font-black">Cero quejas en cuentas</span>
+                    </div>
+                    <blockquote className="text-sm font-medium text-purple-950 italic">
+                      &ldquo;Antes dividir una mesa de 8 personas tomaba 15 minutos en caja. Ahora el mozo lo hace en 20 segundos frente al cliente con código QR de Yape.&rdquo;
+                    </blockquote>
+                    <div className="text-xs font-black text-purple-900">
+                      Terraza & Cocteles Miraflores
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedSegment === 'cadenas' && (
+                <div className="grid gap-8 lg:grid-cols-2 items-center">
+                  <div>
+                    <span className="text-xs font-black uppercase tracking-wider text-teal-800">
+                      Cadenas Multi-Sede & Franquicias
+                    </span>
+                    <h3 className="mt-2 text-2xl sm:text-3xl font-black text-slate-900">
+                      Consolidado gerencial, cartas maestras y auditoría de personal.
+                    </h3>
+                    <p className="mt-3 text-sm text-slate-600 leading-relaxed">
+                      Supervisa 2, 5 o 20 locales desde tu computadora o teléfono. Compara qué sede vende más, qué platos tienen mejor margen y controla los arqueos de caja sin esperar a fin de mes.
+                    </p>
+                    <div className="mt-6 space-y-3 text-xs sm:text-sm text-slate-700">
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 size={16} className="text-teal-700 shrink-0" />
+                        <span><strong>Carta Maestra centralizada:</strong> Modifica recetas o platos y propágalos a todas las sucursales con 1 clic.</span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 size={16} className="text-teal-700 shrink-0" />
+                        <span><strong>Precios diferenciados por zona:</strong> Fija tarifas según el costo operativo de cada distrito.</span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 size={16} className="text-teal-700 shrink-0" />
+                        <span><strong>Auditoría total por PIN:</strong> Registro inmutable de cada descuento, plato anulado o dinero ingresado.</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl bg-teal-50/70 border border-teal-200/80 p-6 space-y-4">
+                    <div className="flex items-center justify-between border-b border-teal-200/80 pb-3">
+                      <span className="text-xs font-black uppercase text-teal-900">Beneficio Comprobado</span>
+                      <span className="rounded-full bg-teal-800 text-white px-2.5 py-0.5 text-[10px] font-black">Visión 360° en tiempo real</span>
+                    </div>
+                    <blockquote className="text-sm font-medium text-teal-950 italic">
+                      &ldquo;Manejo 3 sedes desde mi celular. Puedo ver en vivo las ventas de cada local, pausar platos cuando se agotan y cerrar turnos sin un solo centavo de diferencia.&rdquo;
+                    </blockquote>
+                    <div className="text-xs font-black text-teal-900">
+                      Grupo Gastronómico Tradición Viva (3 sedes)
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* ========================================================================= */}
+        {/* INTERACTIVE ROI & PROFITABILITY CALCULATOR                                 */}
+        {/* ========================================================================= */}
+        <section id="calculadora" className="px-5 py-24 sm:px-8 bg-[#fffdf9] border-b border-slate-200/80">
+          <div className="mx-auto max-w-7xl">
+            <div className="text-center max-w-3xl mx-auto">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 px-3.5 py-1 text-xs font-black uppercase tracking-[0.2em] text-amber-800">
+                <Calculator size={14} className="text-amber-600" />
+                Simulador de Rentabilidad
+              </span>
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-[#102f2e] sm:text-5xl">
+                Calcula cuánto tiempo y dinero ahorra tu restaurante al mes.
+              </h2>
+              <p className="mt-4 text-sm sm:text-base leading-relaxed text-slate-600">
+                Mueve los controles según la dimensión de tu local y descubre el impacto económico directo de digitalizar tu salón y cocina con ORDENA.
+              </p>
+            </div>
+
+            <div className="mt-14 grid gap-8 lg:grid-cols-[1.1fr_0.9fr] items-center">
+              {/* Sliders Control Box */}
+              <div className="rounded-3xl border border-slate-200 bg-[#fbf9f4] p-6 sm:p-8 space-y-6 shadow-xs">
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-sm font-extrabold text-slate-800">
+                      1. Número de Mesas en tu Salón:
+                    </label>
+                    <span className="text-base font-black text-teal-900 bg-white border border-slate-200 px-3 py-1 rounded-xl shadow-xs">
+                      {calcTables} mesas
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="6"
+                    max="60"
+                    step="2"
+                    value={calcTables}
+                    onChange={(e) => setCalcTables(Number(e.target.value))}
+                    className="w-full h-2.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-teal-800"
+                  />
+                  <div className="flex justify-between text-[11px] text-slate-400 mt-1 font-semibold">
+                    <span>6 mesas (pequeño)</span>
+                    <span>30 mesas (mediano)</span>
+                    <span>60 mesas (gran salón)</span>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-sm font-extrabold text-slate-800">
+                      2. Rotación Promedio de Mesas al Día:
+                    </label>
+                    <span className="text-base font-black text-teal-900 bg-white border border-slate-200 px-3 py-1 rounded-xl shadow-xs">
+                      {calcTurns} vueltas / día
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="6"
+                    step="0.5"
+                    value={calcTurns}
+                    onChange={(e) => setCalcTurns(Number(e.target.value))}
+                    className="w-full h-2.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-teal-800"
+                  />
+                  <div className="flex justify-between text-[11px] text-slate-400 mt-1 font-semibold">
+                    <span>1 vuelta (almuerzo)</span>
+                    <span>3 vueltas (almuerzo y cena)</span>
+                    <span>6 vueltas (hora punta continua)</span>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-sm font-extrabold text-slate-800">
+                      3. Ticket Promedio por Mesa:
+                    </label>
+                    <span className="text-base font-black text-[#e46d3f] bg-white border border-slate-200 px-3 py-1 rounded-xl shadow-xs">
+                      S/ {calcTicket.toFixed(2)}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="35"
+                    max="220"
+                    step="5"
+                    value={calcTicket}
+                    onChange={(e) => setCalcTicket(Number(e.target.value))}
+                    className="w-full h-2.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#e46d3f]"
+                  />
+                  <div className="flex justify-between text-[11px] text-slate-400 mt-1 font-semibold">
+                    <span>S/ 35 (menú / casual)</span>
+                    <span>S/ 85 (cevichería / pollería)</span>
+                    <span>S/ 220 (gourmet / restobar)</span>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-teal-50 border border-teal-200/70 p-4 text-xs text-teal-950 flex items-start gap-2.5">
+                  <Sparkles size={16} className="text-teal-700 shrink-0 mt-0.5" />
+                  <span>
+                    El ahorro se calcula a partir de <strong>12 minutos ahorrados por mesa</strong> (cero caminatas a cocina, despacho instantáneo de tragos y cobro al toque) sumado a la eliminación de platos errados.
+                  </span>
+                </div>
+              </div>
+
+              {/* Dynamic Results Card */}
+              <div className="rounded-3xl bg-[#0c3130] p-7 sm:p-9 text-white shadow-2xl space-y-6 relative overflow-hidden">
+                <div className="absolute right-0 top-0 -z-0 h-44 w-44 rounded-full bg-[#ffd06f]/10 blur-3xl pointer-events-none" />
+
+                <div className="relative z-10">
+                  <span className="text-[11px] uppercase font-black tracking-widest text-[#ffd06f]">
+                    Beneficio Proyectado para tu Restaurante
+                  </span>
+                  <h3 className="text-xl sm:text-2xl font-black mt-1">Impacto Mensual Estimado</h3>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3.5 relative z-10">
+                  <div className="rounded-2xl bg-white/10 p-4 border border-white/10">
+                    <span className="text-[10px] uppercase font-bold text-teal-300">Mesas Atendidas al Mes</span>
+                    <strong className="block text-2xl font-black text-white mt-1">
+                      {monthlyTablesServed.toLocaleString('es-PE')}
+                    </strong>
+                    <small className="text-[10px] text-teal-200 font-semibold">Comensales felices</small>
+                  </div>
+
+                  <div className="rounded-2xl bg-white/10 p-4 border border-white/10">
+                    <span className="text-[10px] uppercase font-bold text-teal-300">Tiempo Ahorrado</span>
+                    <strong className="block text-2xl font-black text-emerald-400 mt-1">
+                      ~12 min
+                    </strong>
+                    <small className="text-[10px] text-teal-200 font-semibold">Por mesa servida</small>
+                  </div>
+
+                  <div className="rounded-2xl bg-white/10 p-4 border border-white/10">
+                    <span className="text-[10px] uppercase font-bold text-teal-300">Capacidad Extra</span>
+                    <strong className="block text-2xl font-black text-[#ffd06f] mt-1">
+                      +{extraTablesWeekend} mesas
+                    </strong>
+                    <small className="text-[10px] text-teal-200 font-semibold">En fines de semana</small>
+                  </div>
+
+                  <div className="rounded-2xl bg-white/10 p-4 border border-white/10">
+                    <span className="text-[10px] uppercase font-bold text-teal-300">Facturación Proyectada</span>
+                    <strong className="block text-lg sm:text-xl font-black text-white mt-1">
+                      S/ {estimatedMonthlyRevenue.toLocaleString('es-PE')}
+                    </strong>
+                    <small className="text-[10px] text-teal-200 font-semibold">Base de salón</small>
+                  </div>
+                </div>
+
+                {/* Hero Extra Profit Callout */}
+                <div className="rounded-2xl bg-gradient-to-r from-amber-500/20 to-emerald-500/20 border border-[#ffd06f]/40 p-5 relative z-10 text-center">
+                  <span className="text-xs uppercase font-extrabold text-teal-200">
+                    Ganancia Adicional / Ahorro Mensual Estimado:
+                  </span>
+                  <div className="text-3xl sm:text-4xl font-black text-[#ffd06f] mt-1">
+                    + S/ {monthlyExtraRevenue.toLocaleString('es-PE')} / mes
+                  </div>
+                  <p className="text-[11px] text-teal-100/90 mt-1">
+                    Gracias a mayor rotación en horas punta, cero platos olvidados y cuadres de caja exactos.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsDemoModalOpen(true)}
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#ffd06f] py-4 text-sm font-black text-[#0c3130] shadow-xl hover:bg-[#f3c25b] transition cursor-pointer active:scale-98 relative z-10"
+                >
+                  <Sparkles size={17} />
+                  <span>Quiero este beneficio en mi restaurante • Solicitar Demo</span>
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -1719,6 +2604,224 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
         </section>
 
         {/* ========================================================================= */}
+        {/* PRICING & PLANS SECTION (PLANES Y PRECIOS TRANSPARENTES)                 */}
+        {/* ========================================================================= */}
+        <section id="planes" className="border-t border-slate-200/80 bg-[#fbf9f4] px-5 py-24 sm:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="text-center max-w-3xl mx-auto">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-3.5 py-1 text-xs font-black uppercase tracking-[0.2em] text-emerald-900">
+                <BadgeCheck size={14} className="text-emerald-700" />
+                Tarifas 100% Transparentes
+              </span>
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-[#102f2e] sm:text-5xl">
+                Planes diseñados para crecer sin comisiones abusivas por venta.
+              </h2>
+              <p className="mt-4 text-sm sm:text-base leading-relaxed text-slate-600">
+                Paga una suscripción mensual fija y predecible. Cero porcentaje sobre tus pedidos, sin compras forzosas de hardware y sin contratos de permanencia.
+              </p>
+            </div>
+
+            <div className="mt-14 grid gap-8 md:grid-cols-3 items-stretch">
+              {/* Plan 1: Básico */}
+              <div className="flex flex-col justify-between rounded-3xl border border-slate-200 bg-white p-7 sm:p-8 shadow-xs transition hover:shadow-lg">
+                <div>
+                  <span className="text-xs font-black uppercase tracking-wider text-teal-800">
+                    Restaurante Independiente
+                  </span>
+                  <h3 className="mt-2 text-2xl font-black text-slate-900">Plan Básico</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Para cafeterías, fuentes de soda y locales individuales.
+                  </p>
+
+                  <div className="mt-6 flex items-baseline gap-1">
+                    <span className="text-4xl font-black text-slate-900">S/ 119</span>
+                    <span className="text-xs font-bold text-slate-500">/ mes</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-emerald-700 mt-1 block">
+                    Sin comisiones por pedido • 0% de tus ventas
+                  </span>
+
+                  <div className="mt-6 space-y-3 border-t border-slate-100 pt-6 text-xs text-slate-700 font-medium">
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-teal-700 shrink-0" />
+                      <span><strong>1 Sede</strong> con mesas ilimitadas</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-teal-700 shrink-0" />
+                      <span><strong>Mozos ilimitados</strong> en comanderas móviles</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-teal-700 shrink-0" />
+                      <span><strong>1 Pantalla KDS</strong> de Cocina con cola FIFO</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-teal-700 shrink-0" />
+                      <span>Pre-cuenta y división con QR Yape / Plin</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-teal-700 shrink-0" />
+                      <span>Cierre de caja y métricas del día</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-teal-700 shrink-0" />
+                      <span>Soporte técnico directo por WhatsApp</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsDemoModalOpen(true)}
+                  className="mt-8 w-full rounded-2xl border-2 border-[#102f2e] bg-white py-3.5 text-xs font-black text-[#102f2e] hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Elegir Plan Básico
+                </button>
+              </div>
+
+              {/* Plan 2: Pro Sede (Destacado) */}
+              <div className="flex flex-col justify-between rounded-3xl border-2 border-teal-700 bg-white p-7 sm:p-8 shadow-2xl relative">
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-[#e46d3f] px-4 py-1 text-[10px] font-black uppercase tracking-wider text-white shadow-md">
+                  ★ MÁS RECOMENDADO
+                </div>
+
+                <div>
+                  <span className="text-xs font-black uppercase tracking-wider text-[#e46d3f]">
+                    Crecimiento & Control Total
+                  </span>
+                  <h3 className="mt-2 text-2xl font-black text-slate-900">Plan Pro Sede</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Para cevicherías, pollerías y restobares de alto flujo.
+                  </p>
+
+                  <div className="mt-6 flex items-baseline gap-1">
+                    <span className="text-4xl font-black text-[#0c3130]">S/ 199</span>
+                    <span className="text-xs font-bold text-slate-500">/ mes</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-emerald-700 mt-1 block">
+                    Todo incluido • Sin límites de comensales
+                  </span>
+
+                  <div className="mt-6 space-y-3 border-t border-slate-100 pt-6 text-xs text-slate-700 font-medium">
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-emerald-600 shrink-0 font-black" />
+                      <span><strong>Hasta 3 Sedes</strong> o locales sincronizados</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-emerald-600 shrink-0 font-black" />
+                      <span><strong>Pausa de Stock "Plato 86"</strong> en vivo por local</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-emerald-600 shrink-0 font-black" />
+                      <span><strong>KDS Multi-Partida:</strong> Fríos, Calientes y Barra</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-emerald-600 shrink-0 font-black" />
+                      <span><strong>Control de Recetas y Escandallo</strong> automatizado</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-emerald-600 shrink-0 font-black" />
+                      <span>Arqueo de caja chica y control de turnos</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-emerald-600 shrink-0 font-black" />
+                      <span>Acceso seguro con <strong>PIN táctil de 6 dígitos</strong></span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-emerald-600 shrink-0 font-black" />
+                      <span>Reportes de margen bruto y ventas por producto</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsDemoModalOpen(true)}
+                  className="mt-8 w-full rounded-2xl bg-[#0c3130] py-3.5 text-xs font-black text-[#ffd06f] shadow-lg hover:bg-[#144342] transition cursor-pointer"
+                >
+                  Comenzar con Plan Pro
+                </button>
+              </div>
+
+              {/* Plan 3: Enterprise */}
+              <div className="flex flex-col justify-between rounded-3xl border border-slate-200 bg-white p-7 sm:p-8 shadow-xs transition hover:shadow-lg">
+                <div>
+                  <span className="text-xs font-black uppercase tracking-wider text-teal-800">
+                    Cadenas & Franquicias
+                  </span>
+                  <h3 className="mt-2 text-2xl font-black text-slate-900">Plan Enterprise</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Para grupos gastronómicos con múltiples locales.
+                  </p>
+
+                  <div className="mt-6 flex items-baseline gap-1">
+                    <span className="text-4xl font-black text-slate-900">S/ 389</span>
+                    <span className="text-xs font-bold text-slate-500">/ mes</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-teal-800 mt-1 block">
+                    Escalabilidad ilimitada y soporte 24/7
+                  </span>
+
+                  <div className="mt-6 space-y-3 border-t border-slate-100 pt-6 text-xs text-slate-700 font-medium">
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-teal-700 shrink-0" />
+                      <span><strong>Sedes ilimitadas</strong> con consolidado central</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-teal-700 shrink-0" />
+                      <span><strong>Carta Maestra Central:</strong> Precios por sucursal</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-teal-700 shrink-0" />
+                      <span>Enlace exclusivo de acceso (<code>/tu-marca</code>)</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-teal-700 shrink-0" />
+                      <span>Roles jerárquicos: Admin Global, Sede y Mozos</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-teal-700 shrink-0" />
+                      <span>Capacitación presencial / virtual a todo tu staff</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Check size={16} className="text-teal-700 shrink-0" />
+                      <span>Gerente de cuenta dedicado y SLA garantizado</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsDemoModalOpen(true)}
+                  className="mt-8 w-full rounded-2xl border-2 border-teal-800 bg-teal-50 py-3.5 text-xs font-black text-teal-900 hover:bg-teal-100 transition cursor-pointer"
+                >
+                  Contactar Asesor Enterprise
+                </button>
+              </div>
+            </div>
+
+            {/* Guarantee / Zero-Risk Strip */}
+            <div className="mt-12 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs flex flex-wrap items-center justify-around gap-4 text-xs font-extrabold text-slate-700">
+              <span className="flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-teal-700" />
+                Cero permanencia: Cancela cuando quieras
+              </span>
+              <span className="flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-teal-700" />
+                Funciona en tus celulares y tablets existentes
+              </span>
+              <span className="flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-teal-700" />
+                Facturación formal con Boleta o Factura
+              </span>
+              <span className="flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-teal-700" />
+                Migración de tu carta actual en menos de 24h
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* ========================================================================= */}
         {/* FAQ SECTION (PREGUNTAS FRECUENTES)                                        */}
         {/* ========================================================================= */}
         <section id="faq" className="border-t border-slate-200/80 bg-[#fbf9f4] px-5 py-24 sm:px-8">
@@ -1799,25 +2902,33 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
 
             <div className="max-w-2xl relative z-10">
               <span className="text-xs font-black uppercase tracking-[0.16em] text-[#ffd06f]">
-                ORDENA • Sistema de gestión para restaurantes y cadenas
+                ORDENA • Sistema Cloud de Gestión Gastronómica
               </span>
               <h2 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
                 Lleva la operación de tu restaurante al siguiente nivel hoy mismo.
               </h2>
               <p className="mt-3 text-sm sm:text-base text-teal-100/90 leading-relaxed">
-                Ingresa al sistema para gestionar comandas, cocina, mesas y facturación con total sincronización y sin papel.
+                Agenda una demostración guiada sin costo o ingresa al sistema para gestionar comandas, cocina, mesas y facturación con total fluidez.
               </p>
             </div>
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0 relative z-10 w-full sm:w-auto">
               <button
                 type="button"
-                onClick={onOpenLogin}
-                className="inline-flex h-14 items-center justify-center gap-3 rounded-2xl bg-[#ffd06f] px-8 text-sm font-black text-[#0c3130] shadow-xl transition hover:bg-[#f3c25b] active:scale-98 cursor-pointer"
+                onClick={() => setIsDemoModalOpen(true)}
+                className="inline-flex h-14 items-center justify-center gap-2.5 rounded-2xl bg-[#ffd06f] px-7 text-sm font-black text-[#0c3130] shadow-xl transition hover:bg-[#f3c25b] active:scale-98 cursor-pointer"
               >
-                <Lock size={18} />
-                <span>Acceder al Sistema</span>
-                <ArrowRight size={18} />
+                <Sparkles size={18} />
+                <span>Solicitar Demo Gratis</span>
+                <ArrowRight size={17} />
+              </button>
+              <button
+                type="button"
+                onClick={onOpenLogin}
+                className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-6 text-sm font-black text-white shadow-xs transition hover:bg-white/20 active:scale-98 cursor-pointer"
+              >
+                <Lock size={16} className="text-[#ffd06f]" />
+                <span>Ingresar</span>
               </button>
             </div>
           </div>
@@ -1841,7 +2952,13 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
 
           <div className="flex flex-wrap items-center gap-4 text-slate-600 font-bold">
             <button type="button" onClick={() => scrollTo('pantallas')} className="hover:text-teal-900 cursor-pointer">
-              Pantallas
+              Pantallas en Vivo
+            </button>
+            <button type="button" onClick={() => scrollTo('soluciones')} className="hover:text-teal-900 cursor-pointer">
+              Por Negocio
+            </button>
+            <button type="button" onClick={() => scrollTo('calculadora')} className="hover:text-teal-900 cursor-pointer text-amber-700">
+              Calculadora ROI
             </button>
             <button type="button" onClick={() => scrollTo('flujo')} className="hover:text-teal-900 cursor-pointer">
               Flujo
@@ -1849,10 +2966,13 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
             <button type="button" onClick={() => scrollTo('modulos')} className="hover:text-teal-900 cursor-pointer">
               Módulos
             </button>
+            <button type="button" onClick={() => scrollTo('planes')} className="hover:text-teal-900 cursor-pointer text-[#e46d3f]">
+              Planes
+            </button>
             <button type="button" onClick={() => scrollTo('faq')} className="hover:text-teal-900 cursor-pointer">
               Preguntas
             </button>
-            <button type="button" onClick={onOpenLogin} className="text-teal-800 hover:text-teal-950 cursor-pointer flex items-center gap-1">
+            <button type="button" onClick={onOpenLogin} className="text-teal-800 hover:text-teal-950 cursor-pointer flex items-center gap-1 font-black">
               <Lock size={12} /> Acceso Personal
             </button>
           </div>
@@ -1865,6 +2985,161 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
           </span>
         </div>
       </footer>
+
+      {/* ========================================================================= */}
+      {/* INTERACTIVE DEMO REQUEST & CONTACT MODAL                                  */}
+      {/* ========================================================================= */}
+      {isDemoModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+        >
+          <div className="relative w-full max-w-lg rounded-3xl bg-[#fffdf9] p-6 sm:p-8 text-slate-900 shadow-2xl border border-teal-900/20 max-h-[90vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setIsDemoModalOpen(false);
+                setDemoSuccess(false);
+              }}
+              className="absolute right-4 top-4 rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
+              aria-label="Cerrar modal"
+            >
+              <X size={20} />
+            </button>
+
+            {!demoSuccess ? (
+              <>
+                <div className="text-center pb-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 px-3.5 py-1 text-xs font-black text-amber-900">
+                    <Sparkles size={14} className="text-amber-600" /> Demostración Guiada Sin Costo
+                  </span>
+                  <h3 className="mt-2.5 text-2xl font-black text-[#102f2e]">
+                    Activa ORDENA en tu Restaurante
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Comprueba en vivo cómo se sincroniza tu cocina, salón y cobro en menos de 0.5 segundos.
+                  </p>
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    setDemoSuccess(true);
+                    triggerMockToast('🎉 ¡Solicitud recibida con éxito!');
+                  }}
+                  className="mt-5 space-y-3.5 text-xs"
+                >
+                  <div>
+                    <label className="block font-black text-slate-700 mb-1">Nombre del Restaurante / Marca *</label>
+                    <input
+                      required
+                      type="text"
+                      value={demoRestaurant}
+                      onChange={(e) => setDemoRestaurant(e.target.value)}
+                      placeholder="Ej. Cevichería El Faro Marino"
+                      className="w-full rounded-xl border border-slate-200 bg-white p-3 font-semibold text-slate-900 focus:border-teal-700 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-black text-slate-700 mb-1">Tu Nombre *</label>
+                      <input
+                        required
+                        type="text"
+                        value={demoContact}
+                        onChange={(e) => setDemoContact(e.target.value)}
+                        placeholder="Ej. Carlos Mendoza"
+                        className="w-full rounded-xl border border-slate-200 bg-white p-3 font-semibold text-slate-900 focus:border-teal-700 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-black text-slate-700 mb-1">Teléfono / WhatsApp *</label>
+                      <input
+                        required
+                        type="tel"
+                        value={demoPhone}
+                        onChange={(e) => setDemoPhone(e.target.value)}
+                        placeholder="Ej. 987 654 321"
+                        className="w-full rounded-xl border border-slate-200 bg-white p-3 font-semibold text-slate-900 focus:border-teal-700 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-black text-slate-700 mb-1">Número de Sedes</label>
+                      <select
+                        value={demoBranches}
+                        onChange={(e) => setDemoBranches(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-white p-3 font-semibold text-slate-900 focus:border-teal-700 focus:outline-none"
+                      >
+                        <option value="1">1 Sede (Independiente)</option>
+                        <option value="2-3">2 a 3 Sedes</option>
+                        <option value="4-10">4 a 10 Sedes (Cadena)</option>
+                        <option value="10+">Más de 10 Sedes</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-black text-slate-700 mb-1">Ciudad</label>
+                      <input
+                        type="text"
+                        value={demoCity}
+                        onChange={(e) => setDemoCity(e.target.value)}
+                        placeholder="Ej. Lima, Arequipa, etc."
+                        className="w-full rounded-xl border border-slate-200 bg-white p-3 font-semibold text-slate-900 focus:border-teal-700 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 space-y-2.5">
+                    <button
+                      type="submit"
+                      className="w-full rounded-2xl bg-[#0c3130] py-3.5 text-xs font-black text-[#ffd06f] shadow-lg hover:bg-[#144342] transition cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Send size={15} />
+                      <span>Solicitar Demostración Guiada</span>
+                    </button>
+
+                    <a
+                      href={`https://wa.me/51999999999?text=${encodeURIComponent(`Hola, tengo el restaurante ${demoRestaurant || 'gastronómico'} y me gustaría coordinar una demostración de ORDENA.`)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full rounded-2xl bg-emerald-600 py-3 text-xs font-black text-white hover:bg-emerald-700 transition cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+                    >
+                      <MessageSquare size={15} />
+                      <span>Chatear directamente por WhatsApp</span>
+                    </a>
+                  </div>
+                </form>
+              </>
+            ) : (
+              <div className="text-center py-6 space-y-4">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800">
+                  <CheckCircle2 size={32} />
+                </div>
+                <h3 className="text-2xl font-black text-slate-900">¡Solicitud Registrada!</h3>
+                <p className="text-xs sm:text-sm text-slate-600 max-w-sm mx-auto leading-relaxed">
+                  Gracias por tu interés en <strong>ORDENA</strong>. Un asesor gastronómico te contactará por WhatsApp al <strong>{demoPhone || 'tu número'}</strong> para mostrarte el sistema con la carta de tu restaurante.
+                </p>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDemoModalOpen(false);
+                      setDemoSuccess(false);
+                    }}
+                    className="rounded-2xl bg-[#0c3130] px-6 py-2.5 text-xs font-black text-white hover:bg-[#144342] cursor-pointer"
+                  >
+                    Cerrar y seguir explorando
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
