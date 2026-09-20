@@ -341,7 +341,7 @@ app.post('/api/sales/complete', async (req, res) => {
     await firestore.runTransaction(async (transaction) => {
       const [branchSnapshot, tableSnapshot] = await Promise.all([transaction.get(branchRef), transaction.get(tableRef)]);
       if (!branchSnapshot.exists) throw new Error('Sede no encontrada');
-      if (!tableSnapshot.exists || tableSnapshot.data().status === 'free') throw new Error('La mesa no tiene un consumo pendiente de cobro');
+      if (!tableSnapshot.exists || tableSnapshot.data().status !== 'bill_requested') throw new Error('La mesa debe solicitar la cuenta antes de registrar el cobro');
       const branch = branchSnapshot.data();
       const baseAmount = Number(tableSnapshot.data().total || 0);
       if (!Number.isFinite(baseAmount) || baseAmount <= 0) throw new Error('El consumo de la mesa no es válido');

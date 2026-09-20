@@ -134,36 +134,9 @@ export default function App() {
     return initialBranchMap;
   });
 
-  const [cart, setCart] = useState<{ [cartKey: string]: CartItem }>({
-    '401__Personal': {
-      id: '401__Personal',
-      dishId: 401,
-      dishName: 'Ceviche de Pescado',
-      category: 'ceviches',
-      selectedSize: 'Personal',
-      price: 20.0, // Exact menu price
-      qty: 1
-    },
-    '701__Trío': {
-      id: '701__Trío',
-      dishId: 701,
-      dishName: 'Trío Marino',
-      category: 'trios',
-      selectedSize: 'Trío',
-      price: 15.0, // Exact menu price (S/ 15, S/ 20, S/ 25)
-      qty: 1
-    },
-    '201__Vaso': {
-      id: '201__Vaso',
-      dishId: 201,
-      dishName: 'Refresco Natural (Chicha Morada / Maracuyá)',
-      category: 'bebidas',
-      isDrink: true,
-      selectedSize: 'Vaso',
-      price: 2.0, // Exact menu price (Vaso S/ 2, 1/2 lt S/ 4, Litro S/ 8)
-      qty: 1
-    }
-  });
+  // A new order must always start empty. Preloading products here makes it
+  // possible to send a chargeable order without the waiter selecting anything.
+  const [cart, setCart] = useState<{ [cartKey: string]: CartItem }>({});
   const [kdsTickets, setKdsTickets] = useState<KDSTicket[]>(INITIAL_KDS_TICKETS);
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [tenantSales, setTenantSales] = useState<SaleRecord[]>([]);
@@ -2429,36 +2402,7 @@ export default function App() {
     });
     setBranchMenus(initialBranchMap);
 
-    setCart({
-      '401__Personal': {
-        id: '401__Personal',
-        dishId: 401,
-        dishName: 'Ceviche de Pescado',
-        category: 'ceviches',
-        selectedSize: 'Personal',
-        price: 20.0,
-        qty: 1
-      },
-      '701__Trío': {
-        id: '701__Trío',
-        dishId: 701,
-        dishName: 'Trío Marino',
-        category: 'trios',
-        selectedSize: 'Trío',
-        price: 15.0,
-        qty: 1
-      },
-      '201__Vaso': {
-        id: '201__Vaso',
-        dishId: 201,
-        dishName: 'Refresco Natural (Chicha Morada / Maracuyá)',
-        category: 'bebidas',
-        isDrink: true,
-        selectedSize: 'Vaso',
-        price: 2.0,
-        qty: 1
-      }
-    });
+    setCart({});
   };
 
   const isWaiterUser = currentRole === 'mesero';

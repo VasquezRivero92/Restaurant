@@ -27,8 +27,10 @@ export const ScreenCuentaCobro: React.FC<ScreenCuentaCobroProps> = ({
   const isWaiter = currentRole === 'mesero';
   const isAdmin = currentRole === 'admin_sede' || currentRole === 'admin_general' || currentRole === 'admin_global';
 
-  // Active tables that have open orders/consumption (not free) or non-zero total
-  const activeTables = tables.filter((t) => t.status !== 'free' || (t.total && t.total > 0));
+  // Only a table that explicitly requested its bill can enter the payment flow.
+  // This prevents a payment from closing a table while its order is still in
+  // preparation or waiting to be served.
+  const activeTables = tables.filter((t) => t.status === 'bill_requested' && Number(t.total) > 0);
 
   // Role-based filtering rule:
   // "para cobrar solo te debe aparacer la mesa donde el mesero tomo la orden y a lado de la mesa decir el nombre del mesero,

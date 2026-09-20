@@ -29,6 +29,8 @@ const tenantId = runId;
 const branchId = `${runId}-branch`;
 const createdAuthIds = [];
 const createdUserIds = [];
+const apiBaseUrl = process.env.QA_API_BASE_URL || 'http://127.0.0.1:10019';
+const payment = { method: 'yape_plin', documentType: 'boleta' };
 
 const expect = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -36,7 +38,7 @@ const expect = (condition, message) => {
 };
 
 const request = async (pathname, body, token) => {
-  const response = await fetch(`http://127.0.0.1:10019${pathname}`, {
+  const response = await fetch(`${apiBaseUrl}${pathname}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(body)
@@ -83,7 +85,8 @@ try {
     firestore.collection('restaurants').doc(tenantId).collection('branches').doc(branchId).collection('tables').doc('table-waiter').set(table('table-waiter', 80)),
     firestore.collection('restaurants').doc(tenantId).collection('branches').doc(branchId).collection('tables').doc('table-sede').set(table('table-sede', 60)),
     firestore.collection('restaurants').doc(tenantId).collection('branches').doc(branchId).collection('tables').doc('table-general').set(table('table-general', 40)),
-    firestore.collection('restaurants').doc(tenantId).collection('branches').doc(branchId).collection('tables').doc('table-global').set(table('table-global', 30))
+    firestore.collection('restaurants').doc(tenantId).collection('branches').doc(branchId).collection('tables').doc('table-global').set(table('table-global', 30)),
+    firestore.collection('restaurants').doc(tenantId).collection('branches').doc(branchId).collection('tables').doc('table-early').set({ ...table('table-early', 25), status: 'cooking', statusLabel: 'En preparación' })
   ]);
 
   await Promise.all([createOperator('mesero', '111111'), createOperator('cocina', '222222'), createOperator('cajero', '333333')]);
@@ -100,21 +103,23 @@ try {
   const waiterToken = await exchangeCustomToken(waiterPin.body.token);
   const kitchenToken = await exchangeCustomToken(kitchenPin.body.token);
   const cashierToken = await exchangeCustomToken(cashierPin.body.token);
-  const deniedKitchen = await request('/api/sales/complete', { tenantId, branchId, tableId: 'table-cashier', tipAmount: 0 }, kitchenToken);
+  const deniedKitchen = await request('/api/sales/complete', { tenantId, branchId, tableId: 'table-cashier', tipAmount: 0, payment }, kitchenToken);
   expect(deniedKitchen.status === 403, 'cocina no puede registrar cobros');
+  const prematureSale = await request('/api/sales/complete', { tenantId, branchId, tableId: 'table-early', tipAmount: 0, payment }, cashierToken);
+  expect(prematureSale.status !== 200, 'no se puede cobrar una mesa que aún no pidió la cuenta');
 
-  const cashierSale = await request('/api/sales/complete', { tenantId, branchId, tableId: 'table-cashier', amount: 999999, tipAmount: 5 }, cashierToken);
+  const cashierSale = await request('/api/sales/complete', { tenantId, branchId, tableId: 'table-cashier', amount: 999999, tipAmount: 5, payment }, cashierToken);
   expect(cashierSale.status === 200, 'cajero registra un cobro válido');
 
-  const waiterSale = await request('/api/sales/complete', { tenantId, branchId, tableId: 'table-waiter', tipAmount: 0 }, waiterToken);
+  const waiterSale = await request('/api/sales/complete', { tenantId, branchId, tableId: 'table-waiter', tipAmount: 0, payment }, waiterToken);
   expect(waiterSale.status === 200, 'mesero registra un cobro válido');
 
   const sedeToken = await createAdminToken('admin-sede', { role: 'admin_sede', tenantId, branchIds: [branchId] });
-  const sedeSale = await request('/api/sales/complete', { tenantId, branchId, tableId: 'table-sede', tipAmount: 0 }, sedeToken);
+  const sedeSale = await request('/api/sales/complete', { tenantId, branchId, tableId: 'table-sede', tipAmount: 0, payment }, sedeToken);
   expect(sedeSale.status === 200, 'admin de sede registra un cobro de su sede');
 
   const generalToken = await createAdminToken('admin-general', { role: 'admin_general', tenantId, branchIds: [branchId] });
-  const generalSale = await request('/api/sales/complete', { tenantId, branchId, tableId: 'table-general', tipAmount: 0 }, generalToken);
+  const generalSale = await request('/api/sales/complete', { tenantId, branchId, tableId: 'table-general', tipAmount: 0, payment }, generalToken);
   expect(generalSale.status === 200, 'admin general registra un cobro de su empresa');
   const syncedStaffId = `${runId}-sync-waiter`;
   createdUserIds.push(syncedStaffId);
@@ -133,7 +138,7 @@ try {
   expect(!(await firestore.collection('users').doc(`${runId}-forbidden`).get()).exists, 'un rol administrativo no se persiste desde personal');
 
   const globalToken = await createAdminToken('admin-global', { role: 'admin_global', platformAdmin: true });
-  const globalSale = await request('/api/sales/complete', { tenantId, branchId, tableId: 'table-global', tipAmount: 0 }, globalToken);
+  const globalSale = await request('/api/sales/complete', { tenantId, branchId, tableId: 'table-global', tipAmount: 0, payment }, globalToken);
   expect(globalSale.status === 200, 'admin global registra un cobro para la empresa seleccionada');
   const provisionedAdmin = await request('/api/admins/provision', {
     admin: {
@@ -148,7 +153,7 @@ try {
   const provisionedClaims = await auth.getUser(provisionedAdmin.body.profile.id);
   expect(provisionedClaims.customClaims?.role === 'admin_sede' && provisionedClaims.customClaims?.tenantId === tenantId, 'la identidad provisionada recibe claims de sede firmados');
 
-  const duplicateSale = await request('/api/sales/complete', { tenantId, branchId, tableId: 'table-cashier', tipAmount: 0 }, cashierToken);
+  const duplicateSale = await request('/api/sales/complete', { tenantId, branchId, tableId: 'table-cashier', tipAmount: 0, payment }, cashierToken);
   expect(duplicateSale.status !== 200, 'un cobro duplicado queda bloqueado');
 
   const branch = (await firestore.collection('restaurants').doc(tenantId).collection('branches').doc(branchId).get()).data();
