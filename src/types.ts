@@ -8,6 +8,19 @@ export type ScreenType =
   | 'saas-console'
   | 'pin-lock';
 
+export interface QrCustomerOrder {
+  id: string;
+  branchId: string;
+  tableId: string;
+  tableNumber: string;
+  items: CartItem[];
+  total: number;
+  notes?: string;
+  status: 'pending_waiter' | 'confirmed' | 'cancelled';
+  createdAt: number;
+  confirmedBy?: string;
+}
+
 export interface DrinkOrder {
   id: string;
   name: string;

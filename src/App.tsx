@@ -228,6 +228,77 @@ export default function App() {
     };
   }, []);
 
+  // Cargar datos del restaurante público para la terminal operativa antes de iniciar sesión
+  React.useEffect(() => {
+    if (!tenantSlug) return;
+    let isMounted = true;
+
+    const loadPublicTenant = async () => {
+      try {
+        const res = await fetch(`/api/public/tenant/${encodeURIComponent(tenantSlug)}`);
+        if (!res.ok) return;
+        const tenantData = await res.json();
+        if (!isMounted || !tenantData?.id) return;
+
+        setActiveChainId(tenantData.id);
+        if (Array.isArray(tenantData.locations) && tenantData.locations.length > 0) {
+          setActiveBranchId((prev) => {
+            if (tenantData.locations.some((l: any) => l.id === prev)) return prev;
+            return tenantData.locations[0].id;
+          });
+        }
+
+        // Actualizar o agregar el restaurante en chains para que ScreenPinLock y el resto de vistas
+        // muestren inmediatamente el nombre real ("Cevichería La Barra de Naomi")
+        setChains((prev) => {
+          const existingIdx = prev.findIndex((c) => c.id === tenantData.id || c.slug === tenantData.slug);
+          if (existingIdx >= 0) {
+            const updated = [...prev];
+            updated[existingIdx] = {
+              ...updated[existingIdx],
+              id: tenantData.id,
+              name: tenantData.name || updated[existingIdx].name,
+              slug: tenantData.slug || updated[existingIdx].slug,
+              legalName: tenantData.legalName || updated[existingIdx].legalName,
+              logoUrl: tenantData.logoUrl || updated[existingIdx].logoUrl,
+              status: tenantData.status || updated[existingIdx].status,
+              locations: tenantData.locations?.length ? tenantData.locations : updated[existingIdx].locations,
+              locationsCount: tenantData.locations?.length || updated[existingIdx].locationsCount
+            };
+            return updated;
+          } else {
+            return [
+              {
+                id: tenantData.id,
+                slug: tenantData.slug,
+                name: tenantData.name,
+                legalName: tenantData.legalName || `${tenantData.name} S.A.C.`,
+                ruc: tenantData.ruc || '',
+                plan: tenantData.plan || 'Básico',
+                status: tenantData.status || 'Activa',
+                logoUrl: tenantData.logoUrl,
+                assignedCartaId: tenantData.assignedCartaId || '',
+                adminName: '',
+                adminEmail: '',
+                adminPhone: '',
+                locationsCount: tenantData.locations?.length || 0,
+                locations: tenantData.locations || []
+              },
+              ...prev
+            ];
+          }
+        });
+      } catch (err) {
+        console.warn('No se pudo cargar la información pública del restaurante:', err);
+      }
+    };
+
+    loadPublicTenant();
+    return () => {
+      isMounted = false;
+    };
+  }, [tenantSlug]);
+
   // Update activeChainId whenever tenantSlug changes or chains load
   React.useEffect(() => {
     if (tenantSlug && chains.length > 0) {
@@ -1991,47 +2062,82 @@ export default function App() {
   const handleUpdateChain = (updatedChain: ChainBrand) => {
     setChains((prev) => prev.map((c) => (c.id === updatedChain.id ? updatedChain : c)));
 
-    // Synchronize or assign the General Admin in admins list
-    if (updatedChain.adminName || updatedChain.adminEmail) {
-      setAdmins((prev) => {
-        const existingIdx = prev.findIndex(
-          (a) => a.brandId === updatedChain.id && a.roleKey === 'admin_general'
-        );
-        if (existingIdx >= 0) {
-          const updated = [...prev];
-          updated[existingIdx] = {
-            ...updated[existingIdx],
-            name: updatedChain.adminName || updated[existingIdx].name,
-            email: updatedChain.adminEmail || updated[existingIdx].email,
-            phone: updatedChain.adminPhone || updated[existingIdx].phone,
-            docType: updatedChain.adminDocType || updated[existingIdx].docType,
-            docNumber: updatedChain.adminDocNumber || updated[existingIdx].docNumber,
-            brand: updatedChain.name,
-            assignedBranchIds: updatedChain.locations.map((loc) => loc.id),
-            initials: (updatedChain.adminName || 'AG').split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase()
+    // Actualizar en cascada la Carta Maestra asignada para que su nombre refleje el nuevo restaurante
+    setMasterCartas((prev) =>
+      prev.map((carta) => {
+        const isAssigned =
+          carta.id === updatedChain.assignedCartaId ||
+          (Array.isArray(carta.assignedChainIds) && carta.assignedChainIds.includes(updatedChain.id));
+        if (isAssigned && carta.name.startsWith('Carta Oficial')) {
+          return {
+            ...carta,
+            name: `Carta Oficial ${updatedChain.name}`
           };
-          return updated;
-        } else {
-          // If no admin_general was linked yet, register them now
-          const newGenAdmin: AdminUser = {
-            id: `adm-gen-${Date.now()}`,
-            name: updatedChain.adminName || 'Administrador General',
-            email: updatedChain.adminEmail || '',
-            phone: updatedChain.adminPhone || '',
-            docType: updatedChain.adminDocType,
-            docNumber: updatedChain.adminDocNumber,
-            role: 'Administrador General',
-            roleKey: 'admin_general',
-            brand: updatedChain.name,
-            brandId: updatedChain.id,
-            assignedBranchIds: updatedChain.locations.map((loc) => loc.id),
-            initials: (updatedChain.adminName || 'AG').split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase(),
-            active: true
-          };
-          return [newGenAdmin, ...prev];
         }
+        return carta;
+      })
+    );
+
+    // Synchronize or assign the General Admin and update all admins of this brand
+    setAdmins((prev) => {
+      const updated = prev.map((admin) => {
+        if (admin.brandId === updatedChain.id) {
+          if (admin.roleKey === 'admin_general') {
+            return {
+              ...admin,
+              name: updatedChain.adminName || admin.name,
+              email: updatedChain.adminEmail || admin.email,
+              phone: updatedChain.adminPhone || admin.phone,
+              docType: updatedChain.adminDocType || admin.docType,
+              docNumber: updatedChain.adminDocNumber || admin.docNumber,
+              brand: updatedChain.name,
+              assignedBranchIds: updatedChain.locations.map((loc) => loc.id),
+              initials: (updatedChain.adminName || admin.name || 'AG')
+                .split(' ')
+                .map((n) => n[0])
+                .join('')
+                .substring(0, 2)
+                .toUpperCase()
+            };
+          }
+          // Admins de sede de esta marca: actualizar nombre de la marca
+          return {
+            ...admin,
+            brand: updatedChain.name
+          };
+        }
+        return admin;
       });
-    }
+
+      const hasGenAdmin = updated.some(
+        (a) => a.brandId === updatedChain.id && a.roleKey === 'admin_general'
+      );
+      if (!hasGenAdmin && (updatedChain.adminName || updatedChain.adminEmail)) {
+        const newGenAdmin: AdminUser = {
+          id: `adm-gen-${Date.now()}`,
+          name: updatedChain.adminName || 'Administrador General',
+          email: updatedChain.adminEmail || '',
+          phone: updatedChain.adminPhone || '',
+          docType: updatedChain.adminDocType,
+          docNumber: updatedChain.adminDocNumber,
+          role: 'Administrador General',
+          roleKey: 'admin_general',
+          brand: updatedChain.name,
+          brandId: updatedChain.id,
+          assignedBranchIds: updatedChain.locations.map((loc) => loc.id),
+          initials: (updatedChain.adminName || 'AG')
+            .split(' ')
+            .map((n) => n[0])
+            .join('')
+            .substring(0, 2)
+            .toUpperCase(),
+          active: true
+        };
+        return [newGenAdmin, ...updated];
+      }
+
+      return updated;
+    });
   };
 
   // Delete chain and its associated branch/admin data
@@ -2261,13 +2367,9 @@ export default function App() {
   }).length;
   
   // Total pending drinks count (for waiter: only their assigned tables and shift orders)
-  const pendingDrinksFromTables = tablesForAlerts.reduce((acc, t) => {
+  const pendingDrinksCount = tablesForAlerts.reduce((acc, t) => {
     return acc + (t.drinks?.filter((d) => !d.served).length || 0);
   }, 0);
-  const pendingDrinksFromTickets = ticketsForAlerts.reduce((acc, t) => {
-    return acc + t.items.filter((i) => isDrinkKDSTicketItem(i) && !i.isServed).reduce((sum, di) => sum + (di.qty || 1), 0);
-  }, 0);
-  const pendingDrinksCount = Math.max(pendingDrinksFromTables, pendingDrinksFromTickets);
 
   const currentChain = chains.find((c) => c.id === activeChainId) || chains[0];
   const currentBranch = currentChain?.locations.find((l) => l.id === activeBranchId) || currentChain?.locations[0];

@@ -359,11 +359,22 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       return;
     }
 
+    const newName = editChainForm.name.trim();
+    const oldName = editingChain.name.trim();
+    let effectiveLegalName = editChainForm.legalName.trim();
+
+    // Si el nombre comercial cambió y la razón social aún conservaba el nombre previo o estaba vacía
+    if (newName !== oldName) {
+      if (!effectiveLegalName || effectiveLegalName === editingChain.legalName) {
+        effectiveLegalName = `${newName} S.A.C.`;
+      }
+    }
+
     const updatedChain: ChainBrand = {
       ...editingChain,
-      name: editChainForm.name.trim(),
+      name: newName,
       slug: editChainForm.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '') || editingChain.slug || editingChain.id,
-      legalName: editChainForm.legalName.trim() || `${editChainForm.name.trim()} S.A.C.`,
+      legalName: effectiveLegalName || `${newName} S.A.C.`,
       ruc: editChainForm.ruc.trim() || editingChain.ruc,
       plan: editChainForm.plan,
       status: editChainForm.status,
@@ -2690,7 +2701,19 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                   <input
                     type="text"
                     value={editChainForm.name}
-                    onChange={(e) => setEditChainForm({ ...editChainForm, name: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const autoSlug = val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                      const prevAutoSlug = editingChain?.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                      const shouldUpdateSlug = !editChainForm.slug || editChainForm.slug === prevAutoSlug || editChainForm.slug === editingChain?.slug;
+                      const shouldUpdateLegal = !editChainForm.legalName || editChainForm.legalName === editingChain?.legalName;
+                      setEditChainForm((prev) => ({
+                        ...prev,
+                        name: val,
+                        slug: shouldUpdateSlug ? autoSlug : prev.slug,
+                        legalName: shouldUpdateLegal ? `${val.trim()} S.A.C.` : prev.legalName
+                      }));
+                    }}
                     placeholder="ej. Cevichería La Barra Chalaca"
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 text-xs sm:text-sm text-slate-900 border border-slate-300 focus:outline-none focus:bg-white font-bold"
                     required

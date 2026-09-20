@@ -56,6 +56,13 @@ service cloud.firestore {
           allow delete: if isTenantAdmin(restaurantId);
         }
 
+        // El cliente QR escribe mediante el servidor; el personal solo lee y confirma.
+        match /customerOrders/{orderId} {
+          allow read: if canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId);
+          allow update: if (canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId)) && hasRole(['mesero', 'admin_sede', 'admin_general']);
+          allow create, delete: if false;
+        }
+
         match /sales/{saleId} {
           allow read: if isTenantAdmin(restaurantId);
           allow write: if false;

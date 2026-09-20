@@ -7,7 +7,7 @@ interface ModalBandejaBebidasProps {
   onClose: () => void;
   tables: TableItem[];
   onToggleDrinkServed: (tableId: string, drinkId: string) => void;
-  onServeAllDrinks: (tableId: string) => void;
+  onServeAllDrinks: (tableIdOrIds?: string | string[]) => void;
   currentRole?: AppRole;
   currentUserName?: string;
 }
@@ -30,7 +30,22 @@ export const ModalBandejaBebidas: React.FC<ModalBandejaBebidasProps> = ({
     return isTableAssignedToWaiter(t, currentUserName, isWaiter);
   };
 
-  // Tables with drinks
+  // Pre-calculate counts for both scopes
+  const myTablesWithDrinks = tables.filter((t) => t.drinks && t.drinks.length > 0 && isMyTable(t));
+  const myPendingDrinksCount = myTablesWithDrinks.reduce(
+    (acc, t) => acc + (t.drinks?.filter((d) => !d.served).length || 0),
+    0
+  );
+
+  const salonTablesWithDrinks = tables.filter((t) => t.drinks && t.drinks.length > 0);
+  const salonPendingDrinksCount = salonTablesWithDrinks.reduce(
+    (acc, t) => acc + (t.drinks?.filter((d) => !d.served).length || 0),
+    0
+  );
+
+  const otherTablesPendingDrinksCount = Math.max(0, salonPendingDrinksCount - myPendingDrinksCount);
+
+  // Tables with drinks under active scope filter
   const tablesWithDrinks = tables.filter((t) => {
     if (!t.drinks || t.drinks.length === 0) return false;
     if (isWaiter && scopeFilter === 'my_tables') {
@@ -53,7 +68,12 @@ export const ModalBandejaBebidas: React.FC<ModalBandejaBebidasProps> = ({
   }, 0);
 
   const handleServeAllGlobal = () => {
-    tablesWithPending.forEach((t) => onServeAllDrinks(t.id));
+    if (scopeFilter === 'all' || !isWaiter) {
+      onServeAllDrinks('all');
+    } else {
+      const ids = tablesWithPending.map((t) => t.id);
+      onServeAllDrinks(ids.length > 0 ? ids : 'all');
+    }
   };
 
   return (
@@ -102,27 +122,63 @@ export const ModalBandejaBebidas: React.FC<ModalBandejaBebidasProps> = ({
             <div className="flex items-center gap-1.5 bg-surface-container p-1 rounded-xl text-xs font-bold w-full">
               <button
                 onClick={() => setScopeFilter('my_tables')}
-                className={`flex-1 py-1.5 px-3 rounded-lg transition-all text-center cursor-pointer ${
+                className={`flex-1 py-1.5 px-3 rounded-lg transition-all text-center cursor-pointer flex items-center justify-center gap-1.5 ${
                   scopeFilter === 'my_tables'
                     ? 'bg-surface-container-lowest text-primary shadow-xs font-black'
                     : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >
-                Mis Mesas ({tables.filter((t) => t.drinks && t.drinks.length > 0 && isMyTable(t)).length})
+                <span>Mis Mesas</span>
+                {myPendingDrinksCount > 0 ? (
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-black text-[10px]">
+                    {myPendingDrinksCount}
+                  </span>
+                ) : (
+                  <span className="text-emerald-600 font-bold text-[11px]">✓</span>
+                )}
               </button>
               <button
                 onClick={() => setScopeFilter('all')}
-                className={`flex-1 py-1.5 px-3 rounded-lg transition-all text-center cursor-pointer ${
+                className={`flex-1 py-1.5 px-3 rounded-lg transition-all text-center cursor-pointer flex items-center justify-center gap-1.5 ${
                   scopeFilter === 'all'
                     ? 'bg-surface-container-lowest text-primary shadow-xs font-black'
                     : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >
-                Todo el Salón ({tables.filter((t) => t.drinks && t.drinks.length > 0).length})
+                <span>Todo el Salón</span>
+                {salonPendingDrinksCount > 0 ? (
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-black text-[10px]">
+                    {salonPendingDrinksCount}
+                  </span>
+                ) : (
+                  <span className="text-emerald-600 font-bold text-[11px]">✓</span>
+                )}
               </button>
             </div>
           </div>
         )}
+
+        {/* Notice for Waiter when their tables are served but other tables in salon are pending */}
+        {isWaiter && scopeFilter === 'my_tables' && myPendingDrinksCount === 0 && otherTablesPendingDrinksCount > 0 && (
+          <div className="mx-4 mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-amber-700 text-[20px] shrink-0">info</span>
+              <div className="text-xs text-amber-900">
+                <span className="font-bold">Tus mesas están al día.</span>
+                <p className="text-[11px] text-amber-800">
+                  Hay {otherTablesPendingDrinksCount} {otherTablesPendingDrinksCount === 1 ? 'bebida pendiente' : 'bebidas pendientes'} en otras mesas del salón.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setScopeFilter('all')}
+              className="px-2.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs cursor-pointer shadow-xs active:scale-95 transition-all whitespace-nowrap"
+            >
+              Ver Salón
+            </button>
+          </div>
+        )}
+
         {totalPendingDrinksCount > 0 && (
           <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-200 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-xs text-amber-900 font-medium">
@@ -281,16 +337,30 @@ export const ModalBandejaBebidas: React.FC<ModalBandejaBebidasProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3 bg-surface-container border-t border-outline-variant/30 flex items-center justify-between">
-          <span className="text-xs text-on-surface-variant">
-            Las bebidas se cargan directamente a la pre-cuenta de la mesa
+        <div className="p-3 bg-surface-container border-t border-outline-variant/30 flex items-center justify-between gap-2">
+          <span className="text-xs text-on-surface-variant truncate">
+            {salonPendingDrinksCount === 0
+              ? 'Todas las bebidas del salón están servidas'
+              : `${salonPendingDrinksCount} ${salonPendingDrinksCount === 1 ? 'bebida pendiente' : 'bebidas pendientes'} en el salón`}
           </span>
-          <button
-            onClick={onClose}
-            className="h-9 px-4 rounded-lg bg-primary text-on-primary font-bold text-xs active:scale-95 transition-all cursor-pointer"
-          >
-            Listo
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {salonPendingDrinksCount > 0 && (
+              <button
+                onClick={() => onServeAllDrinks('all')}
+                className="h-9 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs active:scale-95 transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                title="Marcar todas las bebidas del restaurante como servidas"
+              >
+                <span className="material-symbols-outlined text-[16px]">done_all</span>
+                <span>Servir Salón</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="h-9 px-4 rounded-lg bg-primary text-on-primary font-bold text-xs active:scale-95 transition-all cursor-pointer"
+            >
+              Listo
+            </button>
+          </div>
         </div>
       </div>
     </div>

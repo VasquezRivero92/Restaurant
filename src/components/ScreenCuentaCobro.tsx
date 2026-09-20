@@ -27,8 +27,8 @@ export const ScreenCuentaCobro: React.FC<ScreenCuentaCobroProps> = ({
   const isWaiter = currentRole === 'mesero';
   const isAdmin = currentRole === 'admin_sede' || currentRole === 'admin_general' || currentRole === 'admin_global';
 
-  // Active tables that have open orders/consumption (not free)
-  const activeTables = tables.filter((t) => t.status !== 'free');
+  // Active tables that have open orders/consumption (not free) or non-zero total
+  const activeTables = tables.filter((t) => t.status !== 'free' || (t.total && t.total > 0));
 
   // Role-based filtering rule:
   // "para cobrar solo te debe aparacer la mesa donde el mesero tomo la orden y a lado de la mesa decir el nombre del mesero,
@@ -40,9 +40,13 @@ export const ScreenCuentaCobro: React.FC<ScreenCuentaCobroProps> = ({
       // Match full name or first name (e.g. Carlos Mendoza vs Carlos M.)
       const currentFirst = currentWaiter.split(' ')[0];
       const tableFirst = tableWaiter.split(' ')[0];
-      return tableWaiter === currentWaiter || (currentFirst && tableWaiter.includes(currentFirst)) || (tableFirst && currentWaiter.includes(tableFirst));
+      return (
+        tableWaiter === currentWaiter ||
+        (currentFirst && tableWaiter.includes(currentFirst)) ||
+        (tableFirst && currentWaiter.includes(tableFirst))
+      );
     }
-    // Administrator can see ALL tables in the branch
+    // Administrator and Cashier can see and collect ALL tables in the branch
     return true;
   });
 
@@ -90,8 +94,91 @@ export const ScreenCuentaCobro: React.FC<ScreenCuentaCobroProps> = ({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  // Empty state when there are no tables pending payment (handles waiters and admins/cashiers)
+  if (payableTables.length === 0 || !currentTable) {
+    if (isWaiter) {
+      return (
+        <div className="flex flex-col w-full pb-36 pt-4 max-w-xl mx-auto px-4">
+          <div className="bg-surface-container-lowest rounded-3xl p-6 sm:p-8 border border-outline-variant/30 text-center shadow-md flex flex-col items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center">
+              <span className="material-symbols-outlined text-[36px]">point_of_sale</span>
+            </div>
+
+            <div className="space-y-1.5 max-w-md">
+              <h2 className="text-lg sm:text-xl font-black text-primary">
+                No tienes mesas pendientes de cobro
+              </h2>
+              <p className="text-xs sm:text-sm text-on-surface-variant leading-relaxed">
+                Como <strong>Mozo de Salón ({currentWaiterName})</strong>, solo puedes ver y cobrar las mesas donde tú tomaste la comanda.
+              </p>
+              <div className="p-3 mt-2 rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs text-on-surface-variant text-left flex items-start gap-2">
+                <span className="material-symbols-outlined text-secondary text-[18px] shrink-0 mt-0.5">info</span>
+                <span>
+                  Las mesas atendidas por otros mozos están protegidas y solo el <strong>Administrador de la Sede</strong> puede verlas o reasignarte una mesa si vas a apoyar con el cobro.
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={() => onNavigate('mesas')}
+                className="h-11 px-5 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-bold text-xs flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">table_restaurant</span>
+                <span>Ir al Salón de Mesas</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Empty state for Admin (Global, General, Sede) or Cajero
+    return (
+      <div className="flex flex-col w-full pb-36 pt-4 max-w-xl mx-auto px-4">
+        <div className="bg-surface-container-lowest rounded-3xl p-6 sm:p-8 border border-outline-variant/30 text-center shadow-md flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+            <span className="material-symbols-outlined text-[36px]">point_of_sale</span>
+          </div>
+
+          <div className="space-y-1.5 max-w-md">
+            <h2 className="text-lg sm:text-xl font-black text-primary">
+              No hay cuentas pendientes de cobro
+            </h2>
+            <p className="text-xs sm:text-sm text-on-surface-variant leading-relaxed">
+              Actualmente todas las mesas de la sede se encuentran libres o sin consumos activos por facturar.
+            </p>
+            <div className="p-3 mt-2 rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs text-on-surface-variant text-left flex items-start gap-2">
+              <span className="material-symbols-outlined text-emerald-600 text-[18px] shrink-0 mt-0.5">check_circle</span>
+              <span>
+                Cuando una mesa solicite la cuenta en salón o tenga comensales con comanda activa, aparecerá aquí lista para emitir boleta, factura y cobrar.
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              onClick={() => onNavigate('mesas')}
+              className="h-11 px-5 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-bold text-xs flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px]">table_restaurant</span>
+              <span>Ver Salón de Mesas</span>
+            </button>
+            <button
+              onClick={() => onNavigate('tomar-pedido')}
+              className="h-11 px-5 rounded-xl bg-surface-container hover:bg-surface-container-high text-primary font-bold text-xs flex items-center gap-2 border border-outline-variant/30 transition-all active:scale-95 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px]">edit_note</span>
+              <span>Abrir Nuevo Pedido</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Pricing calculations
-  const baseTotal = currentTable?.total || 0;
+  const baseTotal = currentTable.total || 0;
   const grandTotal = baseTotal + tipAmount;
   const subtotal = baseTotal / 1.18;
   const igv = baseTotal - subtotal;
@@ -137,45 +224,6 @@ export const ScreenCuentaCobro: React.FC<ScreenCuentaCobroProps> = ({
     setShowReassignModal(false);
     triggerToast(`Mesa ${currentTable.number} reasignada a "${newWaiterName}" para cobro`);
   };
-
-  // If waiter has no tables assigned to charge
-  if (isWaiter && payableTables.length === 0) {
-    return (
-      <div className="flex flex-col w-full pb-36 pt-4 max-w-xl mx-auto px-4">
-        {/* Context Card */}
-        <div className="bg-surface-container-lowest rounded-3xl p-6 sm:p-8 border border-outline-variant/30 text-center shadow-md flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center">
-            <span className="material-symbols-outlined text-[36px]">point_of_sale</span>
-          </div>
-
-          <div className="space-y-1.5 max-w-md">
-            <h2 className="text-lg sm:text-xl font-black text-primary">
-              No tienes mesas pendientes de cobro
-            </h2>
-            <p className="text-xs sm:text-sm text-on-surface-variant leading-relaxed">
-              Como <strong>Mozo de Salón ({currentWaiterName})</strong>, solo puedes ver y cobrar las mesas donde tú tomaste la comanda.
-            </p>
-            <div className="p-3 mt-2 rounded-xl bg-surface-container-low border border-outline-variant/20 text-xs text-on-surface-variant text-left flex items-start gap-2">
-              <span className="material-symbols-outlined text-secondary text-[18px] shrink-0 mt-0.5">info</span>
-              <span>
-                Las mesas atendidas por otros mozos están protegidas y solo el <strong>Administrador de la Sede</strong> puede verlas o reasignarte una mesa si vas a apoyar con el cobro.
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 pt-2">
-            <button
-              onClick={() => onNavigate('mesas')}
-              className="h-11 px-5 rounded-xl bg-primary hover:bg-primary-container text-on-primary font-bold text-xs flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px]">table_restaurant</span>
-              <span>Ir al Salón de Mesas</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col w-full pb-36 pt-2 max-w-2xl mx-auto px-3 sm:px-4">
@@ -415,7 +463,7 @@ export const ScreenCuentaCobro: React.FC<ScreenCuentaCobroProps> = ({
               ))
             ) : (
               <div className="py-2 text-on-surface-variant text-xs">
-                1x Combinado Marino Especial Sabrisimo • S/ {baseTotal.toFixed(2)}
+                1x Consumo General • S/ {baseTotal.toFixed(2)}
               </div>
             )}
 
@@ -593,7 +641,7 @@ export const ScreenCuentaCobro: React.FC<ScreenCuentaCobroProps> = ({
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-purple-700 text-[20px]">qr_code_scanner</span>
               <div className="flex flex-col">
-                <span className="text-xs font-bold">QR Sabrisimo Yape / Plin</span>
+                <span className="text-xs font-bold">QR Digital Yape / Plin</span>
                 <span className="text-[10px] text-purple-800">Número de operación automático</span>
               </div>
             </div>
@@ -745,10 +793,16 @@ export const ScreenCuentaCobro: React.FC<ScreenCuentaCobroProps> = ({
               </p>
 
               {availableWaiters.map((waiter) => {
-                const isCurrent = currentTable.waiter.toLowerCase().includes(waiter.name.toLowerCase()) || waiter.name.toLowerCase().includes(currentTable.waiter.toLowerCase());
+                const currentWaiterStr = (currentTable.waiter || '').toLowerCase();
+                const waiterNameStr = (waiter.name || '').toLowerCase();
+                const isCurrent = currentWaiterStr.includes(waiterNameStr) || waiterNameStr.includes(currentWaiterStr);
                 
                 // Count how many tables this waiter currently has
-                const waiterTablesCount = tables.filter((t) => t.status !== 'free' && (t.waiter.toLowerCase().includes(waiter.name.toLowerCase()) || waiter.name.toLowerCase().includes(t.waiter.toLowerCase()))).length;
+                const waiterTablesCount = tables.filter((t) => {
+                  if (t.status === 'free') return false;
+                  const tWaiter = (t.waiter || '').toLowerCase();
+                  return tWaiter.includes(waiterNameStr) || waiterNameStr.includes(tWaiter);
+                }).length;
 
                 return (
                   <div

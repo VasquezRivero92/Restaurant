@@ -835,7 +835,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
       <div className="py-2 flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-xs text-on-surface-variant flex-wrap">
           <span className="w-2 h-2 rounded-full bg-secondary"></span>
-          <span className="font-extrabold text-on-surface">{currentChain?.name || 'La Barra Sabrisimo'}</span>
+          <span className="font-extrabold text-on-surface">{currentChain?.name || 'Restaurante'}</span>
           <span>•</span>
           <span className="font-bold text-secondary">{currentBranch?.name || 'Sede Principal La Mar'}</span>
           <span>•</span>
@@ -1841,6 +1841,14 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                     >
                       {loc.active ? 'Operativa' : 'Pausada'}
                     </span>
+                  </div>
+
+                  <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="material-symbols-outlined text-violet-700">qr_code_2</span>
+                      <div className="min-w-0"><p className="text-[10px] font-black text-violet-800 uppercase">QR de esta sede</p><p className="truncate text-[11px] text-violet-950 font-medium">{`${window.location.origin}/${currentChain?.slug || currentChain?.id}?qr=${loc.id}`}</p></div>
+                    </div>
+                    <button type="button" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/${currentChain?.slug || currentChain?.id}?qr=${loc.id}`); triggerToast(`Enlace QR de ${loc.name} copiado`); }} className="shrink-0 rounded-lg bg-violet-700 px-3 py-2 text-[11px] font-black text-white cursor-pointer">Copiar enlace QR</button>
                   </div>
 
                   {/* Sede Administrator Details with Multi-Sede info */}

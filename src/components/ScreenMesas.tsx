@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TableItem, ScreenType, AppRole, StaffMember, KDSTicket } from '../types';
+import { TableItem, ScreenType, AppRole, StaffMember, KDSTicket, QrCustomerOrder } from '../types';
 import {
   isGenericWaiter,
   isTableAssignedToWaiter,
@@ -15,14 +15,16 @@ interface ScreenMesasProps {
   onNavigate: (screen: ScreenType) => void;
   onSelectTable: (tableId: string) => void;
   onMarkDelivered: (tableId: string) => void;
-  onRequestBill: (tableId: string) => void;
+  onRequestBill?: (tableId: string) => void;
   onOpenTable: (tableId: string) => void;
   onUpdateTableWaiter?: (tableId: string, newWaiterName: string) => void;
   onToggleDrinkServed?: (tableId: string, drinkId: string) => void;
-  onServeAllDrinks?: (tableId: string) => void;
+  onServeAllDrinks?: (tableIdOrIds?: string | string[]) => void;
   onOpenDrinksTray?: () => void;
   currentRole?: AppRole;
   currentUserName?: string;
+  qrOrders?: QrCustomerOrder[];
+  onConfirmQrOrder?: (order: QrCustomerOrder) => void;
 }
 
 export const ScreenMesas: React.FC<ScreenMesasProps> = ({
@@ -39,7 +41,9 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
   onServeAllDrinks,
   onOpenDrinksTray,
   currentRole = 'admin_sede',
-  currentUserName = ''
+  currentUserName = '',
+  qrOrders = [],
+  onConfirmQrOrder
 }) => {
   const isWaiter = currentRole === 'mesero';
   const isAdmin = currentRole === 'admin_sede' || currentRole === 'admin_general' || currentRole === 'admin_global';
@@ -178,6 +182,12 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
 
   return (
     <div className="flex flex-col w-full pb-28 pt-2">
+      {canManageService && qrOrders.length > 0 && (
+        <section className="mx-4 mb-2 rounded-2xl border-2 border-violet-300 bg-violet-50 p-4 shadow-sm" aria-live="polite">
+          <div className="flex items-start gap-3"><div className="rounded-xl bg-violet-600 p-2 text-white animate-pulse"><span className="material-symbols-outlined">notifications_active</span></div><div className="min-w-0 flex-1"><p className="text-xs font-black tracking-wide text-violet-700">NUEVO PEDIDO DESDE QR</p><h2 className="text-base font-black text-violet-950">{qrOrders.length} {qrOrders.length === 1 ? 'mesa espera' : 'mesas esperan'} confirmación</h2><p className="mt-1 text-xs text-violet-900">Acércate, revisa el pedido y confírmalo. Nada se envía a cocina antes de tu confirmación.</p></div></div>
+          <div className="mt-3 space-y-2">{qrOrders.map(order => <div key={order.id} className="rounded-xl bg-white p-3 border border-violet-200"><div className="flex items-center justify-between gap-2"><div><strong className="text-sm text-slate-900">Mesa {order.tableNumber}</strong><p className="text-xs text-slate-600">{order.items.map(i => `${i.qty}x ${i.dishName}`).join(' · ')}</p></div><strong className="text-sm text-violet-800">S/ {order.total.toFixed(2)}</strong></div>{order.notes && <p className="mt-2 text-xs italic text-slate-500">“{order.notes}”</p>}<button onClick={() => onConfirmQrOrder?.(order)} className="mt-3 w-full rounded-lg bg-violet-700 py-2.5 text-xs font-black text-white hover:bg-violet-800">Confirmar pedido y enviar a cocina</button></div>)}</div>
+        </section>
+      )}
       {/* Top Live Alerts Ticker Banner */}
       {showTopAlert && (
         <div className="px-4 pt-1 pb-2">
@@ -825,7 +835,8 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                     </button>
                     <button
                       onClick={() => {
-                        onRequestBill(table.id);
+                        onRequestBill?.(table.id);
+                        onSelectTable(table.id);
                         onNavigate('cuenta-cobro');
                       }}
                       className="h-11 sm:h-12 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"

@@ -37,15 +37,97 @@ app.use(express.json({ limit: '32kb' }));
 
 app.get('/api/public/tenant/:slug', async (req, res) => {
   try {
-    const snapshot = await firestore.collection('restaurants').where('slug', '==', req.params.slug.toLowerCase()).limit(1).get();
-    if (snapshot.empty) return res.status(404).json({ error: 'Restaurante no encontrado' });
-    const document = snapshot.docs[0];
+    const slugParam = String(req.params.slug || '').toLowerCase().trim();
+    let document = null;
+
+    const snapshot = await firestore.collection('restaurants').where('slug', '==', slugParam).limit(1).get();
+    if (!snapshot.empty) {
+      document = snapshot.docs[0];
+    } else {
+      const docSnap = await firestore.collection('restaurants').doc(slugParam).get();
+      if (docSnap.exists) {
+        document = docSnap;
+      }
+    }
+
+    if (!document) return res.status(404).json({ error: 'Restaurante no encontrado' });
     const value = document.data();
-    return res.json({ id: document.id, slug: value.slug, name: value.name, logoUrl: value.logoUrl || null, status: value.status, locations: (value.locations || []).filter((location) => location.active !== false).map((location) => ({ id: location.id, name: location.name, district: location.district })) });
+    return res.json({
+      id: document.id,
+      slug: value.slug || document.id,
+      name: value.name,
+      legalName: value.legalName || '',
+      ruc: value.ruc || '',
+      plan: value.plan || 'Básico',
+      logoUrl: value.logoUrl || null,
+      status: value.status || 'Activa',
+      assignedCartaId: value.assignedCartaId || '',
+      locations: (value.locations || []).filter((location) => location.active !== false).map((location) => ({
+        id: location.id,
+        name: location.name,
+        district: location.district,
+        address: location.address,
+        phone: location.phone,
+        tables: location.tables
+      }))
+    });
   } catch (error) {
     console.error('No se pudo obtener el restaurante público:', error);
     return res.status(500).json({ error: 'Servicio temporalmente no disponible' });
   }
+});
+
+// Carta pública: el QR contiene /:slug?qr=:branchId. Solo se expone lo necesario para pedir.
+app.get('/api/public/menu/:slug/:branchId', async (req, res) => {
+  try {
+    const slugParam = String(req.params.slug || '').toLowerCase().trim();
+    let tenant = null;
+    const tenantSnapshot = await firestore.collection('restaurants').where('slug', '==', slugParam).limit(1).get();
+    if (!tenantSnapshot.empty) {
+      tenant = tenantSnapshot.docs[0];
+    } else {
+      const docSnap = await firestore.collection('restaurants').doc(slugParam).get();
+      if (docSnap.exists) {
+        tenant = docSnap;
+      }
+    }
+    if (!tenant) return res.status(404).json({ error: 'Restaurante no encontrado.' });
+    const data = tenant.data();
+    const branch = (data.locations || []).find(location => location.id === req.params.branchId && location.active !== false);
+    if (!branch) return res.status(404).json({ error: 'Sede no disponible.' });
+    const branchRef = tenant.ref.collection('branches').doc(req.params.branchId);
+    const [menuSnapshot, tablesSnapshot] = await Promise.all([branchRef.collection('menu').get(), branchRef.collection('tables').get()]);
+    return res.json({ branchName: branch.name, menu: menuSnapshot.docs.map(doc => ({ id: Number(doc.id) || doc.data().id, ...doc.data() })).filter(item => item.available !== false), tables: tablesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(table => table.status !== 'bill_requested') });
+  } catch (error) { console.error('Error de carta QR:', error); return res.status(500).json({ error: 'No fue posible abrir la carta.' }); }
+});
+
+app.post('/api/public/order/:slug/:branchId', async (req, res) => {
+  try {
+    const slugParam = String(req.params.slug || '').toLowerCase().trim();
+    const tenantSnapshot = await firestore.collection('restaurants').where('slug', '==', slugParam).limit(1).get();
+    const tenant = !tenantSnapshot.empty ? tenantSnapshot.docs[0] : await firestore.collection('restaurants').doc(slugParam).get();
+    if (!tenant || !tenant.exists) return res.status(404).json({ error: 'Restaurante no encontrado.' });
+    const branchId = req.params.branchId; const { tableId, items, notes = '' } = req.body || {};
+    if (!tableId || !Array.isArray(items) || items.length === 0 || items.length > 30 || String(notes).length > 300) return res.status(400).json({ error: 'Pedido inválido.' });
+    const branchRef = tenant.ref.collection('branches').doc(branchId); const [tableSnapshot, menuSnapshot] = await Promise.all([branchRef.collection('tables').doc(String(tableId)).get(), branchRef.collection('menu').get()]);
+    if (!tableSnapshot.exists || tableSnapshot.data().status === 'bill_requested') return res.status(400).json({ error: 'La mesa ya no está disponible.' });
+    const menu = new Map(menuSnapshot.docs.map(doc => [Number(doc.id) || doc.data().id, doc.data()])); let total = 0;
+    const cleanItems = items.map(line => { const dish = menu.get(Number(line.dishId)); const qty = Number(line.qty); if (!dish || dish.available === false || !Number.isInteger(qty) || qty < 1 || qty > 20) throw new Error('Un producto ya no está disponible.'); const price = Number(dish.price); total += price * qty; return { dishId: Number(line.dishId), dishName: String(dish.name), category: dish.category, isDrink: Boolean(dish.isDrink || dish.category === 'bebidas'), price, qty }; });
+    const orderRef = branchRef.collection('customerOrders').doc();
+    await orderRef.create({ id: orderRef.id, branchId, tableId: String(tableId), tableNumber: String(tableSnapshot.data().number || ''), items: cleanItems, total: Number(total.toFixed(2)), notes: String(notes).trim(), status: 'pending_waiter', createdAt: Date.now(), source: 'qr' });
+    return res.status(201).json({ ok: true, id: orderRef.id });
+  } catch (error) { return res.status(400).json({ error: error.message || 'No fue posible solicitar el pedido.' }); }
+});
+
+app.post('/api/staff/qr-orders/:orderId/confirm', async (req, res) => {
+  try {
+    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''); const decoded = await getAuth(firebaseAdminApp).verifyIdToken(token);
+    if (!['mesero', 'admin_sede', 'admin_general'].includes(decoded.role)) return res.status(403).json({ error: 'No autorizado.' });
+    const snapshot = await firestore.collectionGroup('customerOrders').where('id', '==', req.params.orderId).limit(1).get();
+    if (snapshot.empty) return res.status(404).json({ error: 'Pedido no encontrado.' }); const ref = snapshot.docs[0].ref; const order = snapshot.docs[0].data();
+    if (decoded.platformAdmin !== true && (decoded.tenantId !== ref.parent.parent.parent.id || !Array.isArray(decoded.branchIds) || !decoded.branchIds.includes(order.branchId))) return res.status(403).json({ error: 'Pedido fuera de tu sede.' });
+    await ref.update({ status: 'confirmed', confirmedBy: decoded.uid, confirmedAt: Date.now() }); return res.json({ ok: true });
+  } catch (error) { return res.status(400).json({ error: 'No fue posible confirmar el pedido.' }); }
 });
 
 app.post('/api/auth/pin', async (req, res) => {

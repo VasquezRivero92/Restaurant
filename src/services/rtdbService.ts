@@ -10,7 +10,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { auth, firestoreDb } from './firebase';
-import { AdminUser, ApprovalRequest, AttendanceRecord, BranchLocation, CashShift, ChainBrand, InventoryItem, KDSTicket, KDSTicketItem, MasterCarta, MenuItem, Reservation, SaleRecord, StaffMember, TableItem } from '../types';
+import { AdminUser, ApprovalRequest, AttendanceRecord, BranchLocation, CashShift, ChainBrand, InventoryItem, KDSTicket, KDSTicketItem, MasterCarta, MenuItem, QrCustomerOrder, Reservation, SaleRecord, StaffMember, TableItem } from '../types';
 
 let scope = { tenantId: '', branchId: '' };
 
@@ -37,7 +37,6 @@ export async function initRTDBSeedIfEmpty(): Promise<boolean> {
 }
 
 const noop = () => {};
-
 /**
  * Suscripción optimizada a Restaurantes (Chains).
  * Utiliza las ubicaciones ya embebidas en el documento principal,
@@ -71,6 +70,8 @@ export function subscribeToChains(callback: (items: ChainBrand[]) => void) {
 
     knownCollectionIds.set(collPath, currentIds);
     callback(chainsWithBranches);
+  }, (err) => {
+    console.warn('[Firestore] No se pudieron suscribir cadenas (modo público o sin sesión):', err.message);
   });
 }
 
@@ -167,6 +168,15 @@ export function subscribeToKDSTickets(callback: (items: KDSTicket[]) => void) {
 
     knownCollectionIds.set(collPath, currentIds);
     callback(orders);
+  });
+}
+
+/** Pedidos iniciados por clientes desde el QR. No llegan a cocina hasta que un mozo los confirme. */
+export function subscribeToQrCustomerOrders(callback: (items: QrCustomerOrder[]) => void) {
+  if (!firestoreDb || !scope.branchId || !scope.tenantId) { callback([]); return noop; }
+  const collPath = `restaurants/${scope.tenantId}/branches/${scope.branchId}/customerOrders`;
+  return onSnapshot(collection(firestoreDb, collPath), (snapshot) => {
+    callback(fromDocs<QrCustomerOrder>(snapshot).sort((a, b) => b.createdAt - a.createdAt));
   });
 }
 
