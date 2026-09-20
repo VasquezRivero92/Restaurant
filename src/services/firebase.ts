@@ -1,5 +1,11 @@
 import { initializeApp, getApps, getApp, type FirebaseOptions, type FirebaseApp } from 'firebase/app';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  type Firestore
+} from 'firebase/firestore';
 import { getAuth, type Auth } from 'firebase/auth';
 
 const firebaseConfig: FirebaseOptions = {
@@ -20,8 +26,21 @@ let firebaseAuth: Auth | null = null;
 
 if (isFirebaseConfigured) {
   try {
-    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    firestore = getFirestore(app);
+    const isNew = getApps().length === 0;
+    app = isNew ? initializeApp(firebaseConfig) : getApp();
+    if (isNew) {
+      try {
+        firestore = initializeFirestore(app, {
+          localCache: persistentLocalCache({
+            tabManager: persistentMultipleTabManager()
+          })
+        });
+      } catch {
+        firestore = getFirestore(app);
+      }
+    } else {
+      firestore = getFirestore(app);
+    }
     firebaseAuth = getAuth(app);
   } catch (error) {
     console.warn('Firebase no pudo inicializarse:', error);

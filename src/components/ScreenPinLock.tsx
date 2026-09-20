@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ShieldCheck, UtensilsCrossed } from 'lucide-react';
 import { AppRole, BranchLocation, ScreenType } from '../types';
 import { authenticateOperator } from '../services/authService';
+import { getErrorMessage } from '../utils/errorHandler';
 
 interface ScreenPinLockProps {
   onUnlock: (role: AppRole, name: string, targetScreen?: ScreenType, staffId?: string) => void;
@@ -66,8 +67,8 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
           : 'mesas';
       onUnlock(session.role, session.name, destination, session.id);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'PIN incorrecto o sin acceso a esta sede.');
-      window.setTimeout(() => { setPin(''); setError(''); verifying.current = false; }, 800);
+      setError(getErrorMessage(error, 'PIN incorrecto o sin acceso a esta sede.'));
+      window.setTimeout(() => { setPin(''); setError(''); verifying.current = false; }, 1200);
     }
   };
 

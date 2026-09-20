@@ -39,6 +39,7 @@ import { ScreenAdminDashboard } from './components/ScreenAdminDashboard';
 import { ModalBandejaBebidas } from './components/ModalBandejaBebidas';
 import {
   initRTDBSeedIfEmpty,
+  setFirestoreScope,
   subscribeToTables,
   subscribeToChains,
   subscribeToMasterCartas,
@@ -190,35 +191,37 @@ export default function App() {
     }
   }, [tenantSlug, chains]);
 
-  // Synchronize with Firebase Realtime Database in real time
+  // Actualizar el alcance de Firestore cuando cambia el tenant o la sede activa
   React.useEffect(() => {
-    // 1. Check if database is empty; if so, populate with initial data
-    initRTDBSeedIfEmpty().catch((err) => console.error('Error init seed:', err));
+    setFirestoreScope(activeChainId, activeBranchId);
+  }, [activeChainId, activeBranchId]);
 
-    // 2. Subscribe to real-time changes
+  // Banderas para asegurar que los datos recibidos desde la nube no se reenvíen a la base de datos
+  const isRemoteTables = React.useRef(false);
+  const isRemoteMenus = React.useRef(false);
+  const isRemoteTickets = React.useRef(false);
+  const isRemoteChains = React.useRef(false);
+  const isRemoteCartas = React.useRef(false);
+  const isRemoteStaff = React.useRef(false);
+  const isRemoteAdmins = React.useRef(false);
+
+  // 1. Suscripción a datos de la sede activa (Mesas, KDS, Carta de la sede)
+  // Solo se suscribe si existe una sede y tenant activos para evitar lecturas innecesarias
+  React.useEffect(() => {
+    if (!activeChainId || !activeBranchId) return;
+    setFirestoreScope(activeChainId, activeBranchId);
+
     const unsubTables = subscribeToTables((cloudTables) => {
       if (cloudTables && cloudTables.length > 0) {
+        isRemoteTables.current = true;
         setTables(cloudTables);
-        setIsCloudConnected(true);
-      }
-    });
-
-    const unsubChains = subscribeToChains((cloudChains) => {
-      if (cloudChains && cloudChains.length > 0) {
-        setChains(cloudChains);
-        setIsCloudConnected(true);
-      }
-    });
-
-    const unsubCartas = subscribeToMasterCartas((cloudCartas) => {
-      if (cloudCartas && cloudCartas.length > 0) {
-        setMasterCartas(cloudCartas);
         setIsCloudConnected(true);
       }
     });
 
     const unsubMenus = subscribeToBranchMenus((cloudMenus) => {
       if (cloudMenus && Object.keys(cloudMenus).length > 0) {
+        isRemoteMenus.current = true;
         setBranchMenus(cloudMenus);
         setIsCloudConnected(true);
       }
@@ -226,13 +229,46 @@ export default function App() {
 
     const unsubTickets = subscribeToKDSTickets((cloudTickets) => {
       if (cloudTickets) {
+        isRemoteTickets.current = true;
         setKdsTickets(cloudTickets);
+        setIsCloudConnected(true);
+      }
+    });
+
+    return () => {
+      unsubTables();
+      unsubMenus();
+      unsubTickets();
+    };
+  }, [activeChainId, activeBranchId]);
+
+  // 2. Suscripción a datos organizacionales (Restaurantes, Cartas Maestras, Personal, Admins)
+  // No se suscribe si el usuario solo está visitando la landing pública sin tenant
+  React.useEffect(() => {
+    const isPublicLanding = currentScreen === 'landing' && !tenantSlug;
+    if (isPublicLanding) return;
+
+    setFirestoreScope(activeChainId, activeBranchId);
+
+    const unsubChains = subscribeToChains((cloudChains) => {
+      if (cloudChains && cloudChains.length > 0) {
+        isRemoteChains.current = true;
+        setChains(cloudChains);
+        setIsCloudConnected(true);
+      }
+    });
+
+    const unsubCartas = subscribeToMasterCartas((cloudCartas) => {
+      if (cloudCartas && cloudCartas.length > 0) {
+        isRemoteCartas.current = true;
+        setMasterCartas(cloudCartas);
         setIsCloudConnected(true);
       }
     });
 
     const unsubStaff = subscribeToStaff((cloudStaff) => {
       if (cloudStaff && cloudStaff.length > 0) {
+        isRemoteStaff.current = true;
         setStaffMembers(cloudStaff);
         setIsCloudConnected(true);
       }
@@ -240,60 +276,108 @@ export default function App() {
 
     const unsubAdmins = subscribeToAdmins((cloudAdmins) => {
       if (cloudAdmins && cloudAdmins.length > 0) {
+        isRemoteAdmins.current = true;
         setAdmins(cloudAdmins);
         setIsCloudConnected(true);
       }
     });
 
     return () => {
-      unsubTables();
       unsubChains();
       unsubCartas();
-      unsubMenus();
-      unsubTickets();
       unsubStaff();
       unsubAdmins();
     };
-  }, []);
+  }, [activeChainId, currentScreen, tenantSlug]);
 
-  // Sync state mutations to Firebase Realtime Database
+  // Sincronización diferencial con debounce y protección contra bucles
   const isInitialMount = React.useRef(true);
+
   React.useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
-    syncTablesToRTDB(tables);
+    if (isRemoteTables.current) {
+      isRemoteTables.current = false;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      syncTablesToRTDB(tables);
+    }, 250);
+    return () => window.clearTimeout(timer);
   }, [tables]);
 
   React.useEffect(() => {
     if (isInitialMount.current) return;
-    syncKDSTicketsToRTDB(kdsTickets);
+    if (isRemoteTickets.current) {
+      isRemoteTickets.current = false;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      syncKDSTicketsToRTDB(kdsTickets);
+    }, 250);
+    return () => window.clearTimeout(timer);
   }, [kdsTickets]);
 
   React.useEffect(() => {
     if (isInitialMount.current) return;
-    syncBranchMenusToRTDB(branchMenus);
+    if (isRemoteMenus.current) {
+      isRemoteMenus.current = false;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      syncBranchMenusToRTDB(branchMenus);
+    }, 300);
+    return () => window.clearTimeout(timer);
   }, [branchMenus]);
 
   React.useEffect(() => {
     if (isInitialMount.current) return;
-    syncMasterCartasToRTDB(masterCartas);
+    if (isRemoteCartas.current) {
+      isRemoteCartas.current = false;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      syncMasterCartasToRTDB(masterCartas);
+    }, 300);
+    return () => window.clearTimeout(timer);
   }, [masterCartas]);
 
   React.useEffect(() => {
     if (isInitialMount.current) return;
-    syncChainsToRTDB(chains);
+    if (isRemoteChains.current) {
+      isRemoteChains.current = false;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      syncChainsToRTDB(chains);
+    }, 400);
+    return () => window.clearTimeout(timer);
   }, [chains]);
 
   React.useEffect(() => {
     if (isInitialMount.current) return;
-    syncStaffToRTDB(staffMembers);
+    if (isRemoteStaff.current) {
+      isRemoteStaff.current = false;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      syncStaffToRTDB(staffMembers);
+    }, 400);
+    return () => window.clearTimeout(timer);
   }, [staffMembers]);
 
   React.useEffect(() => {
     if (isInitialMount.current) return;
-    syncAdminsToRTDB(admins);
+    if (isRemoteAdmins.current) {
+      isRemoteAdmins.current = false;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      syncAdminsToRTDB(admins);
+    }, 400);
+    return () => window.clearTimeout(timer);
   }, [admins]);
 
   // Role switching handler with synchronized user profile and destination screen

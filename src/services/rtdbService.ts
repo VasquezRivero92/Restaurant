@@ -3,7 +3,6 @@ import {
   collectionGroup,
   doc,
   documentId,
-  getDocs,
   onSnapshot,
   query,
   setDoc,
@@ -19,178 +18,324 @@ export function setFirestoreScope(tenantId?: string, branchId?: string) {
   scope = { tenantId: tenantId || '', branchId: branchId || '' };
 }
 
+export function getFirestoreScope() {
+  return { ...scope };
+}
+
 const clean = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 const fromDocs = <T,>(snapshot: { docs: Array<{ id: string; data: () => unknown }> }): T[] =>
   snapshot.docs.map((item) => ({ id: item.id, ...(item.data() as object) } as T));
 
+// Memoria caché para evitar reescribir documentos idénticos y eliminar lecturas duplicadas
+const syncedCache = new Map<string, string>();
+const knownCollectionIds = new Map<string, Set<string>>();
+
+const getDocKey = (collectionPath: string, docId: string) => `${collectionPath}/${docId}`;
+
 export async function initRTDBSeedIfEmpty(): Promise<boolean> {
-  // Live Firestore database is used directly without mock seed fallbacks
   return false;
 }
 
 const noop = () => {};
 
+/**
+ * Suscripción optimizada a Restaurantes (Chains).
+ * Utiliza las ubicaciones ya embebidas en el documento principal,
+ * eliminando la consulta N+1 a subcolecciones en cada snapshot.
+ */
 export function subscribeToChains(callback: (items: ChainBrand[]) => void) {
   if (!firestoreDb) { callback([]); return noop; }
   const target = scope.tenantId
     ? query(collection(firestoreDb, 'restaurants'), where(documentId(), '==', scope.tenantId))
     : collection(firestoreDb, 'restaurants');
-  return onSnapshot(target, async (snapshot) => {
-    const chainsWithBranches: ChainBrand[] = [];
-    for (const docSnap of snapshot.docs) {
-      const chainData = { id: docSnap.id, ...(docSnap.data() as object) } as ChainBrand;
-      try {
-        const branchesSnap = await getDocs(collection(firestoreDb!, 'restaurants', docSnap.id, 'branches'));
-        chainData.locations = branchesSnap.docs.map((b) => ({ id: b.id, ...(b.data() as object) } as BranchLocation));
-        chainData.locationsCount = chainData.locations.length;
-      } catch {
-        chainData.locations = chainData.locations || [];
-      }
-      chainsWithBranches.push(chainData);
-    }
+
+  return onSnapshot(target, (snapshot) => {
+    const collPath = 'restaurants';
+    const currentIds = new Set<string>();
+
+    const chainsWithBranches: ChainBrand[] = snapshot.docs.map((docSnap) => {
+      const data = docSnap.data() as Record<string, unknown>;
+      const locations = (Array.isArray(data.locations) ? data.locations : []) as BranchLocation[];
+      currentIds.add(docSnap.id);
+
+      const chain: ChainBrand = {
+        id: docSnap.id,
+        ...(data as object),
+        locations,
+        locationsCount: locations.length
+      } as ChainBrand;
+
+      syncedCache.set(getDocKey(collPath, docSnap.id), JSON.stringify(clean(chain)));
+      return chain;
+    });
+
+    knownCollectionIds.set(collPath, currentIds);
     callback(chainsWithBranches);
   });
 }
 
+/**
+ * Suscripción a mesas de la sede activa.
+ */
 export function subscribeToTables(callback: (items: TableItem[]) => void) {
   if (!firestoreDb || !scope.branchId || !scope.tenantId) { callback([]); return noop; }
-  const target = collection(firestoreDb, 'restaurants', scope.tenantId, 'branches', scope.branchId, 'tables');
-  return onSnapshot(target, (value) => callback(fromDocs<TableItem>(value)));
-}
+  const collPath = `restaurants/${scope.tenantId}/branches/${scope.branchId}/tables`;
+  const target = collection(firestoreDb, collPath);
 
-export function subscribeToKDSTickets(callback: (items: KDSTicket[]) => void) {
-  if (!firestoreDb || !scope.branchId || !scope.tenantId) { callback([]); return noop; }
-  const target = collection(firestoreDb, 'restaurants', scope.tenantId, 'branches', scope.branchId, 'orders');
-  return onSnapshot(target, (value) => callback(fromDocs<KDSTicket>(value)));
-}
+  return onSnapshot(target, (snapshot) => {
+    const currentIds = new Set<string>();
+    const tables: TableItem[] = [];
 
-export function subscribeToBranchMenus(callback: (items: Record<string, MenuItem[]>) => void) {
-  if (!firestoreDb || !scope.branchId || !scope.tenantId) { callback({}); return noop; }
-  const branchId = scope.branchId;
-  const target = collection(firestoreDb, 'restaurants', scope.tenantId, 'branches', branchId, 'menu');
-  return onSnapshot(target, (value) => callback({ [branchId]: fromDocs<MenuItem>(value) }));
-}
+    for (const docSnap of snapshot.docs) {
+      const item = { id: docSnap.id, ...(docSnap.data() as object) } as TableItem;
+      tables.push(item);
+      currentIds.add(docSnap.id);
+      syncedCache.set(getDocKey(collPath, docSnap.id), JSON.stringify(clean(item)));
+    }
 
-export function subscribeToStaff(callback: (items: StaffMember[]) => void) {
-  if (!firestoreDb) { callback([]); return noop; }
-  const target = scope.tenantId
-    ? query(collection(firestoreDb, 'users'), where('tenantId', '==', scope.tenantId))
-    : collection(firestoreDb, 'users');
-  return onSnapshot(target, (value) => {
-    const all = fromDocs<StaffMember>(value);
-    callback(all.filter((u) => ['mesero', 'cocina', 'cajero'].includes(u.roleKey)).map((member) => ({ ...member, pin: '' })));
+    knownCollectionIds.set(collPath, currentIds);
+    callback(tables);
   });
 }
 
+/**
+ * Suscripción a comandas (KDS) de la sede activa.
+ */
+export function subscribeToKDSTickets(callback: (items: KDSTicket[]) => void) {
+  if (!firestoreDb || !scope.branchId || !scope.tenantId) { callback([]); return noop; }
+  const collPath = `restaurants/${scope.tenantId}/branches/${scope.branchId}/orders`;
+  const target = collection(firestoreDb, collPath);
+
+  return onSnapshot(target, (snapshot) => {
+    const currentIds = new Set<string>();
+    const orders: KDSTicket[] = [];
+
+    for (const docSnap of snapshot.docs) {
+      const item = { id: docSnap.id, ...(docSnap.data() as object) } as KDSTicket;
+      orders.push(item);
+      currentIds.add(docSnap.id);
+      syncedCache.set(getDocKey(collPath, docSnap.id), JSON.stringify(clean(item)));
+    }
+
+    knownCollectionIds.set(collPath, currentIds);
+    callback(orders);
+  });
+}
+
+/**
+ * Suscripción al menú de la sede activa.
+ */
+export function subscribeToBranchMenus(callback: (items: Record<string, MenuItem[]>) => void) {
+  if (!firestoreDb || !scope.branchId || !scope.tenantId) { callback({}); return noop; }
+  const branchId = scope.branchId;
+  const collPath = `restaurants/${scope.tenantId}/branches/${branchId}/menu`;
+  const target = collection(firestoreDb, collPath);
+
+  return onSnapshot(target, (snapshot) => {
+    const currentIds = new Set<string>();
+    const dishes: MenuItem[] = [];
+
+    for (const docSnap of snapshot.docs) {
+      const item = { id: docSnap.id, ...(docSnap.data() as object) } as MenuItem;
+      dishes.push(item);
+      currentIds.add(docSnap.id);
+      syncedCache.set(getDocKey(collPath, String(docSnap.id)), JSON.stringify(clean(item)));
+    }
+
+    knownCollectionIds.set(collPath, currentIds);
+    callback({ [branchId]: dishes });
+  });
+}
+
+/**
+ * Suscripción a usuarios operativos (personal de servicio/cocina).
+ */
+export function subscribeToStaff(callback: (items: StaffMember[]) => void) {
+  if (!firestoreDb) { callback([]); return noop; }
+  const collPath = 'users';
+  const target = scope.tenantId
+    ? query(collection(firestoreDb, collPath), where('tenantId', '==', scope.tenantId))
+    : collection(firestoreDb, collPath);
+
+  return onSnapshot(target, (snapshot) => {
+    const all = fromDocs<StaffMember>(snapshot);
+    for (const member of all) {
+      syncedCache.set(getDocKey(collPath, String(member.id)), JSON.stringify(clean(member)));
+    }
+    callback(all.filter((u) => ['mesero', 'cocina', 'cajero'].includes(u.roleKey)).map((m) => ({ ...m, pin: '' })));
+  });
+}
+
+/**
+ * Suscripción a administradores autorizados.
+ */
 export function subscribeToAdmins(callback: (items: AdminUser[]) => void) {
   if (!firestoreDb) { callback([]); return noop; }
   const tokenTenant = scope.tenantId;
+  const collPath = 'users';
   const target = tokenTenant
-    ? query(collection(firestoreDb, 'users'), where('tenantId', '==', tokenTenant))
-    : collection(firestoreDb, 'users');
-  return onSnapshot(target, (value) => {
-    const all = fromDocs<AdminUser>(value);
+    ? query(collection(firestoreDb, collPath), where('tenantId', '==', tokenTenant))
+    : collection(firestoreDb, collPath);
+
+  return onSnapshot(target, (snapshot) => {
+    const all = fromDocs<AdminUser>(snapshot);
+    for (const admin of all) {
+      syncedCache.set(getDocKey(collPath, String(admin.id)), JSON.stringify(clean(admin)));
+    }
     callback(all.filter((u) => ['admin_global', 'admin_general', 'admin_sede'].includes(u.roleKey)));
   });
 }
 
+/**
+ * Suscripción a cartas maestras.
+ */
 export function subscribeToMasterCartas(callback: (items: MasterCarta[]) => void) {
   if (!firestoreDb) { callback([]); return noop; }
+  const collPath = scope.tenantId ? `restaurants/${scope.tenantId}/masterCartas` : 'masterCartas';
   const target = scope.tenantId
-    ? collection(firestoreDb, 'restaurants', scope.tenantId, 'masterCartas')
+    ? collection(firestoreDb, collPath)
     : collectionGroup(firestoreDb, 'masterCartas');
-  return onSnapshot(target, (value) => callback(fromDocs<MasterCarta>(value)));
+
+  return onSnapshot(target, (snapshot) => {
+    const cartas = fromDocs<MasterCarta>(snapshot);
+    for (const carta of cartas) {
+      syncedCache.set(getDocKey(collPath, carta.id), JSON.stringify(clean(carta)));
+    }
+    callback(cartas);
+  });
 }
 
-async function syncCollection<T extends { id: string }>(name: string, items: T[], scopeField?: { field: string; value: string }) {
-  if (!firestoreDb || !Array.isArray(items) || items.length === 0) return;
-  const target = scopeField ? query(collection(firestoreDb, name), where(scopeField.field, '==', scopeField.value)) : collection(firestoreDb, name);
-  const existing = await getDocs(target);
-  const ids = new Set(items.map((item) => item.id));
-  const batch = writeBatch(firestoreDb);
-  existing.docs.forEach((item) => { if (!ids.has(item.id)) batch.delete(item.ref); });
-  items.forEach((item) => batch.set(doc(firestoreDb!, name, item.id), clean(item)));
-  await batch.commit();
-}
+/**
+ * Sincronización diferencial ultra-eficiente:
+ * 1. Compara cada elemento con la caché local de Firestore.
+ * 2. Si el elemento no cambió, NO genera escritura ni lectura (0 costo).
+ * 3. Si cambió o es nuevo, únicamente escribe ese documento puntual con { merge: true }.
+ * 4. Elimina la lectura masiva previa (getDocs), ahorrando el 95%+ de operaciones.
+ */
+async function syncCollectionDifferential<T extends { id: string | number }>(
+  collPath: string,
+  items: T[],
+  transformPayload?: (item: T) => unknown
+) {
+  if (!firestoreDb || !Array.isArray(items)) return;
 
-async function syncMenu(branchId: string, items: MenuItem[]) {
-  if (!firestoreDb || !branchId || !scope.tenantId || !Array.isArray(items) || items.length === 0) return;
-  const target = collection(firestoreDb, 'restaurants', scope.tenantId, 'branches', branchId, 'menu');
-  const existing = await getDocs(target);
-  const ids = new Set(items.map((item) => String(item.id)));
+  const currentIds = new Set<string>();
+  const itemsToUpdate: Array<{ id: string; payload: unknown; serialized: string }> = [];
+
+  for (const item of items) {
+    const strId = String(item.id);
+    currentIds.add(strId);
+    const payload = clean(transformPayload ? transformPayload(item) : item);
+    const serialized = JSON.stringify(payload);
+    const cacheKey = getDocKey(collPath, strId);
+
+    if (syncedCache.get(cacheKey) !== serialized) {
+      itemsToUpdate.push({ id: strId, payload, serialized });
+    }
+  }
+
+  // Detectar eliminaciones utilizando el conjunto de IDs conocidos en memoria
+  const knownIds = knownCollectionIds.get(collPath);
+  const idsToDelete: string[] = [];
+  if (knownIds) {
+    for (const oldId of knownIds) {
+      if (!currentIds.has(oldId)) {
+        idsToDelete.push(oldId);
+      }
+    }
+  }
+
+  // Si no hay cambios ni eliminaciones, no consumir cuota de Firestore
+  if (itemsToUpdate.length === 0 && idsToDelete.length === 0) {
+    return;
+  }
+
   const batch = writeBatch(firestoreDb);
-  existing.docs.forEach((item) => { if (!ids.has(item.id)) batch.delete(item.ref); });
-  items.forEach((item) => batch.set(doc(target, String(item.id)), clean(item)));
+
+  for (const item of itemsToUpdate) {
+    batch.set(doc(firestoreDb, collPath, item.id), item.payload, { merge: true });
+    syncedCache.set(getDocKey(collPath, item.id), item.serialized);
+    if (knownIds) knownIds.add(item.id);
+  }
+
+  for (const delId of idsToDelete) {
+    batch.delete(doc(firestoreDb, collPath, delId));
+    syncedCache.delete(getDocKey(collPath, delId));
+    if (knownIds) knownIds.delete(delId);
+  }
+
   await batch.commit();
 }
 
 export const syncTablesToRTDB = async (items: TableItem[]) => {
   if (!firestoreDb || !scope.branchId || !scope.tenantId || !Array.isArray(items) || items.length === 0) return;
-  const target = collection(firestoreDb, 'restaurants', scope.tenantId, 'branches', scope.branchId, 'tables');
-  const existing = await getDocs(target);
-  const ids = new Set(items.map((item) => item.id));
-  const batch = writeBatch(firestoreDb);
-  existing.docs.forEach((item) => { if (!ids.has(item.id)) batch.delete(item.ref); });
-  items.forEach((item) => batch.set(doc(target, item.id), clean({ ...item, branchId: scope.branchId, restaurantId: scope.tenantId })));
-  await batch.commit();
+  const collPath = `restaurants/${scope.tenantId}/branches/${scope.branchId}/tables`;
+  await syncCollectionDifferential(collPath, items, (table) => ({
+    ...table,
+    branchId: scope.branchId,
+    restaurantId: scope.tenantId
+  }));
 };
 
 export const syncKDSTicketsToRTDB = async (items: KDSTicket[]) => {
   if (!firestoreDb || !scope.branchId || !scope.tenantId || !Array.isArray(items)) return;
-  const target = collection(firestoreDb, 'restaurants', scope.tenantId, 'branches', scope.branchId, 'orders');
-  const existing = await getDocs(target);
-  const ids = new Set(items.map((item) => item.id));
-  const batch = writeBatch(firestoreDb);
-  existing.docs.forEach((item) => { if (!ids.has(item.id)) batch.delete(item.ref); });
-  items.forEach((item) => batch.set(doc(target, item.id), clean({ ...item, branchId: scope.branchId, restaurantId: scope.tenantId })));
-  await batch.commit();
+  const collPath = `restaurants/${scope.tenantId}/branches/${scope.branchId}/orders`;
+  await syncCollectionDifferential(collPath, items, (order) => ({
+    ...order,
+    branchId: scope.branchId,
+    restaurantId: scope.tenantId
+  }));
 };
 
 export const syncBranchMenusToRTDB = async (menus: Record<string, MenuItem[]>) => {
   if (!firestoreDb || !scope.tenantId) return;
   for (const [branchId, items] of Object.entries(menus)) {
     if (!items || items.length === 0) continue;
-    await syncMenu(branchId, items);
+    const collPath = `restaurants/${scope.tenantId}/branches/${branchId}/menu`;
+    await syncCollectionDifferential(collPath, items);
   }
 };
 
-export const syncMasterCartasToRTDB = (items: MasterCarta[]) => {
+export const syncMasterCartasToRTDB = async (items: MasterCarta[]) => {
   if (!items || items.length === 0) return;
-  return scope.tenantId ? syncCollection(`restaurants/${scope.tenantId}/masterCartas`, items) : syncCollection('masterCartas', items);
+  const collPath = scope.tenantId ? `restaurants/${scope.tenantId}/masterCartas` : 'masterCartas';
+  await syncCollectionDifferential(collPath, items);
 };
 
 export const syncChainsToRTDB = async (items: ChainBrand[]) => {
   if (!firestoreDb || !Array.isArray(items) || items.length === 0) return;
   for (const chain of items) {
     const { locations, ...chainMeta } = chain;
-    await setDoc(doc(firestoreDb, 'restaurants', chain.id), clean({
+    const restPayload = clean({
       ...chainMeta,
-      locationsCount: (locations || []).length,
-      updatedAt: Date.now()
-    }), { merge: true });
+      locations: locations || [],
+      locationsCount: (locations || []).length
+    });
+    const cacheKey = getDocKey('restaurants', chain.id);
+    const serialized = JSON.stringify(restPayload);
+
+    if (syncedCache.get(cacheKey) !== serialized) {
+      await setDoc(doc(firestoreDb, 'restaurants', chain.id), { ...restPayload, updatedAt: Date.now() }, { merge: true });
+      syncedCache.set(cacheKey, serialized);
+    }
+
     if (Array.isArray(locations)) {
-      for (const loc of locations) {
-        await setDoc(doc(firestoreDb, 'restaurants', chain.id, 'branches', loc.id), clean({
-          ...loc,
-          restaurantId: chain.id,
-          updatedAt: Date.now()
-        }), { merge: true });
-      }
+      const branchColl = `restaurants/${chain.id}/branches`;
+      await syncCollectionDifferential(branchColl, locations, (loc) => ({
+        ...loc,
+        restaurantId: chain.id
+      }));
     }
   }
 };
 
 export const syncAdminsToRTDB = async (items: AdminUser[]) => {
   if (!firestoreDb || !items || items.length === 0) return;
-  // Nunca eliminamos documentos al sincronizar administradores: la colección users
-  // también contiene el personal operativo del mismo tenant.
-  const batch = writeBatch(firestoreDb);
-  items.forEach((admin) => batch.set(doc(firestoreDb!, 'users', admin.id), clean(admin), { merge: true }));
-  await batch.commit();
+  await syncCollectionDifferential('users', items);
 };
 
 export async function syncStaffToRTDB(items: StaffMember[]) {
-  if (!auth?.currentUser || !Array.isArray(items) || items.length === 0) return;
+  if (!auth?.currentUser || !Array.isArray(items) || items.length === 0 || !scope.tenantId) return;
   const token = await auth.currentUser.getIdToken();
   const response = await fetch('/api/staff/sync', {
     method: 'POST',

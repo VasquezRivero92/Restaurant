@@ -1,4 +1,4 @@
-﻿import fs from 'fs';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { applicationDefault, initializeApp } from 'firebase-admin/app';
@@ -95,6 +95,22 @@ for (const user of allUsers) {
     updatedAt: Date.now()
   };
   await db.collection('users').doc(String(user.id)).set(docData, { merge: true });
+
+  if (authUid) {
+    if (user.roleKey === 'admin_global') {
+      await firebaseAuth.setCustomUserClaims(authUid, { platformAdmin: true, role: 'admin_global' });
+    } else if (user.roleKey && user.tenantId) {
+      await firebaseAuth.setCustomUserClaims(authUid, {
+        role: user.roleKey,
+        tenantId: user.tenantId,
+        branchIds: user.assignedBranchIds || []
+      });
+    }
+    await db.collection('users').doc(authUid).set({
+      ...docData,
+      id: authUid
+    }, { merge: true });
+  }
 }
 console.log(`✓ users: ${allUsers.length} usuarios migrados (Global, Dueños, Sedes, Mozos, Cocina).`);
 

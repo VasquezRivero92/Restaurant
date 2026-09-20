@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, LockKeyhole, ShieldCheck, UtensilsCrossed } from 'lucide-react';
 import { AdminUser } from '../types';
 import { authenticateAdmin } from '../services/authService';
+import { getErrorMessage } from '../utils/errorHandler';
 
 interface ScreenGlobalLoginProps {
   onLoginSuccess: (admin: AdminUser) => void;
@@ -34,10 +35,7 @@ export const ScreenGlobalLogin: React.FC<ScreenGlobalLoginProps> = ({
     try {
       onLoginSuccess(await authenticateAdmin(identifier, password, admins));
     } catch (error) {
-      const code = (error as { code?: string }).code;
-      setErrorMsg(code === 'auth/invalid-credential' || code === 'auth/user-not-found'
-        ? 'Usuario o contraseña incorrectos.'
-        : error instanceof Error ? error.message : 'No fue posible iniciar sesión.');
+      setErrorMsg(getErrorMessage(error, 'No fue posible iniciar sesión. Verifica tus datos.'));
     } finally {
       setIsSubmitting(false);
     }
