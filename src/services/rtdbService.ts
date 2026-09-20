@@ -136,7 +136,8 @@ export function subscribeToBranchMenus(callback: (items: Record<string, MenuItem
     const dishes: MenuItem[] = [];
 
     for (const docSnap of snapshot.docs) {
-      const item = { id: docSnap.id, ...(docSnap.data() as object) } as MenuItem;
+      const data = docSnap.data();
+      const item = { id: Number(docSnap.id) || data.id, ...data } as unknown as MenuItem;
       dishes.push(item);
       currentIds.add(docSnap.id);
       syncedCache.set(getDocKey(collPath, String(docSnap.id)), JSON.stringify(clean(item)));

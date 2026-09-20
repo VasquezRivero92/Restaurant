@@ -56,11 +56,22 @@ import {
   syncAdminsToRTDB,
   resetAllDataInRTDB
 } from './services/rtdbService';
+import { loadSession, saveSession, clearSession } from './services/sessionService';
+import { closeAdminSession } from './services/authService';
+import { auth } from './services/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const initialSession = React.useMemo(() => loadSession(), []);
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => Boolean(initialSession?.isAuthenticated));
   const [isGlobalLoginOpen, setIsGlobalLoginOpen] = useState(false);
-  const [currentScreen, setCurrentScreen] = useState<ScreenType>('pin-lock');
+  const [currentScreen, setCurrentScreen] = useState<ScreenType>(() => {
+    if (initialSession?.isAuthenticated) {
+      return initialSession.currentScreen || 'dashboard-admin';
+    }
+    return 'pin-lock';
+  });
   const [tables, setTables] = useState<TableItem[]>(INITIAL_TABLES);
   
   // Master Cartas SaaS Catalog
@@ -115,14 +126,14 @@ export default function App() {
   const [kdsTickets, setKdsTickets] = useState<KDSTicket[]>(INITIAL_KDS_TICKETS);
   const [admins, setAdmins] = useState<AdminUser[]>(INITIAL_ADMINS);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>(INITIAL_STAFF);
-  const [selectedTableId, setSelectedTableId] = useState<string>('mesa-05');
+  const [selectedTableId, setSelectedTableId] = useState<string>(() => initialSession?.selectedTableId || 'mesa-05');
   const [isDrinksTrayOpen, setIsDrinksTrayOpen] = useState(false);
   const [isRoleSwitcherOpen, setIsRoleSwitcherOpen] = useState(false);
-  const [currentRole, setCurrentRole] = useState<AppRole>('admin_sede');
-  const [activeChainId, setActiveChainId] = useState<string>('la-barra');
-  const [activeBranchId, setActiveBranchId] = useState<string>('loc-miraflores');
-  const [cartaInitialTab, setCartaInitialTab] = useState<'carta' | 'sedes' | 'equipo'>('carta');
-  const [staffUser, setStaffUser] = useState<{ name: string; role: 'mesero' | 'admin' }>({
+  const [currentRole, setCurrentRole] = useState<AppRole>(() => initialSession?.currentRole || 'admin_sede');
+  const [activeChainId, setActiveChainId] = useState<string>(() => initialSession?.activeChainId || 'la-barra');
+  const [activeBranchId, setActiveBranchId] = useState<string>(() => initialSession?.activeBranchId || 'loc-miraflores');
+  const [cartaInitialTab, setCartaInitialTab] = useState<'carta' | 'sedes' | 'equipo'>(() => initialSession?.cartaInitialTab || 'carta');
+  const [staffUser, setStaffUser] = useState<{ name: string; role: 'mesero' | 'admin' }>(() => initialSession?.staffUser || {
     name: '',
     role: 'mesero'
   });
@@ -185,11 +196,50 @@ export default function App() {
       if (foundChain) {
         setActiveChainId(foundChain.id);
         if (foundChain.locations && foundChain.locations.length > 0) {
-          setActiveBranchId(foundChain.locations[0].id);
+          setActiveBranchId((prev) => {
+            if (foundChain.locations.some((l) => l.id === prev)) {
+              return prev;
+            }
+            return foundChain.locations[0].id;
+          });
         }
       }
     }
   }, [tenantSlug, chains]);
+
+  // Persistir la sesión activa en localStorage
+  React.useEffect(() => {
+    saveSession({
+      isAuthenticated,
+      currentRole,
+      staffUser,
+      currentScreen,
+      activeChainId,
+      activeBranchId,
+      selectedTableId,
+      cartaInitialTab
+    });
+  }, [
+    isAuthenticated,
+    currentRole,
+    staffUser,
+    currentScreen,
+    activeChainId,
+    activeBranchId,
+    selectedTableId,
+    cartaInitialTab
+  ]);
+
+  // Escuchar cambios de autenticación de Firebase
+  React.useEffect(() => {
+    if (!auth) return;
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setIsAuthenticated(true);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Actualizar el alcance de Firestore cuando cambia el tenant o la sede activa
   React.useEffect(() => {
@@ -391,11 +441,10 @@ export default function App() {
       setCurrentScreen('mesas');
     } else if (role === 'admin_sede') {
       setStaffUser({ name: 'Roberto Morales', role: 'admin' });
-      setCurrentScreen('mesas');
+      setCurrentScreen('dashboard-admin');
     } else if (role === 'admin_general') {
       setStaffUser({ name: 'Mariana Alva', role: 'admin' });
-      setCurrentScreen('carta-sede');
-      setCartaInitialTab('carta');
+      setCurrentScreen('dashboard-admin');
     } else if (role === 'admin_global') {
       setStaffUser({ name: 'José Manuel Vasquez Rivero', role: 'admin' });
       setCurrentScreen('saas-console');
@@ -404,6 +453,7 @@ export default function App() {
 
   // Navegar a un tenant específico (actualiza la URL y el slug)
   const navigateToTenant = (slug: string) => {
+    clearSession();
     window.history.pushState({}, '', `/${slug}`);
     setTenantSlug(slug);
     setIsAuthenticated(false);
@@ -413,6 +463,7 @@ export default function App() {
 
   // Navegar de regreso al portal global
   const navigateToGlobal = () => {
+    clearSession();
     window.history.pushState({}, '', '/');
     setTenantSlug(null);
     setIsAuthenticated(false);
@@ -422,6 +473,8 @@ export default function App() {
 
   // Cerrar sesión y bloquear terminal (Solo se puede reingresar con PIN de 6 dígitos o credenciales de Admin Global)
   const handleLogout = () => {
+    clearSession();
+    closeAdminSession().catch(() => {});
     setIsAuthenticated(false);
     setCurrentScreen('pin-lock');
     setStaffUser({ name: '', role: 'mesero' });
@@ -1455,8 +1508,7 @@ export default function App() {
       return;
     }
     if (role === 'admin_general' || role === 'admin_sede') {
-      setCurrentScreen('carta-sede');
-      setCartaInitialTab('carta');
+      setCurrentScreen('dashboard-admin');
       return;
     }
 
@@ -1628,12 +1680,27 @@ export default function App() {
           /* ROOT URL (/): Web de Presentación de ORDENA con botón de Login arriba a la derecha */
           isGlobalLoginOpen ? (
             <ScreenGlobalLogin
-              onLoginSuccess={() => {
+              onLoginSuccess={(adminUser: AdminUser) => {
                 setIsAuthenticated(true);
-                setCurrentRole('admin_global');
-                setStaffUser({ name: 'José Manuel Vasquez Rivero', role: 'admin' });
-                setCurrentScreen('saas-console');
+                const roleKey = adminUser.roleKey || 'admin_global';
+                setCurrentRole(roleKey);
+                setStaffUser({ name: adminUser.name, role: 'admin' });
+                if (adminUser.brandId) {
+                  setActiveChainId(adminUser.brandId);
+                }
+                if (adminUser.assignedBranchIds && adminUser.assignedBranchIds.length > 0) {
+                  setActiveBranchId(adminUser.assignedBranchIds[0]);
+                } else if (adminUser.branchId) {
+                  setActiveBranchId(adminUser.branchId);
+                }
+                if (roleKey === 'admin_global') {
+                  setCurrentScreen('saas-console');
+                } else {
+                  setCurrentScreen('dashboard-admin');
+                }
+                setIsGlobalLoginOpen(false);
               }}
+              admins={admins}
               chains={chains}
               onNavigateToTenant={navigateToTenant}
               onBack={() => setIsGlobalLoginOpen(false)}
@@ -1645,13 +1712,14 @@ export default function App() {
           /* TENANT URL (/:slug): Terminal del Restaurante aislada con PIN de 6 dígitos */
           <ScreenPinLock
             onUnlock={handleUnlock}
-            onNavigate={handleNavigate}
-            staffMembers={staffMembers}
-            admins={admins}
+            activeChainId={activeChainId}
+            activeBranchId={activeBranchId}
+            branches={currentChain?.locations || []}
+            onSelectBranch={(branchId) => setActiveBranchId(branchId)}
             activeChainName={currentChain?.name || 'Restaurante'}
             activeChainLogo={currentChain?.logoUrl}
-            isTenantMode={true}
-            onBackToGlobalLogin={navigateToGlobal}
+            onBackToLanding={navigateToGlobal}
+            onAdminLogin={() => setIsGlobalLoginOpen(true)}
           />
         )
       ) : (
@@ -1708,8 +1776,16 @@ export default function App() {
                   activeBranchId={activeBranchId}
                   tables={tables}
                   tickets={kdsTickets}
+                  menuItems={currentBranchDishes}
+                  staffMembers={staffMembers}
                   onSelectBranch={setActiveBranchId}
                   onNavigate={handleNavigate}
+                  onSelectCartaTab={setCartaInitialTab}
+                  onToggleItemAvailability={handleToggleItemAvailability}
+                  onToggleBranchActive={(branchId) => handleToggleLocation(activeChainId, branchId)}
+                  onSelectTable={handleSelectTable}
+                  onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
+                  onLogout={handleLogout}
                 />
               )}
 
