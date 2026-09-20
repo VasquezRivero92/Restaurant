@@ -260,10 +260,16 @@ export const BottomNav: React.FC<BottomNavProps> = ({
       {/* Bottom Bar Container */}
       <nav 
         aria-label="Navegación principal inferior"
-        className="fixed bottom-0 inset-x-0 z-40 pb-safe bg-surface/95 backdrop-blur-xl shadow-[0_-4px_24px_rgba(10,37,64,0.08)] border-t border-outline-variant/30"
+        className="fixed bottom-0 inset-x-0 z-40 pb-safe bg-surface/95 backdrop-blur-xl shadow-[0_-4px_24px_rgba(10,37,64,0.08)] border-t border-outline-variant/30 overflow-hidden"
       >
-        <div className={`grid items-center h-16 max-w-xl mx-auto px-1 sm:px-2 ${
-          navItems.length === 3 ? 'grid-cols-3' : 'grid-cols-5'
+        <div className={`grid items-center h-16 mx-auto px-1 sm:px-2 ${
+          navItems.length === 3
+            ? 'grid-cols-3 max-w-sm'
+            : navItems.length === 4
+            ? 'grid-cols-4 max-w-md'
+            : navItems.length === 6
+            ? 'grid-cols-6 max-w-2xl'
+            : 'grid-cols-5 max-w-xl'
         }`}>
           {navItems.map((item) => {
             const isActive = currentScreen === item.id;
@@ -271,15 +277,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               <button
                 key={item.id}
                 onClick={() => handleItemClick(item)}
-                className={`flex flex-col items-center justify-center gap-0.5 h-13 rounded-xl active:scale-95 transition-all relative cursor-pointer ${
+                className={`flex flex-col items-center justify-center gap-0.5 h-14 rounded-xl active:scale-95 transition-all relative cursor-pointer min-w-0 px-0.5 overflow-hidden ${
                   isActive
                     ? 'text-secondary font-extrabold'
                     : 'text-on-surface-variant hover:text-on-surface font-semibold'
                 }`}
               >
-                <div className="relative">
+                <div className="relative shrink-0">
                   <span 
-                    className={`material-symbols-outlined text-[22px] sm:text-[24px] transition-transform ${
+                    className={`material-symbols-outlined text-[20px] sm:text-[23px] transition-transform ${
                       isActive ? 'scale-110 text-secondary' : ''
                     }`}
                     style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}
@@ -287,16 +293,16 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                     {item.icon}
                   </span>
                   {item.badge !== undefined && item.badge !== null && item.badge > 0 && (
-                    <span className={`absolute -top-1 -right-2 min-w-[16px] h-4 px-1 rounded-full ${item.badgeColor || 'bg-secondary'} text-white font-extrabold text-[9px] flex items-center justify-center ring-2 ring-surface animate-pulse`}>
+                    <span className={`absolute -top-1 -right-2 min-w-[15px] h-3.5 px-1 rounded-full ${item.badgeColor || 'bg-secondary'} text-white font-extrabold text-[8.5px] flex items-center justify-center ring-2 ring-surface animate-pulse`}>
                       {item.badge}
                     </span>
                   )}
                 </div>
-                <span className="text-[10px] sm:text-[11px] tracking-tight text-center leading-tight truncate max-w-[68px] sm:max-w-[80px]">
+                <span className="text-[9.5px] sm:text-[11px] tracking-tight text-center leading-tight truncate w-full px-0.5">
                   {item.label}
                 </span>
                 {isActive && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-secondary mt-0.5"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-secondary shrink-0"></span>
                 )}
               </button>
             );

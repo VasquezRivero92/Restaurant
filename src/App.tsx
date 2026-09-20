@@ -1751,7 +1751,7 @@ export default function App() {
             />
 
             {/* Viewport content */}
-            <main className="flex-1 flex flex-col">
+            <main className="flex-1 flex flex-col pb-24">
               {currentScreen === 'mesas' && (
                 <ScreenMesas
                   tables={tables}

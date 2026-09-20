@@ -710,11 +710,13 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
         </div>
 
         <button
-          onClick={() => onNavigate('saas-console')}
+          onClick={() => onNavigate(currentRole === 'admin_global' ? 'saas-console' : 'dashboard-admin')}
           className="text-xs text-primary font-bold hover:underline flex items-center gap-1 cursor-pointer"
         >
-          <span className="material-symbols-outlined text-[16px]">public</span>
-          <span>Consola Global</span>
+          <span className="material-symbols-outlined text-[16px]">
+            {currentRole === 'admin_global' ? 'public' : 'dashboard'}
+          </span>
+          <span>{currentRole === 'admin_global' ? 'Consola Global' : 'Panel de Resumen'}</span>
         </button>
       </div>
 

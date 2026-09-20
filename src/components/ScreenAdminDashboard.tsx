@@ -149,7 +149,7 @@ export const ScreenAdminDashboard: React.FC<ScreenAdminDashboardProps> = ({
   );
 
   return (
-    <div className="flex-1 bg-[#fffdf9] text-slate-800 pb-16">
+    <div className="flex-1 bg-[#fffdf9] text-slate-800 pb-28 sm:pb-32">
       {/* 1. Header Banner & Context */}
       <section className="border-b border-slate-200/80 bg-gradient-to-b from-white to-[#faf7f0]/60 px-4 py-6 sm:px-8 sm:py-8">
         <div className="mx-auto max-w-7xl">
@@ -592,50 +592,58 @@ export const ScreenAdminDashboard: React.FC<ScreenAdminDashboardProps> = ({
                     <p className="text-xs">No hay tickets pendientes en preparación en este momento.</p>
                   </div>
                 ) : (
-                  pendingTickets.map((ticket) => (
-                    <div
-                      key={ticket.id}
-                      className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-3.5 transition hover:border-orange-300 hover:bg-orange-50/30"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#103b39] text-[#ffd06f] text-xs font-black">
-                            #{ticket.id}
-                          </span>
-                          <span className="text-sm font-black text-[#103b39]">{ticket.table}</span>
-                        </div>
-                        <span className="text-xs font-semibold text-slate-500">{ticket.time || ticket.elapsed}</span>
-                      </div>
+                  pendingTickets.map((ticket) => {
+                    const ticketNum = String(ticket.id).replace(/^kds-?/i, '');
+                    const tableName = ticket.table || (ticket as any).tableName || ((ticket as any).tableNumber ? `Mesa ${(ticket as any).tableNumber}` : 'Salón');
+                    const timeLabel = ticket.time || ticket.elapsed || (ticket as any).timeElapsed || 'En curso';
+                    const stationLabel = ticket.station === 'frios' || (ticket as any).station === 'Barra Fría' ? 'Barra Fría' : 'Calientes';
 
-                      <div className="mt-2.5 space-y-1">
-                        {ticket.items.map((item, idx) => (
-                          <div key={idx} className="flex items-center justify-between text-xs">
-                            <span className="font-bold text-slate-700">
-                              {item.qty}x {item.name}
+                    return (
+                      <div
+                        key={ticket.id}
+                        className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-3.5 transition hover:border-orange-300 hover:bg-orange-50/30"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-[#103b39] text-[#ffd06f] text-xs font-black tracking-wide shrink-0">
+                              #{ticketNum}
                             </span>
-                            <span
-                              className={`rounded-md px-1.5 py-0.2 text-[10px] font-black ${
-                                item.isReady
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : 'bg-amber-100 text-amber-800'
-                              }`}
-                            >
-                              {item.isReady ? 'Listo' : 'Preparando'}
-                            </span>
+                            <span className="text-sm font-black text-[#103b39]">{tableName}</span>
                           </div>
-                        ))}
-                      </div>
+                          <span className="text-xs font-semibold text-slate-500">{timeLabel}</span>
+                        </div>
 
-                      {ticket.waiter && (
+                        <div className="mt-2.5 space-y-1.5">
+                          {ticket.items.map((item, idx) => {
+                            const isReady = item.isReady === true || (item as any).status === 'ready';
+                            return (
+                              <div key={idx} className="flex items-center justify-between text-xs">
+                                <span className="font-bold text-slate-700">
+                                  {item.qty}x {item.name}
+                                </span>
+                                <span
+                                  className={`rounded-md px-2 py-0.5 text-[10px] font-black ${
+                                    isReady
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : 'bg-amber-100 text-amber-800'
+                                  }`}
+                                >
+                                  {isReady ? 'Listo' : 'Preparando'}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+
                         <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500 font-medium">
-                          <span>Mozo: {ticket.waiter}</span>
+                          <span>Mozo: {ticket.waiter || 'Asignado a salón'}</span>
                           <span className="text-orange-700 font-bold uppercase tracking-wider text-[10px]">
-                            {ticket.station === 'frios' ? 'Barra Fría' : 'Calientes'}
+                            {stationLabel}
                           </span>
                         </div>
-                      )}
-                    </div>
-                  ))
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
