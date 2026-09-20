@@ -39,8 +39,15 @@ export async function authenticateAdmin(
   const roleClaim = token.claims.role as AppRole | undefined;
   let availableProfiles = admins;
   if (firestoreDb) {
-    const snapshot = await getDoc(doc(firestoreDb, 'users', credential.user.uid));
-    availableProfiles = snapshot.exists() ? [{ id: snapshot.id, ...snapshot.data() } as AdminUser] : [];
+    try {
+      const snapshot = await getDoc(doc(firestoreDb, 'users', credential.user.uid));
+      availableProfiles = snapshot.exists() ? [{ id: snapshot.id, ...snapshot.data() } as AdminUser] : [];
+    } catch (fsErr) {
+      console.warn('No se pudo consultar el perfil del usuario en Firestore:', fsErr);
+      if (token.claims.platformAdmin !== true) {
+        throw new Error('No cuentas con los permisos necesarios para acceder al panel administrativo.');
+      }
+    }
   }
   const profile = availableProfiles.find(
     (admin) => admin.authUid === credential.user.uid || admin.email.toLowerCase() === credential.user.email?.toLowerCase()

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChainBrand, AdminUser, ScreenType, BranchLocation, AppRole, MasterCarta, MenuItem } from '../types';
+import { getErrorMessage } from '../utils/errorHandler';
 
 interface ScreenSaaSConsoleProps {
   chains: ChainBrand[];
@@ -399,7 +400,7 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       });
       showToast(`¡Restaurante "${newChain.name}" registrado. Comparte los enlaces de activación mostrados.`);
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'No fue posible crear las identidades administrativas.');
+      showToast(getErrorMessage(error, 'No fue posible crear las identidades administrativas.'));
     }
   };
 
