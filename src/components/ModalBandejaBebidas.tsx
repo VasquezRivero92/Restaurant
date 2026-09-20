@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { TableItem, AppRole } from '../types';
+import { isTableAssignedToWaiter } from '../utils/waiterUtils';
 
 interface ModalBandejaBebidasProps {
   isOpen: boolean;
@@ -26,13 +27,7 @@ export const ModalBandejaBebidas: React.FC<ModalBandejaBebidasProps> = ({
   const [scopeFilter, setScopeFilter] = useState<'my_tables' | 'all'>(isWaiter ? 'my_tables' : 'all');
 
   const isMyTable = (t: TableItem) => {
-    if (!t.waiter) return false;
-    const w = t.waiter.toLowerCase().trim();
-    const c = (currentUserName || '').toLowerCase().trim();
-    if (!w || !c) return false;
-    const cFirst = c.split(' ')[0];
-    const wFirst = w.split(' ')[0];
-    return w === c || (cFirst && w.includes(cFirst)) || (wFirst && c.includes(wFirst));
+    return isTableAssignedToWaiter(t, currentUserName, isWaiter);
   };
 
   // Tables with drinks

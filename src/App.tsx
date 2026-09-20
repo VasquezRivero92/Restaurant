@@ -39,6 +39,13 @@ import { ScreenLanding } from './components/ScreenLanding';
 import { ScreenAdminDashboard } from './components/ScreenAdminDashboard';
 import { ModalBandejaBebidas } from './components/ModalBandejaBebidas';
 import {
+  isTableAssignedToWaiter,
+  isTicketAssignedToWaiter,
+  isDrinkKDSTicketItem,
+  matchesTable,
+  extractDrinksFromTickets
+} from './utils/waiterUtils';
+import {
   initRTDBSeedIfEmpty,
   setFirestoreScope,
   subscribeToTables,
@@ -577,16 +584,36 @@ export default function App() {
   };
 
   const handleMarkDelivered = (tableId: string) => {
+    let targetTableNum = '';
     setTables((prev) =>
-      prev.map((t) =>
-        t.id === tableId
-          ? {
-              ...t,
-              status: 'eating',
-              notes: 'Platos servidos en mesa. Comensales atendidos.'
-            }
-          : t
-      )
+      prev.map((t) => {
+        if (t.id !== tableId) return t;
+        targetTableNum = t.number;
+        return {
+          ...t,
+          status: 'eating',
+          notes: 'Platos servidos en mesa. Comensales atendidos.',
+          dishes: t.dishes?.map((d) => ({ ...d, status: 'served' as const }))
+        };
+      })
+    );
+
+    // Also mark KDS tickets for this table as served so they complete cleanly
+    setKdsTickets((prev) =>
+      prev.map((tk) => {
+        if (!matchesTable(tk.table, targetTableNum, tableId)) return tk;
+        const updatedItems = tk.items.map((item) => ({
+          ...item,
+          isReady: true,
+          isServed: true,
+          status: 'served' as const
+        }));
+        return {
+          ...tk,
+          status: 'served' as const,
+          items: updatedItems
+        };
+      })
     );
   };
 
@@ -678,42 +705,139 @@ export default function App() {
 
   // Waiter-managed drink toggle
   const handleToggleDrinkServed = (tableId: string, drinkId: string) => {
+    let affectedDrinkName = '';
+    let isNowServed = false;
+    let targetTableNum = '';
+
     setTables((prev) =>
       prev.map((t) => {
         if (t.id !== tableId) return t;
-        const updatedDrinks = t.drinks?.map((d) =>
-          d.id === drinkId
-            ? {
-                ...d,
-                served: !d.served,
-                servedAt: !d.served
-                  ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                  : undefined
-              }
-            : d
-        );
-        return {
-          ...t,
-          drinks: updatedDrinks
-        };
+        targetTableNum = t.number;
+        const existingDrinks = t.drinks || [];
+        const found = existingDrinks.find((d) => d.id === drinkId);
+
+        if (found) {
+          affectedDrinkName = found.name;
+          isNowServed = !found.served;
+          const updatedDrinks = existingDrinks.map((d) =>
+            d.id === drinkId
+              ? {
+                  ...d,
+                  served: !d.served,
+                  servedAt: !d.served
+                    ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : undefined
+                }
+              : d
+          );
+          return {
+            ...t,
+            drinks: updatedDrinks
+          };
+        } else {
+          // If the drink came from a KDS ticket item
+          const ticketDrinks = extractDrinksFromTickets(kdsTickets, t.number, t.id);
+          const fromTicket = ticketDrinks.find((d) => d.id === drinkId);
+          if (fromTicket) {
+            affectedDrinkName = fromTicket.name;
+            isNowServed = !fromTicket.served;
+            const newDrink: DrinkOrder = {
+              ...fromTicket,
+              served: isNowServed,
+              servedAt: isNowServed
+                ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : undefined
+            };
+            return {
+              ...t,
+              drinks: [...existingDrinks, newDrink]
+            };
+          }
+        }
+        return t;
       })
     );
+
+    // Also synchronize corresponding item in kdsTickets
+    if (affectedDrinkName) {
+      setKdsTickets((prev) =>
+        prev.map((tk) => {
+          if (!matchesTable(tk.table, targetTableNum, tableId)) return tk;
+          const updatedItems = tk.items.map((item) => {
+            if (
+              item.id === drinkId ||
+              item.name.toLowerCase().includes(affectedDrinkName.toLowerCase()) ||
+              affectedDrinkName.toLowerCase().includes(item.name.toLowerCase())
+            ) {
+              return {
+                ...item,
+                isReady: true,
+                isServed: isNowServed,
+                status: isNowServed ? ('served' as const) : ('ready' as const),
+                servedAt: isNowServed
+                  ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : undefined
+              };
+            }
+            return item;
+          });
+          const allCompleted = updatedItems.length > 0 && updatedItems.every((i) => i.isReady && i.isServed);
+          return {
+            ...tk,
+            items: updatedItems,
+            status: allCompleted ? ('served' as const) : tk.status
+          };
+        })
+      );
+    }
   };
 
   // Mark all drinks for a table as served
   const handleServeAllDrinks = (tableId: string) => {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    let targetTableNum = '';
+
     setTables((prev) =>
       prev.map((t) => {
         if (t.id !== tableId) return t;
-        const updatedDrinks = t.drinks?.map((d) => ({
+        targetTableNum = t.number;
+        const ticketDrinks = extractDrinksFromTickets(kdsTickets, t.number, t.id);
+        const existingDrinks = t.drinks || [];
+        const existingNames = new Set(existingDrinks.map((d) => d.name.toLowerCase().trim()));
+        const missingDrinks = ticketDrinks.filter((td) => !existingNames.has(td.name.toLowerCase().trim()));
+        const allDrinks = [...existingDrinks, ...missingDrinks].map((d) => ({
           ...d,
           served: true,
           servedAt: d.servedAt || timeNow
         }));
         return {
           ...t,
-          drinks: updatedDrinks
+          drinks: allDrinks
+        };
+      })
+    );
+
+    // Also mark all drink items in kdsTickets as served
+    setKdsTickets((prev) =>
+      prev.map((tk) => {
+        if (!matchesTable(tk.table, targetTableNum, tableId)) return tk;
+        const updatedItems = tk.items.map((item) => {
+          if (isDrinkKDSTicketItem(item)) {
+            return {
+              ...item,
+              isReady: true,
+              isServed: true,
+              status: 'served' as const,
+              servedAt: item.servedAt || timeNow
+            };
+          }
+          return item;
+        });
+        const allCompleted = updatedItems.length > 0 && updatedItems.every((i) => i.isReady && i.isServed);
+        return {
+          ...tk,
+          items: updatedItems,
+          status: allCompleted ? ('served' as const) : tk.status
         };
       })
     );
@@ -1772,26 +1896,50 @@ export default function App() {
   };
 
   const isWaiterUser = currentRole === 'mesero';
-  const isMyTableForAlerts = (tableWaiter?: string) => {
-    if (!tableWaiter) return false;
-    const waiterLower = tableWaiter.toLowerCase().trim();
-    const currentLower = (staffUser.name || '').toLowerCase().trim();
-    if (!waiterLower || !currentLower) return false;
-    const currentFirst = currentLower.split(' ')[0];
-    const tableFirst = waiterLower.split(' ')[0];
-    return (
-      waiterLower === currentLower ||
-      (currentFirst && waiterLower.includes(currentFirst)) ||
-      (tableFirst && currentLower.includes(tableFirst))
+
+  // Harmonize tables with active tickets from KDS so drinks and dishes are in sync across salon and drinks tray
+  const tablesWithTicketDrinks = tables.map((t) => {
+    const activeTicket = kdsTickets.find(
+      (tk) => tk.status !== 'served' && matchesTable(tk.table, t.number, t.id)
     );
-  };
+    const ticketDrinks = extractDrinksFromTickets(kdsTickets, t.number, t.id);
+    const existingDrinks = t.drinks || [];
+    const existingNames = new Set(existingDrinks.map((d) => d.name.toLowerCase().trim()));
+    const missingDrinks = ticketDrinks.filter((td) => !existingNames.has(td.name.toLowerCase().trim()));
+    const combinedDrinks = [...existingDrinks, ...missingDrinks];
+
+    if (activeTicket) {
+      const foodItems = activeTicket.items.filter((i) => !isDrinkKDSTicketItem(i));
+      const allFoodReady = foodItems.length > 0 && foodItems.every((i) => i.isReady);
+      const newStatus =
+        t.status === 'free'
+          ? (foodItems.length > 0 && allFoodReady ? 'ready' : 'cooking')
+          : (allFoodReady && t.status !== 'bill_requested' ? 'ready' : t.status);
+      const newWaiter =
+        activeTicket.waiter && activeTicket.waiter !== 'Mozo de Turno' && activeTicket.waiter !== 'Sin asignar'
+          ? activeTicket.waiter
+          : (t.waiter || (isWaiterUser ? (staffUser.name || 'Carlos Mendoza') : t.waiter));
+
+      return {
+        ...t,
+        status: newStatus,
+        waiter: newWaiter,
+        drinks: combinedDrinks
+      };
+    }
+
+    return {
+      ...t,
+      drinks: combinedDrinks
+    };
+  });
 
   const tablesForAlerts = isWaiterUser
-    ? tables.filter((t) => isMyTableForAlerts(t.waiter))
-    : tables;
+    ? tablesWithTicketDrinks.filter((t) => isTableAssignedToWaiter(t, staffUser.name, true))
+    : tablesWithTicketDrinks;
 
   const ticketsForAlerts = isWaiterUser
-    ? kdsTickets.filter((t) => isMyTableForAlerts(t.waiter))
+    ? kdsTickets.filter((t) => isTicketAssignedToWaiter(t, staffUser.name, tables))
     : kdsTickets;
 
   const totalReadyDishesInKDS = ticketsForAlerts.reduce((acc, t) => {
@@ -1807,15 +1955,19 @@ export default function App() {
   const pendingBillsCount = tables.filter((t) => {
     if (t.status !== 'bill_requested') return false;
     if (isWaiterUser) {
-      return isMyTableForAlerts(t.waiter);
+      return isTableAssignedToWaiter(t, staffUser.name, true);
     }
     return true;
   }).length;
   
-  // Total pending drinks count (for waiter: only their assigned tables)
-  const pendingDrinksCount = tablesForAlerts.reduce((acc, t) => {
+  // Total pending drinks count (for waiter: only their assigned tables and shift orders)
+  const pendingDrinksFromTables = tablesForAlerts.reduce((acc, t) => {
     return acc + (t.drinks?.filter((d) => !d.served).length || 0);
   }, 0);
+  const pendingDrinksFromTickets = ticketsForAlerts.reduce((acc, t) => {
+    return acc + t.items.filter((i) => isDrinkKDSTicketItem(i) && !i.isServed).reduce((sum, di) => sum + (di.qty || 1), 0);
+  }, 0);
+  const pendingDrinksCount = Math.max(pendingDrinksFromTables, pendingDrinksFromTickets);
 
   const currentChain = chains.find((c) => c.id === activeChainId) || chains[0];
   const currentBranch = currentChain?.locations.find((l) => l.id === activeBranchId) || currentChain?.locations[0];
@@ -1919,7 +2071,8 @@ export default function App() {
             <main className="flex-1 flex flex-col pb-24">
               {currentScreen === 'mesas' && (
                 <ScreenMesas
-                  tables={tables}
+                  tables={tablesWithTicketDrinks}
+                  kdsTickets={kdsTickets}
                   staffMembers={staffMembers}
                   onNavigate={handleNavigate}
                   onSelectTable={handleSelectTable}
@@ -1983,6 +2136,7 @@ export default function App() {
               {currentScreen === 'cocina-kds' && (
                 <ScreenCocinaKDS
                   tickets={kdsTickets}
+                  tables={tables}
                   onUpdateTicketStatus={handleUpdateTicketStatus}
                   onMarkDishReady={handleMarkDishReady}
                   onMarkDishServed={handleMarkDishServed}
@@ -2090,7 +2244,7 @@ export default function App() {
       <ModalBandejaBebidas
         isOpen={isDrinksTrayOpen}
         onClose={() => setIsDrinksTrayOpen(false)}
-        tables={tables}
+        tables={tablesWithTicketDrinks}
         onToggleDrinkServed={handleToggleDrinkServed}
         onServeAllDrinks={handleServeAllDrinks}
         currentRole={currentRole}

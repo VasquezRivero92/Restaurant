@@ -1,8 +1,16 @@
 import React, { useState } from 'react';
-import { TableItem, ScreenType, AppRole, StaffMember } from '../types';
+import { TableItem, ScreenType, AppRole, StaffMember, KDSTicket } from '../types';
+import {
+  isGenericWaiter,
+  isTableAssignedToWaiter,
+  isDrinkKDSTicketItem,
+  extractDrinksFromTickets,
+  matchesTable
+} from '../utils/waiterUtils';
 
 interface ScreenMesasProps {
   tables: TableItem[];
+  kdsTickets?: KDSTicket[];
   staffMembers?: StaffMember[];
   onNavigate: (screen: ScreenType) => void;
   onSelectTable: (tableId: string) => void;
@@ -19,6 +27,7 @@ interface ScreenMesasProps {
 
 export const ScreenMesas: React.FC<ScreenMesasProps> = ({
   tables,
+  kdsTickets = [],
   staffMembers = [],
   onNavigate,
   onSelectTable,
@@ -57,28 +66,70 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
   const availableWaiters = staffMembers.filter((s) => s.active);
 
   const isMyTable = (table: TableItem) => {
-    if (!table.waiter) return false;
-    const waiterLower = table.waiter.toLowerCase().trim();
-    const currentLower = (currentUserName || '').toLowerCase().trim();
-    if (!waiterLower || !currentLower) return false;
-    const currentFirst = currentLower.split(' ')[0];
-    const tableFirst = waiterLower.split(' ')[0];
-    return (
-      waiterLower === currentLower ||
-      (currentFirst && waiterLower.includes(currentFirst)) ||
-      (tableFirst && currentLower.includes(tableFirst))
-    );
+    return isTableAssignedToWaiter(table, currentUserName, isWaiter);
   };
 
-  const myAssignedTables = tables.filter((t) => t.status !== 'free' && isMyTable(t));
+  // Harmonize tables with active KDS comanda tickets so drinks and dishes in preparation/ready are always visible to the waiter
+  const effectiveTables = tables.map((t) => {
+    const activeTicket = kdsTickets.find(
+      (tk) => tk.status !== 'served' && matchesTable(tk.table, t.number, t.id)
+    );
+
+    const ticketDrinks = extractDrinksFromTickets(kdsTickets, t.number, t.id);
+    const existingDrinks = t.drinks || [];
+    const existingNames = new Set(existingDrinks.map((d) => d.name.toLowerCase().trim()));
+    const missingDrinks = ticketDrinks.filter((td) => !existingNames.has(td.name.toLowerCase().trim()));
+    const combinedDrinks = [...existingDrinks, ...missingDrinks];
+
+    if (activeTicket) {
+      const foodItems = activeTicket.items.filter((i) => !isDrinkKDSTicketItem(i));
+      const allFoodReady = foodItems.length > 0 && foodItems.every((i) => i.isReady);
+      const ticketWaiter =
+        activeTicket.waiter && !isGenericWaiter(activeTicket.waiter)
+          ? activeTicket.waiter
+          : (t.waiter && !isGenericWaiter(t.waiter) ? t.waiter : (isWaiter ? (currentUserName || 'Carlos Mendoza') : t.waiter));
+
+      const newStatus =
+        t.status === 'free'
+          ? (foodItems.length > 0 && allFoodReady ? 'ready' : 'cooking')
+          : (allFoodReady && t.status !== 'bill_requested' ? 'ready' : t.status);
+
+      const ticketDishes = foodItems.map((fi, idx) => ({
+        id: fi.id || `tdish-${idx}`,
+        name: `${fi.qty}x ${fi.name}`,
+        qty: fi.qty,
+        price: fi.price,
+        station: (fi.substation || (fi as any).station || 'Cocina').includes('FRÍ') ? 'Barra Fría' : 'Calientes',
+        description: fi.notes || 'Preparado por cocina',
+        status: (fi.isServed ? 'served' : fi.isReady ? 'ready' : 'cooking') as 'cooking' | 'ready' | 'served'
+      }));
+
+      const combinedDishes = t.dishes && t.dishes.length > 0 ? t.dishes : ticketDishes;
+
+      return {
+        ...t,
+        status: newStatus,
+        waiter: ticketWaiter,
+        dishes: combinedDishes,
+        drinks: combinedDrinks
+      };
+    }
+
+    return {
+      ...t,
+      drinks: combinedDrinks
+    };
+  });
+
+  const myAssignedTables = effectiveTables.filter((t) => t.status !== 'free' && isMyTable(t));
   const myAssignedCount = myAssignedTables.length;
 
-  const totalCount = tables.length;
-  const freeCount = tables.filter((t) => t.status === 'free').length;
+  const totalCount = effectiveTables.length;
+  const freeCount = effectiveTables.filter((t) => t.status === 'free').length;
   const occupiedCount = totalCount - freeCount;
 
   // Para mozo: alertas de cocina y bebidas filtradas a sus mesas asignadas
-  const relevantAlertTables = isWaiter ? tables.filter((t) => isMyTable(t)) : tables;
+  const relevantAlertTables = isWaiter ? effectiveTables.filter((t) => isMyTable(t)) : effectiveTables;
   const readyCount = relevantAlertTables.filter((t) => t.status === 'ready').length;
   const firstReadyTable = relevantAlertTables.find((t) => t.status === 'ready');
   const tablesWithPendingDrinks = relevantAlertTables.filter((t) =>
@@ -91,8 +142,8 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
 
   // Lista base: en modo 'my_tables' el mozo solo ve sus mesas asignadas y las mesas libres para abrir
   const baseTables = (isWaiter && scopeMode === 'my_tables')
-    ? tables.filter((t) => t.status === 'free' || isMyTable(t))
-    : tables;
+    ? effectiveTables.filter((t) => t.status === 'free' || isMyTable(t))
+    : effectiveTables;
 
   const filteredTables = baseTables.filter((table) => {
     if (activeFilter === 'all') return true;
@@ -348,7 +399,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
           const hasPendingDrinks = table.drinks?.some((d) => !d.served);
 
           const isCurrentTableMine = isMyTable(table);
-          const isUnassignedTable = !table.waiter || table.waiter.trim() === '' || table.waiter === 'Sin asignar';
+          const isUnassignedTable = !table.waiter || isGenericWaiter(table.waiter);
           const isOtherWaiterTable = isWaiter && !isCurrentTableMine && !isUnassignedTable;
 
           // Free table render (en blanco / sin asignar)

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MenuItem, ScreenType, CartItem, TableItem, AppRole } from '../types';
+import { isGenericWaiter } from '../utils/waiterUtils';
 import { DEFAULT_DISH_PLACEHOLDER_IMAGE } from '../data/mockData';
 
 interface ScreenTomarPedidoProps {
@@ -160,7 +161,7 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
     if (!selectedTable?.waiter) return true; // Mesa libre o sin asignar -> se autoasigna
     const w = selectedTable.waiter.toLowerCase().trim();
     const u = (currentUserName || '').toLowerCase().trim();
-    if (!w || !u || w === 'sin asignar') return true;
+    if (!w || !u || isGenericWaiter(w)) return true;
     const curFirst = u.split(' ')[0];
     const tableFirst = w.split(' ')[0];
     return w === u || (curFirst && w.includes(curFirst)) || (tableFirst && u.includes(tableFirst));
