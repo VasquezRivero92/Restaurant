@@ -41,7 +41,22 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
   const [scopeMode, setScopeMode] = useState<'my_tables' | 'all'>(isWaiter ? 'my_tables' : 'all');
   const [viewMode, setViewMode] = useState<'cascade_fifo' | 'grid'>('cascade_fifo');
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [highContrast, setHighContrast] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem('ordena:kds-high-contrast') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    try {
+      window.localStorage.setItem('ordena:kds-high-contrast', String(highContrast));
+    } catch {
+      // El KDS sigue funcionando aunque el navegador bloquee el almacenamiento local.
+    }
+  }, [highContrast]);
 
   // Modal confirmation for removing a dish from an order
   const [dishToRemove, setDishToRemove] = useState<{
@@ -260,7 +275,7 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
   }, 0);
 
   return (
-    <div className="flex flex-col w-full pb-28 pt-2 px-3 sm:px-4 max-w-7xl mx-auto">
+    <div className={`flex flex-col w-full pb-28 pt-2 px-3 sm:px-4 max-w-7xl mx-auto rounded-3xl transition-colors ${highContrast ? 'kds-high-contrast bg-surface text-on-surface' : ''}`}>
       {/* Role & Order Discipline Alert Banner */}
       <div
         className={`p-3.5 rounded-2xl border mb-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs ${
@@ -534,6 +549,24 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
             </span>
             <span className="hidden lg:inline">{soundEnabled ? 'Audio ON' : 'OFF'}</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setHighContrast((enabled) => !enabled);
+              showToast(highContrast ? 'Contraste estándar activado' : 'Alto contraste activado para cocina');
+            }}
+            aria-pressed={highContrast}
+            title="Alternar alto contraste para pantallas de cocina"
+            className={`h-8 px-2.5 rounded-xl border flex items-center gap-1.5 active:scale-95 transition-all text-xs font-bold ux-touch-target ${
+              highContrast
+                ? 'bg-amber-300 text-slate-950 border-amber-100'
+                : 'bg-surface-container hover:bg-surface-variant border-outline-variant/30 text-on-surface-variant'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[17px]">contrast</span>
+            <span className="hidden sm:inline">{highContrast ? 'Contraste alto' : 'Contraste'}</span>
+          </button>
         </div>
       </div>
 
@@ -584,7 +617,7 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
 
       {/* Orders Container: Sorted FIFO with Top = Earliest, Bottom = Newest */}
       {sortedTickets.length === 0 ? (
-        <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-12 text-center flex flex-col items-center justify-center my-6 shadow-xs">
+        <div className="ux-surface ux-empty-state bg-surface-container-lowest my-6">
           <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
             <span className="material-symbols-outlined text-[32px]">
               {activeTab === 'active' ? 'task_alt' : 'history'}
@@ -635,6 +668,8 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
 
             const isAllReady = totalItems > 0 && readyItemsCount === totalItems;
             const hasAnyReady = readyItemsCount > 0;
+            const elapsedMinutes = Number.parseInt(String(ticket.elapsed || (ticket as any).timeElapsed || '0'), 10) || 0;
+            const urgency = elapsedMinutes >= 20 ? 'critical' : elapsedMinutes >= 12 ? 'warning' : 'normal';
 
             const borderColor = isAllReady
               ? 'border-emerald-500'
@@ -647,12 +682,21 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
             return (
               <div
                 key={ticket.id}
-                className={`bg-surface-container-lowest rounded-2xl shadow-sm p-4 flex flex-col gap-3 border-l-4 ${borderColor} border border-outline-variant/30 transition-all duration-300 hover:shadow-md relative ${
+                className={`kds-ticket bg-surface-container-lowest rounded-2xl shadow-sm p-4 flex flex-col gap-3 border-l-4 ${borderColor} border border-outline-variant/30 transition-all duration-300 hover:shadow-md relative ${
                   isFirstInQueue
                     ? 'ring-2 ring-primary/20 shadow-md bg-amber-50/20'
                     : ''
-                }`}
+                } ${urgency === 'critical' ? 'ring-4 ring-rose-500/60' : urgency === 'warning' ? 'ring-2 ring-amber-500/40' : ''}`}
+                aria-label={`Comanda ${ticket.id}, ${ticket.table}, ${elapsedMinutes} minutos, ${urgency === 'critical' ? 'prioridad crítica' : urgency === 'warning' ? 'requiere atención' : 'en tiempo'}`}
               >
+                {urgency !== 'normal' && activeTab === 'active' && (
+                  <div className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-black uppercase tracking-wide ${
+                    urgency === 'critical' ? 'bg-rose-700 text-white' : 'bg-amber-300 text-amber-950'
+                  }`} role="status">
+                    <span className="material-symbols-outlined text-[18px]">timer_alert</span>
+                    <span>{urgency === 'critical' ? 'Prioridad crítica' : 'Requiere atención'} · {elapsedMinutes} min</span>
+                  </div>
+                )}
                 {/* FIFO Priority Ribbon */}
                 {isFirstInQueue && (
                   <div className="flex items-center justify-between bg-amber-500 text-white px-3 py-1 -mt-4 -mx-4 mb-1 rounded-t-xl font-extrabold text-[11px] uppercase tracking-wider">
@@ -1039,7 +1083,7 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
 
       {/* Floating KDS Toast */}
       {toastMessage && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-primary text-on-primary px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 border border-secondary/30 animate-in fade-in slide-in-from-top-4 max-w-md text-center">
+        <div role="status" aria-live="polite" className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-primary text-on-primary px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 border border-secondary/30 animate-in fade-in slide-in-from-top-4 max-w-md text-center">
           <span className="material-symbols-outlined text-secondary-container text-[20px] shrink-0">
             check_circle
           </span>

@@ -101,9 +101,16 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#fffdf9] text-slate-900 font-sans selection:bg-teal-700/20 selection:text-teal-950">
+      <button
+        type="button"
+        onClick={() => scrollTo('inicio')}
+        className="fixed left-4 top-3 z-[70] -translate-y-24 rounded-xl bg-[#102f2e] px-4 py-2 text-sm font-black text-white shadow-xl transition focus:translate-y-0"
+      >
+        Saltar al contenido
+      </button>
       {/* Micro Toast for Mockup interactions */}
       {simulatedToast && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-2xl bg-[#0c3130] px-4 py-3 text-sm font-bold text-white shadow-2xl border border-teal-500/30 animate-in fade-in slide-in-from-bottom-3 duration-200">
+        <div role="status" aria-live="polite" className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-2xl bg-[#0c3130] px-4 py-3 text-sm font-bold text-white shadow-2xl border border-teal-500/30 animate-in fade-in slide-in-from-bottom-3 duration-200">
           <Sparkles size={16} className="text-[#ffd06f]" />
           <span>{simulatedToast}</span>
         </div>
@@ -128,7 +135,7 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
               <strong className="block text-lg font-black tracking-tight text-[#102f2e]">
                 ORDENA
               </strong>
-              <small className="block text-[11px] font-bold text-teal-800 leading-tight max-w-[280px]">
+              <small className="hidden sm:block text-xs font-bold text-teal-800 leading-tight max-w-[280px]">
                 Sistema de gestión para restaurantes y cadenas
               </small>
             </span>
@@ -189,6 +196,15 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
         </div>
       </header>
 
+      <nav aria-label="Navegación rápida" className="sticky top-20 z-30 flex border-b border-slate-200 bg-white/95 px-3 py-2 backdrop-blur lg:hidden">
+        <div className="ux-tab-strip mx-auto w-full max-w-xl justify-between">
+          <button type="button" onClick={() => scrollTo('pantallas')} className="ux-touch-target shrink-0 rounded-xl px-3 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Pantallas</button>
+          <button type="button" onClick={() => scrollTo('flujo')} className="ux-touch-target shrink-0 rounded-xl px-3 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Cómo funciona</button>
+          <button type="button" onClick={() => scrollTo('modulos')} className="ux-touch-target shrink-0 rounded-xl px-3 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Módulos</button>
+          <button type="button" onClick={() => scrollTo('faq')} className="ux-touch-target shrink-0 rounded-xl px-3 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Preguntas</button>
+        </div>
+      </nav>
+
       {/* Main Content */}
       <main id="inicio">
         {/* ========================================================================= */}
@@ -205,7 +221,7 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
                 <span>ORDENA • Sistema de gestión para restaurantes y cadenas</span>
               </div>
 
-              <h1 className="text-4xl font-black leading-[1.08] tracking-[-0.05em] text-[#102f2e] sm:text-6xl sm:leading-[1.08]">
+              <h1 className="text-[clamp(2.35rem,7vw,4rem)] font-black leading-[1.06] tracking-[-0.045em] text-[#102f2e]">
                 El sistema que transforma la hora punta en un servicio fluido y rentable.
               </h1>
 
@@ -236,28 +252,28 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
               {/* Real-time stats pills */}
               <div className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
                 <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-                  <span className="flex items-center justify-center gap-1 text-2xl font-black text-[#102f2e]">
-                    &lt; 0.5s
+                  <span className="flex items-center justify-center gap-1 text-xl sm:text-2xl font-black text-[#102f2e]">
+                    Tiempo real
                   </span>
                   <p className="mt-1 text-xs font-bold text-slate-500">Sincronización a Cocina</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-                  <span className="flex items-center justify-center gap-1 text-2xl font-black text-teal-800">
-                    +35%
+                  <span className="flex items-center justify-center gap-1 text-xl sm:text-2xl font-black text-teal-800">
+                    Multi-sede
                   </span>
-                  <p className="mt-1 text-xs font-bold text-slate-500">Mayor Rotación de Mesas</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">Operación Centralizada</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-                  <span className="flex items-center justify-center gap-1 text-2xl font-black text-[#e46d3f]">
-                    0
+                  <span className="flex items-center justify-center gap-1 text-xl sm:text-2xl font-black text-[#e46d3f]">
+                    FIFO
                   </span>
-                  <p className="mt-1 text-xs font-bold text-slate-500">Comandas Extraviadas</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">Prioridad de Comandas</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-                  <span className="flex items-center justify-center gap-1 text-2xl font-black text-emerald-700">
-                    100%
+                  <span className="flex items-center justify-center gap-1 text-xl sm:text-2xl font-black text-emerald-700">
+                    Caja
                   </span>
-                  <p className="mt-1 text-xs font-bold text-slate-500">Cuentas y Caja Exacta</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">Cobro y Arqueo Integrados</p>
                 </div>
               </div>
             </div>

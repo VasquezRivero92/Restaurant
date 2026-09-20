@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ScreenType, TableItem, AppRole, StaffMember } from '../types';
+import { ScreenType, TableItem, AppRole, PaymentDetails, StaffMember } from '../types';
 
 export interface ScreenCuentaCobroProps {
   onNavigate: (screen: ScreenType) => void;
-  onTablePaidAndFreed: (tableId: string) => void;
+  onTablePaidAndFreed: (tableId: string, payment: PaymentDetails) => Promise<void> | void;
   tables: TableItem[];
   currentRole: AppRole;
   currentWaiterName: string;
@@ -91,7 +91,7 @@ export const ScreenCuentaCobro: React.FC<ScreenCuentaCobroProps> = ({
   };
 
   // Pricing calculations
-  const baseTotal = currentTable?.total || 75.0;
+  const baseTotal = currentTable?.total || 0;
   const grandTotal = baseTotal + tipAmount;
   const subtotal = baseTotal / 1.18;
   const igv = baseTotal - subtotal;
@@ -105,15 +105,30 @@ export const ScreenCuentaCobro: React.FC<ScreenCuentaCobroProps> = ({
     setIsPaidSuccess(false);
   };
 
-  const handleProcessPayment = () => {
+  const handleProcessPayment = async () => {
     if (!currentTable) return;
+    if (paymentMethod === 'cash' && Number(cashReceived || 0) < grandTotal) {
+      triggerToast('El efectivo recibido debe cubrir el total de la cuenta.');
+      return;
+    }
     setIsProcessing(true);
-    setTimeout(() => {
+    try {
+      const methodMap = { yape: 'yape_plin', card: 'card', cash: 'cash', split: 'split' } as const;
+      await onTablePaidAndFreed(currentTable.id, {
+        method: methodMap[paymentMethod],
+        tipAmount,
+        documentType: docType,
+        customerDoc: customerDoc.trim(),
+        customerName: customerName.trim(),
+        cashReceived: paymentMethod === 'cash' ? Number(cashReceived || 0) : undefined
+      });
       setIsProcessing(false);
       setIsPaidSuccess(true);
-      onTablePaidAndFreed(currentTable.id);
       triggerToast(`¡Mesa ${currentTable.number} cobrada y liberada con éxito!`);
-    }, 1200);
+    } catch (error) {
+      setIsProcessing(false);
+      triggerToast(error instanceof Error ? error.message : 'No fue posible registrar el cobro.');
+    }
   };
 
   const handleReassignWaiter = (newWaiterName: string) => {

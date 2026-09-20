@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { MenuItem, ScreenType, CartItem, TableItem, AppRole } from '../types';
 import { isGenericWaiter } from '../utils/waiterUtils';
 import { DEFAULT_DISH_PLACEHOLDER_IMAGE } from '../data/mockData';
+import { getEffectivePrice } from '../utils/pricing';
 
 interface ScreenTomarPedidoProps {
   menuItems: MenuItem[];
@@ -449,8 +450,8 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
           const defaultSize = dish.sizes && dish.sizes.length > 0 ? dish.sizes[0] : undefined;
           const activeSizeName = selectedCardSizes[dish.id] || (defaultSize ? defaultSize.name : undefined);
           const activeSize = dish.sizes ? dish.sizes.find((s) => s.name === activeSizeName) || defaultSize : undefined;
-          const minPrice = defaultSize ? defaultSize.price : dish.price;
-          const currentPrice = activeSize ? activeSize.price : dish.price;
+          const minPrice = getEffectivePrice(dish, defaultSize ? defaultSize.price : dish.price);
+          const currentPrice = getEffectivePrice(dish, activeSize ? activeSize.price : dish.price);
           const isMinimumPrice = currentPrice === minPrice;
 
           // Active cart key for this specific size
@@ -1048,7 +1049,7 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
                 type="button"
                 onClick={() => {
                   const chosenSize = customizingDish.sizes?.[selectedSizeIndex];
-                  const chosenPrice = chosenSize?.price ?? customizingDish.price;
+                  const chosenPrice = getEffectivePrice(customizingDish, chosenSize?.price ?? customizingDish.price);
                   const chosenSizeName = chosenSize?.name;
 
                   onUpdateQty(

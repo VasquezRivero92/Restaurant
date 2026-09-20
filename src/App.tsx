@@ -12,7 +12,14 @@ import {
   AppRole,
   StaffMember,
   CartItem,
-  MasterCarta
+  MasterCarta,
+  PaymentDetails,
+  SaleRecord,
+  InventoryItem,
+  CashShift,
+  Reservation,
+  AttendanceRecord
+  , ApprovalRequest
 } from './types';
 import {
   INITIAL_TABLES,
@@ -22,6 +29,7 @@ import {
   INITIAL_ADMINS,
   INITIAL_STAFF,
   INITIAL_MASTER_CARTAS,
+  INITIAL_INVENTORY,
   DISH_IMAGE_MAP
 } from './data/mockData';
 import { HeaderTop } from './components/HeaderTop';
@@ -55,6 +63,13 @@ import {
   subscribeToKDSTickets,
   subscribeToStaff,
   subscribeToAdmins,
+  subscribeToSales,
+  subscribeToTenantSales,
+  subscribeToInventory,
+  subscribeToCashShifts,
+  subscribeToReservations,
+  subscribeToAttendance,
+  subscribeToApprovals,
   syncTablesToRTDB,
   syncKDSTicketsToRTDB,
   syncBranchMenusToRTDB,
@@ -62,20 +77,25 @@ import {
   syncChainsToRTDB,
   syncStaffToRTDB,
   syncAdminsToRTDB,
+  syncInventoryToFirestore,
+  syncCashShiftsToFirestore,
+  syncReservationsToFirestore,
+  syncAttendanceToFirestore,
   resetAllDataInRTDB
 } from './services/rtdbService';
 import { loadSession, saveSession, clearSession } from './services/sessionService';
-import { closeAdminSession } from './services/authService';
+import { closeAdminSession, recordCashMovement, recordCompletedSale, recordInventoryMovement } from './services/authService';
 import { auth } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 export default function App() {
   const initialSession = React.useMemo(() => loadSession(), []);
+  const isDemoMode = import.meta.env.VITE_ENABLE_DEMO_DATA === 'true';
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => Boolean(initialSession?.isAuthenticated));
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => isDemoMode && Boolean(initialSession?.isAuthenticated));
   const [isGlobalLoginOpen, setIsGlobalLoginOpen] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>(() => {
-    if (initialSession?.isAuthenticated) {
+    if (isDemoMode && initialSession?.isAuthenticated) {
       return initialSession.currentScreen || 'dashboard-admin';
     }
     return 'pin-lock';
@@ -132,6 +152,13 @@ export default function App() {
     }
   });
   const [kdsTickets, setKdsTickets] = useState<KDSTicket[]>(INITIAL_KDS_TICKETS);
+  const [sales, setSales] = useState<SaleRecord[]>([]);
+  const [tenantSales, setTenantSales] = useState<SaleRecord[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>(INITIAL_INVENTORY);
+  const [cashShifts, setCashShifts] = useState<CashShift[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [admins, setAdmins] = useState<AdminUser[]>(INITIAL_ADMINS);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>(INITIAL_STAFF);
   const [selectedTableId, setSelectedTableId] = useState<string>(() => initialSession?.selectedTableId || 'mesa-05');
@@ -254,6 +281,12 @@ export default function App() {
     setFirestoreScope(activeChainId, activeBranchId);
   }, [activeChainId, activeBranchId]);
 
+  React.useEffect(() => {
+    if (!['admin_general', 'admin_global'].includes(currentRole)) { setTenantSales([]); return; }
+    setFirestoreScope(activeChainId, activeBranchId);
+    return subscribeToTenantSales(setTenantSales);
+  }, [activeChainId, activeBranchId, currentRole]);
+
   // Banderas para asegurar que los datos recibidos desde la nube no se reenvíen a la base de datos
   const isRemoteTables = React.useRef(false);
   const isRemoteMenus = React.useRef(false);
@@ -313,7 +346,7 @@ export default function App() {
             const effectiveStatus =
               lTable.status === 'eating' && (cTable.status === 'ready' || cTable.status === 'cooking')
                 ? 'eating'
-                : lTable.status === 'free' && cTable.status !== 'free' && cTable.status !== 'reserved'
+                : lTable.status === 'free' && cTable.status !== 'free'
                 ? 'free'
                 : cTable.status;
 
@@ -406,10 +439,40 @@ export default function App() {
       }
     });
 
+    const unsubSales = subscribeToSales((cloudSales) => {
+      setSales(cloudSales);
+      setIsCloudConnected(true);
+    });
+
+    const unsubInventory = subscribeToInventory((cloudInventory) => {
+      if (cloudInventory.length > 0) setInventory(cloudInventory);
+      setIsCloudConnected(true);
+    });
+
+    const unsubCashShifts = subscribeToCashShifts((cloudShifts) => {
+      setCashShifts(cloudShifts);
+      setIsCloudConnected(true);
+    });
+    const unsubReservations = subscribeToReservations((cloudReservations) => {
+      setReservations(cloudReservations);
+      setIsCloudConnected(true);
+    });
+    const unsubAttendance = subscribeToAttendance((cloudAttendance) => {
+      setAttendance(cloudAttendance);
+      setIsCloudConnected(true);
+    });
+    const unsubApprovals = subscribeToApprovals((cloudApprovals) => { setApprovals(cloudApprovals); });
+
     return () => {
       unsubTables();
       unsubMenus();
       unsubTickets();
+      unsubSales();
+      unsubInventory();
+      unsubCashShifts();
+      unsubReservations();
+      unsubAttendance();
+      unsubApprovals();
     };
   }, [activeChainId, activeBranchId]);
 
@@ -553,6 +616,7 @@ export default function App() {
 
   // Role switching handler with synchronized user profile and destination screen
   const handleSwitchRole = (role: AppRole) => {
+    if (!isDemoMode) return;
     setCurrentRole(role);
     if (role === 'cocina') {
       setStaffUser({ name: 'Chef Mario Quispe', role: 'admin' });
@@ -607,7 +671,15 @@ export default function App() {
       handleLogout();
       return;
     }
-    if (currentRole === 'cocina' && screen !== 'cocina-kds') {
+    const allowedScreens: Record<AppRole, ScreenType[]> = {
+      admin_global: ['saas-console', 'dashboard-admin', 'carta-sede', 'mesas', 'tomar-pedido', 'cocina-kds', 'cuenta-cobro'],
+      admin_general: ['dashboard-admin', 'carta-sede', 'mesas', 'tomar-pedido', 'cocina-kds', 'cuenta-cobro'],
+      admin_sede: ['dashboard-admin', 'carta-sede', 'mesas', 'tomar-pedido', 'cocina-kds', 'cuenta-cobro'],
+      mesero: ['mesas', 'tomar-pedido', 'cuenta-cobro'],
+      cocina: ['cocina-kds'],
+      cajero: ['cuenta-cobro']
+    };
+    if (!allowedScreens[currentRole].includes(screen)) {
       return;
     }
     setCurrentScreen(screen);
@@ -682,13 +754,17 @@ export default function App() {
     }
   };
 
-  const handleTablePaidAndFreed = (tableId: string) => {
+  const handleTablePaidAndFreed = async (tableId: string, payment: PaymentDetails) => {
+    if (!isDemoMode) {
+      await recordCompletedSale(activeChainId, activeBranchId, tableId, payment);
+    }
     setTables((prev) =>
       prev.map((t) =>
         t.id === tableId
           ? {
-              ...t,
-              status: 'free',
+            ...t,
+            status: 'free',
+            statusLabel: 'Libre',
               waiter: '', // Asignación de mesa queda en blanco al liberarse
               notes: 'Mesa desinfectada y libre',
               total: 0,
@@ -699,6 +775,74 @@ export default function App() {
           : t
       )
     );
+  };
+
+  const handleAdjustInventory = async (itemId: string, adjustment: number) => {
+    if (!Number.isFinite(adjustment) || adjustment === 0) return;
+    if (!isDemoMode) await recordInventoryMovement(activeChainId, activeBranchId, itemId, 'adjustment', adjustment, 'Ajuste desde panel administrativo');
+    setInventory((previous) => {
+      const updated = previous.map((item) => item.id === itemId
+        ? { ...item, currentStock: Math.max(0, Number((item.currentStock + adjustment).toFixed(2))), updatedAt: Date.now() }
+        : item);
+      if (isDemoMode) syncInventoryToFirestore(updated).catch((error) => console.error('No se pudo actualizar el inventario:', error));
+      return updated;
+    });
+  };
+
+  const handleOpenCashShift = (openingAmount: number) => {
+    const businessDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date());
+    if (!Number.isFinite(openingAmount) || openingAmount < 0 || cashShifts.some((shift) => shift.status === 'open' && shift.businessDate === businessDate)) return;
+    const shift: CashShift = {
+      id: `shift-${activeBranchId}-${Date.now()}`, branchId: activeBranchId, businessDate, status: 'open',
+      openingAmount, openedAt: Date.now(), openedBy: staffUser.name || 'Administrador'
+    };
+    const updated = [shift, ...cashShifts];
+    setCashShifts(updated);
+    syncCashShiftsToFirestore(updated).catch((error) => console.error('No se pudo abrir el turno:', error));
+  };
+
+  const handleCloseCashShift = (shiftId: string, countedAmount: number) => {
+    if (!Number.isFinite(countedAmount) || countedAmount < 0) return;
+    const targetShift = cashShifts.find((shift) => shift.id === shiftId);
+    if (!targetShift) return;
+    const collectedCash = sales
+      .filter((sale) => sale.status === 'completed' && sale.paymentMethod === 'cash' && sale.businessDate === targetShift.businessDate)
+      .reduce((sum, sale) => sum + sale.amount, 0);
+    const updated = cashShifts.map((shift) => shift.id === shiftId ? {
+      ...shift, status: 'closed' as const, countedAmount, expectedAmount: shift.openingAmount + collectedCash,
+      difference: countedAmount - (shift.openingAmount + collectedCash), closedAt: Date.now(), closedBy: staffUser.name || 'Administrador'
+    } : shift);
+    setCashShifts(updated);
+    syncCashShiftsToFirestore(updated).catch((error) => console.error('No se pudo cerrar el turno:', error));
+  };
+
+  const handleCashMovement = async (type: 'income' | 'expense', amount: number, concept: string) => {
+    if (!Number.isFinite(amount) || amount <= 0 || !concept.trim()) return;
+    const shiftId = cashShifts.find((shift) => shift.status === 'open')?.id;
+    if (!isDemoMode) await recordCashMovement(activeChainId, activeBranchId, shiftId, type, amount, concept);
+  };
+
+  const handleCreateReservation = (reservation: Omit<Reservation, 'id' | 'branchId' | 'createdAt' | 'status'>) => {
+    const created: Reservation = { ...reservation, id: `res-${Date.now()}`, branchId: activeBranchId, status: 'pending', createdAt: Date.now() };
+    const updated = [...reservations, created];
+    setReservations(updated);
+    syncReservationsToFirestore(updated).catch((error) => console.error('No se pudo guardar la reserva:', error));
+  };
+
+  const handleUpdateReservationStatus = (reservationId: string, status: Reservation['status']) => {
+    const updated = reservations.map((reservation) => reservation.id === reservationId ? { ...reservation, status } : reservation);
+    setReservations(updated);
+    syncReservationsToFirestore(updated).catch((error) => console.error('No se pudo actualizar la reserva:', error));
+  };
+
+  const handleToggleAttendance = (staff: StaffMember) => {
+    const businessDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date());
+    const openRecord = attendance.find((record) => record.staffId === staff.id && record.businessDate === businessDate && record.status === 'present');
+    const updated = openRecord
+      ? attendance.map((record) => record.id === openRecord.id ? { ...record, status: 'completed' as const, checkOutAt: Date.now() } : record)
+      : [{ id: `att-${staff.id}-${Date.now()}`, branchId: activeBranchId, staffId: staff.id, staffName: staff.name, businessDate, checkInAt: Date.now(), status: 'present' as const }, ...attendance];
+    setAttendance(updated);
+    syncAttendanceToFirestore(updated).catch((error) => console.error('No se pudo registrar la asistencia:', error));
   };
 
   // Reassign waiter for a table (Admin authority)
@@ -2171,7 +2315,7 @@ export default function App() {
               alertsCount={readyPlatesCount}
               pendingDrinksCount={pendingDrinksCount}
               onOpenDrinksTray={() => setIsDrinksTrayOpen(true)}
-              onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
+              onOpenRoleSwitcher={isDemoMode ? () => setIsRoleSwitcherOpen(true) : undefined}
               activeBranchName={currentBranch?.name || 'Sede Miraflores'}
               activeChainName={currentChain?.name}
               activeChainLogo={currentChain?.logoUrl}
@@ -2208,13 +2352,26 @@ export default function App() {
                   tickets={kdsTickets}
                   menuItems={currentBranchDishes}
                   staffMembers={staffMembers}
+                  sales={sales}
+                  tenantSales={tenantSales}
+                  inventory={inventory}
+                  cashShifts={cashShifts}
+                  reservations={reservations}
+                  attendance={attendance}
                   onSelectBranch={setActiveBranchId}
                   onNavigate={handleNavigate}
                   onSelectCartaTab={setCartaInitialTab}
                   onToggleItemAvailability={handleToggleItemAvailability}
                   onToggleBranchActive={(branchId) => handleToggleLocation(activeChainId, branchId)}
+                  onAdjustInventory={handleAdjustInventory}
+                  onOpenCashShift={handleOpenCashShift}
+                  onCloseCashShift={handleCloseCashShift}
+                  onCashMovement={handleCashMovement}
+                  onCreateReservation={handleCreateReservation}
+                  onUpdateReservationStatus={handleUpdateReservationStatus}
+                  onToggleAttendance={handleToggleAttendance}
                   onSelectTable={handleSelectTable}
-                  onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
+                  onOpenRoleSwitcher={isDemoMode ? () => setIsRoleSwitcherOpen(true) : undefined}
                   onLogout={handleLogout}
                 />
               )}
@@ -2258,7 +2415,7 @@ export default function App() {
                   onNavigate={handleNavigate}
                   currentRole={currentRole}
                   currentUserName={staffUser.name}
-                  onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
+                  onOpenRoleSwitcher={isDemoMode ? () => setIsRoleSwitcherOpen(true) : undefined}
                 />
               )}
 
@@ -2345,7 +2502,7 @@ export default function App() {
               pendingDrinksCount={pendingDrinksCount}
               onOpenDrinksTray={() => setIsDrinksTrayOpen(true)}
               onSelectCartaTab={(tab) => setCartaInitialTab(tab)}
-              onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
+              onOpenRoleSwitcher={isDemoMode ? () => setIsRoleSwitcherOpen(true) : undefined}
               onLogout={handleLogout}
             />
           </div>
@@ -2364,7 +2521,7 @@ export default function App() {
       />
 
       {/* Modal: Selector de Perfil / Rol */}
-      <ModalRoleSwitcher
+      {isDemoMode && <ModalRoleSwitcher
         isOpen={isRoleSwitcherOpen}
         onClose={() => setIsRoleSwitcherOpen(false)}
         currentRole={currentRole}
@@ -2373,7 +2530,7 @@ export default function App() {
         onToggleFrame={() => setIsMobileFrame(!isMobileFrame)}
         onResetData={handleResetData}
         onLogout={handleLogout}
-      />
+      />}
     </div>
   );
 }

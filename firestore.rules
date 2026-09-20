@@ -60,6 +60,50 @@ service cloud.firestore {
           allow read: if isTenantAdmin(restaurantId);
           allow write: if false;
         }
+
+        match /inventory/{itemId} {
+          allow read: if canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId);
+          allow write: if isGlobal() || (canUseBranch(restaurantId, branchId) && hasRole(['admin_general', 'admin_sede']));
+        }
+
+        match /inventoryMovements/{movementId} {
+          allow read: if isTenantAdmin(restaurantId);
+          allow write: if false;
+        }
+
+        match /cashShifts/{shiftId} {
+          allow read: if canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId);
+          allow create, update: if (canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId)) && hasRole(['cajero', 'admin_sede', 'admin_general']);
+          allow delete: if isGlobal() || isGeneralAdmin(restaurantId);
+        }
+
+        match /cashMovements/{movementId} {
+          allow read: if isTenantAdmin(restaurantId);
+          allow write: if false;
+        }
+
+        match /reservations/{reservationId} {
+          allow read: if canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId);
+          allow create, update: if (canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId)) && hasRole(['mesero', 'admin_sede', 'admin_general']);
+          allow delete: if isGlobal() || isTenantAdmin(restaurantId);
+        }
+
+        match /attendance/{recordId} {
+          allow read: if canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId);
+          allow create, update: if (canUseBranch(restaurantId, branchId) || isGeneralAdmin(restaurantId)) && hasRole(['mesero', 'cocina', 'cajero', 'admin_sede', 'admin_general']);
+          allow delete: if isGlobal() || isGeneralAdmin(restaurantId);
+        }
+      }
+
+      // La bitácora se escribe exclusivamente desde el servidor con Firebase Admin.
+      match /auditLogs/{logId} {
+        allow read: if isGlobal() || isGeneralAdmin(restaurantId);
+        allow write: if false;
+      }
+
+      match /approvals/{approvalId} {
+        allow read: if hasTenant(restaurantId);
+        allow write: if false;
       }
     }
   }
