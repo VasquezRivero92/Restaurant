@@ -92,11 +92,19 @@ export default function App() {
   const initialSession = React.useMemo(() => loadSession(), []);
   const isDemoMode = import.meta.env.VITE_ENABLE_DEMO_DATA === 'true';
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => isDemoMode && Boolean(initialSession?.isAuthenticated));
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => Boolean(initialSession?.isAuthenticated));
+  const [adminProfile, setAdminProfile] = useState<AdminUser | undefined>(() => initialSession?.adminProfile);
   const [isGlobalLoginOpen, setIsGlobalLoginOpen] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>(() => {
-    if (isDemoMode && initialSession?.isAuthenticated) {
-      return initialSession.currentScreen || 'dashboard-admin';
+    if (initialSession?.isAuthenticated) {
+      if (initialSession.currentScreen && initialSession.currentScreen !== 'pin-lock') {
+        return initialSession.currentScreen;
+      }
+      if (initialSession.currentRole === 'admin_global') return 'saas-console';
+      if (['admin_general', 'admin_sede'].includes(initialSession.currentRole)) return 'dashboard-admin';
+      if (initialSession.currentRole === 'cocina') return 'cocina-kds';
+      if (initialSession.currentRole === 'cajero') return 'cuenta-cobro';
+      return 'mesas';
     }
     return 'pin-lock';
   });
@@ -252,7 +260,8 @@ export default function App() {
       activeChainId,
       activeBranchId,
       selectedTableId,
-      cartaInitialTab
+      cartaInitialTab,
+      adminProfile
     });
   }, [
     isAuthenticated,
@@ -262,7 +271,8 @@ export default function App() {
     activeChainId,
     activeBranchId,
     selectedTableId,
-    cartaInitialTab
+    cartaInitialTab,
+    adminProfile
   ]);
 
   // Escuchar cambios de autenticación de Firebase
@@ -271,10 +281,16 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         setIsAuthenticated(true);
+        setCurrentScreen((prev) => {
+          if (prev === 'pin-lock') {
+            return currentRole === 'admin_global' ? 'saas-console' : 'dashboard-admin';
+          }
+          return prev;
+        });
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [currentRole]);
 
   // Actualizar el alcance de Firestore cuando cambia el tenant o la sede activa
   React.useEffect(() => {
@@ -616,22 +632,39 @@ export default function App() {
 
   // Role switching handler with synchronized user profile and destination screen
   const handleSwitchRole = (role: AppRole) => {
-    if (!isDemoMode) return;
     setCurrentRole(role);
     if (role === 'cocina') {
-      setStaffUser({ name: 'Chef Mario Quispe', role: 'admin' });
+      const chef = staffMembers.find((s) => s.roleKey === 'cocina');
+      setStaffUser({ name: chef?.name || 'Chef Mario Quispe', role: 'admin' });
       setCurrentScreen('cocina-kds');
     } else if (role === 'mesero') {
-      setStaffUser({ name: 'Carlos Mendoza', role: 'mesero' });
+      const waiter = staffMembers.find((s) => s.roleKey === 'mesero');
+      setStaffUser({ name: waiter?.name || 'Carlos Mendoza', role: 'mesero' });
       setCurrentScreen('mesas');
+    } else if (role === 'cajero') {
+      const cashier = staffMembers.find((s) => s.roleKey === 'cajero');
+      setStaffUser({ name: cashier?.name || 'Cajero de Turno', role: 'mesero' });
+      setCurrentScreen('cuenta-cobro');
     } else if (role === 'admin_sede') {
-      setStaffUser({ name: 'Roberto Morales', role: 'admin' });
+      const sedeAdmin = admins.find((a) => a.roleKey === 'admin_sede');
+      setStaffUser({
+        name: adminProfile?.roleKey === 'admin_sede' ? adminProfile.name : (sedeAdmin?.name || adminProfile?.name || 'Roberto Morales'),
+        role: 'admin'
+      });
       setCurrentScreen('dashboard-admin');
     } else if (role === 'admin_general') {
-      setStaffUser({ name: 'Mariana Alva', role: 'admin' });
+      const genAdmin = admins.find((a) => a.roleKey === 'admin_general');
+      setStaffUser({
+        name: adminProfile?.roleKey === 'admin_general' ? adminProfile.name : (genAdmin?.name || adminProfile?.name || 'Mariana Alva'),
+        role: 'admin'
+      });
       setCurrentScreen('dashboard-admin');
     } else if (role === 'admin_global') {
-      setStaffUser({ name: 'José Manuel Vasquez Rivero', role: 'admin' });
+      const globalAdmin = admins.find((a) => a.roleKey === 'admin_global');
+      setStaffUser({
+        name: adminProfile?.roleKey === 'admin_global' ? adminProfile.name : (globalAdmin?.name || adminProfile?.name || 'José Manuel Vasquez Rivero'),
+        role: 'admin'
+      });
       setCurrentScreen('saas-console');
     }
   };
@@ -642,6 +675,7 @@ export default function App() {
     window.history.pushState({}, '', `/${slug}`);
     setTenantSlug(slug);
     setIsAuthenticated(false);
+    setAdminProfile(undefined);
     setCurrentScreen('pin-lock');
     setStaffUser({ name: '', role: 'mesero' });
   };
@@ -652,6 +686,7 @@ export default function App() {
     window.history.pushState({}, '', '/');
     setTenantSlug(null);
     setIsAuthenticated(false);
+    setAdminProfile(undefined);
     setCurrentScreen('pin-lock');
     setStaffUser({ name: '', role: 'mesero' });
   };
@@ -661,6 +696,7 @@ export default function App() {
     clearSession();
     closeAdminSession().catch(() => {});
     setIsAuthenticated(false);
+    setAdminProfile(undefined);
     setCurrentScreen('pin-lock');
     setStaffUser({ name: '', role: 'mesero' });
   };
@@ -2026,8 +2062,16 @@ export default function App() {
       role: role === 'mesero' ? 'mesero' : 'admin'
     });
 
-    if (role === 'admin_sede') {
-      const foundAdmin = admins.find((a) => a.name.toLowerCase() === name.toLowerCase() || a.roleKey === 'admin_sede');
+    if (['admin_sede', 'admin_general', 'admin_global'].includes(role)) {
+      const foundAdmin = admins.find((a) => a.name.toLowerCase() === name.toLowerCase() || a.roleKey === role);
+      setAdminProfile(foundAdmin || {
+        id: `adm-${Date.now()}`,
+        name,
+        role: role === 'admin_general' ? 'Administrador General' : role === 'admin_global' ? 'Administrador Global' : 'Administrador de Sede',
+        roleKey: role,
+        assignedBranchIds: activeBranchId ? [activeBranchId] : [],
+        active: true
+      });
       if (foundAdmin?.brandId) setActiveChainId(foundAdmin.brandId);
       if (foundAdmin?.assignedBranchIds && foundAdmin.assignedBranchIds.length > 0) {
         setActiveBranchId(foundAdmin.assignedBranchIds[0]);
@@ -2227,7 +2271,14 @@ export default function App() {
 
   const currentChain = chains.find((c) => c.id === activeChainId) || chains[0];
   const currentBranch = currentChain?.locations.find((l) => l.id === activeBranchId) || currentChain?.locations[0];
-  const currentAdmin = admins.find((admin) => admin.name.toLowerCase() === staffUser.name.toLowerCase()) 
+  const currentAdmin = (adminProfile && ['admin_sede', 'admin_general', 'admin_global'].includes(currentRole)
+    ? {
+        ...adminProfile,
+        roleKey: currentRole,
+        role: currentRole === 'admin_general' ? 'Administrador General' : currentRole === 'admin_global' ? 'Administrador Global' : 'Administrador de Sede'
+      }
+    : undefined)
+    || admins.find((admin) => admin.name.toLowerCase() === staffUser.name.toLowerCase()) 
     || admins.find((admin) => admin.roleKey === currentRole)
     || (['admin_sede', 'admin_general', 'admin_global'].includes(currentRole) ? {
         id: 'adm-current',
@@ -2237,6 +2288,8 @@ export default function App() {
         assignedBranchIds: activeBranchId ? [activeBranchId] : (currentChain?.locations.map((l) => l.id) || []),
         active: true
       } as AdminUser : undefined);
+
+  const canSwitchRole = Boolean(adminProfile) || ['admin_global', 'admin_general', 'admin_sede'].includes(currentRole) || isDemoMode;
 
   const isWideLayoutScreen =
     currentScreen === 'saas-console' ||
@@ -2255,6 +2308,7 @@ export default function App() {
             <ScreenGlobalLogin
               onLoginSuccess={(adminUser: AdminUser) => {
                 setIsAuthenticated(true);
+                setAdminProfile(adminUser);
                 const roleKey = adminUser.roleKey || 'admin_global';
                 setCurrentRole(roleKey);
                 setStaffUser({ name: adminUser.name, role: 'admin' });
@@ -2315,7 +2369,7 @@ export default function App() {
               alertsCount={readyPlatesCount}
               pendingDrinksCount={pendingDrinksCount}
               onOpenDrinksTray={() => setIsDrinksTrayOpen(true)}
-              onOpenRoleSwitcher={isDemoMode ? () => setIsRoleSwitcherOpen(true) : undefined}
+              onOpenRoleSwitcher={canSwitchRole ? () => setIsRoleSwitcherOpen(true) : undefined}
               activeBranchName={currentBranch?.name || 'Sede Miraflores'}
               activeChainName={currentChain?.name}
               activeChainLogo={currentChain?.logoUrl}
@@ -2371,7 +2425,7 @@ export default function App() {
                   onUpdateReservationStatus={handleUpdateReservationStatus}
                   onToggleAttendance={handleToggleAttendance}
                   onSelectTable={handleSelectTable}
-                  onOpenRoleSwitcher={isDemoMode ? () => setIsRoleSwitcherOpen(true) : undefined}
+                  onOpenRoleSwitcher={canSwitchRole ? () => setIsRoleSwitcherOpen(true) : undefined}
                   onLogout={handleLogout}
                 />
               )}
@@ -2415,7 +2469,7 @@ export default function App() {
                   onNavigate={handleNavigate}
                   currentRole={currentRole}
                   currentUserName={staffUser.name}
-                  onOpenRoleSwitcher={isDemoMode ? () => setIsRoleSwitcherOpen(true) : undefined}
+                  onOpenRoleSwitcher={canSwitchRole ? () => setIsRoleSwitcherOpen(true) : undefined}
                 />
               )}
 
@@ -2502,7 +2556,7 @@ export default function App() {
               pendingDrinksCount={pendingDrinksCount}
               onOpenDrinksTray={() => setIsDrinksTrayOpen(true)}
               onSelectCartaTab={(tab) => setCartaInitialTab(tab)}
-              onOpenRoleSwitcher={isDemoMode ? () => setIsRoleSwitcherOpen(true) : undefined}
+              onOpenRoleSwitcher={canSwitchRole ? () => setIsRoleSwitcherOpen(true) : undefined}
               onLogout={handleLogout}
             />
           </div>
@@ -2521,16 +2575,22 @@ export default function App() {
       />
 
       {/* Modal: Selector de Perfil / Rol */}
-      {isDemoMode && <ModalRoleSwitcher
-        isOpen={isRoleSwitcherOpen}
-        onClose={() => setIsRoleSwitcherOpen(false)}
-        currentRole={currentRole}
-        onSelectRole={handleSwitchRole}
-        isMobileFrame={isMobileFrame}
-        onToggleFrame={() => setIsMobileFrame(!isMobileFrame)}
-        onResetData={handleResetData}
-        onLogout={handleLogout}
-      />}
+      {canSwitchRole && (
+        <ModalRoleSwitcher
+          isOpen={isRoleSwitcherOpen}
+          onClose={() => setIsRoleSwitcherOpen(false)}
+          currentRole={currentRole}
+          onSelectRole={handleSwitchRole}
+          isMobileFrame={isMobileFrame}
+          onToggleFrame={() => setIsMobileFrame(!isMobileFrame)}
+          onResetData={isDemoMode ? handleResetData : undefined}
+          onLogout={handleLogout}
+          admins={admins}
+          staffMembers={staffMembers}
+          activeBranchName={currentBranch?.name}
+          activeChainName={currentChain?.name}
+        />
+      )}
     </div>
   );
 }
