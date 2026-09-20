@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { KDSTicket, ScreenType, AppRole } from '../types';
+import { KDSTicket, ScreenType, AppRole, TableItem } from '../types';
+import { isTicketAssignedToWaiter, isDrinkKDSTicketItem } from '../utils/waiterUtils';
 
 interface ScreenCocinaKDSProps {
   tickets: KDSTicket[];
+  tables?: TableItem[];
   onUpdateTicketStatus: (ticketId: string, newStatus: 'pending' | 'cooking' | 'ready' | 'served') => void;
   onMarkDishReady?: (ticketId: string, itemIndex: number) => void;
   onMarkDishServed?: (ticketId: string, itemIndex: number) => void;
@@ -17,6 +19,7 @@ interface ScreenCocinaKDSProps {
 
 export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
   tickets,
+  tables = [],
   onUpdateTicketStatus,
   onMarkDishReady,
   onMarkDishServed,
@@ -28,9 +31,14 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
   currentUserName = 'Chef Mario Quispe',
   onOpenRoleSwitcher
 }) => {
+  const isWaiter = currentRole === 'mesero';
+  const isKitchen = currentRole === 'cocina';
+  const isAdmin = currentRole === 'admin_sede' || currentRole === 'admin_general' || currentRole === 'admin_global';
+
   const [stationFilter, setStationFilter] = useState<'todas' | 'frios' | 'calientes' | 'barra'>('todas');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'cooking' | 'ready'>('all');
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
+  const [scopeMode, setScopeMode] = useState<'my_tables' | 'all'>(isWaiter ? 'my_tables' : 'all');
   const [viewMode, setViewMode] = useState<'cascade_fifo' | 'grid'>('cascade_fifo');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -43,9 +51,6 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
     table: string;
   } | null>(null);
 
-  const isWaiter = currentRole === 'mesero';
-  const isKitchen = currentRole === 'cocina';
-  const isAdmin = currentRole === 'admin_sede' || currentRole === 'admin_general' || currentRole === 'admin_global';
 
   // Play audio chime
   const playAudioChime = (type: 'ready' | 'served' | 'remove' = 'ready') => {
@@ -95,17 +100,17 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // 1. Kitchen cooks mark an individual dish as ready
-  const handleItemReady = (ticketId: string, itemIndex: number, itemName: string) => {
-    if (isWaiter) {
-      showToast('⚠️ Permiso denegado: Solo cocina puede marcar un plato como preparado');
+  // 1. Kitchen cooks mark an individual dish as ready; Waiters can also mark drinks as ready
+  const handleItemReady = (ticketId: string, itemIndex: number, itemName: string, isDrink: boolean = false) => {
+    if (isWaiter && !isDrink) {
+      showToast('⚠️ Permiso denegado: Solo cocina puede marcar un plato de comida como preparado');
       return;
     }
     if (onMarkDishReady) {
       onMarkDishReady(ticketId, itemIndex);
     }
     playAudioChime('ready');
-    showToast(`🛎️ Plato "${itemName}" preparado y listo para recoger. Aviso enviado a mozo`);
+    showToast(isDrink ? `🍹 Bebida "${itemName}" preparada y lista para servir.` : `🛎️ Plato "${itemName}" preparado y listo para recoger. Aviso enviado a mozo`);
   };
 
   // 2. Waiters mark an individual dish as served in salon
@@ -178,34 +183,38 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
   };
 
   const isMyTicket = (t: KDSTicket) => {
-    if (!t.waiter) return false;
-    const waiterLower = t.waiter.toLowerCase().trim();
-    const currentLower = (currentUserName || '').toLowerCase().trim();
-    if (!waiterLower || !currentLower) return false;
-    const currentFirst = currentLower.split(' ')[0];
-    const ticketFirst = waiterLower.split(' ')[0];
-    return (
-      waiterLower === currentLower ||
-      (currentFirst && waiterLower.includes(currentFirst)) ||
-      (ticketFirst && currentLower.includes(ticketFirst))
-    );
+    return isTicketAssignedToWaiter(t, currentUserName, tables);
   };
 
   // A ticket is active if it hasn't been served and NOT all items are ready & served
   // THE CARD DISAPPEARS WHEN ALL ITEMS IN THE ORDER ARE PREPARED AND SERVED!
   const allActiveTickets = tickets.filter((t) => {
     if (t.status === 'served') return false;
-    const allDishesCompleted = t.items.length > 0 && t.items.every((i) => i.isReady && i.isServed);
+    const allDishesCompleted =
+      t.items.length > 0 &&
+      t.items.every(
+        (i) =>
+          (i.isReady || (i as any).status === 'ready' || (i as any).status === 'served') &&
+          (i.isServed || (i as any).status === 'served')
+      );
     return !allDishesCompleted;
   });
 
   const allCompletedTickets = tickets.filter((t) => {
-    return t.status === 'served' || (t.items.length > 0 && t.items.every((i) => i.isReady && i.isServed));
+    return (
+      t.status === 'served' ||
+      (t.items.length > 0 &&
+        t.items.every(
+          (i) =>
+            (i.isReady || (i as any).status === 'ready' || (i as any).status === 'served') &&
+            (i.isServed || (i as any).status === 'served')
+        ))
+    );
   });
 
-  // El mesero SÓLO ve las comandas de sus mesas asignadas en todo el proceso
-  const activeTickets = isWaiter ? allActiveTickets.filter(isMyTicket) : allActiveTickets;
-  const completedTickets = isWaiter ? allCompletedTickets.filter(isMyTicket) : allCompletedTickets;
+  // El mesero puede alternar entre 'Mis Mesas' y 'Todo el Salón'
+  const activeTickets = isWaiter && scopeMode === 'my_tables' ? allActiveTickets.filter(isMyTicket) : allActiveTickets;
+  const completedTickets = isWaiter && scopeMode === 'my_tables' ? allCompletedTickets.filter(isMyTicket) : allCompletedTickets;
 
   const currentList = activeTab === 'active' ? activeTickets : completedTickets;
 
@@ -213,9 +222,9 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
     const matchesStation =
       stationFilter === 'todas' ||
       t.station === stationFilter ||
-      (stationFilter === 'frios' && t.station === 'frios') ||
-      (stationFilter === 'calientes' && t.station === 'calientes') ||
-      (stationFilter === 'barra' && t.station === 'barra');
+      (stationFilter === 'frios' && (t.station === 'frios' || t.items.some(i => (i.substation || '').toUpperCase().includes('FRÍ') || (i.station || '').toLowerCase().includes('frí')))) ||
+      (stationFilter === 'calientes' && (t.station === 'calientes' || t.items.some(i => (i.substation || '').toUpperCase().includes('CAL') || (i.substation || '').toUpperCase().includes('SALT') || (i.station || '').toLowerCase().includes('cal')))) ||
+      (stationFilter === 'barra' && (t.station === 'barra' || t.items.some(isDrinkKDSTicketItem)));
 
     const matchesStatus =
       statusFilter === 'all' ||
@@ -239,7 +248,15 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
 
   // Total ready plates waiting to be served by waiters
   const totalReadyToPickupPlates = activeTickets.reduce((acc, t) => {
-    return acc + t.items.filter((i) => i.isReady && !i.isServed).length;
+    return (
+      acc +
+      t.items.filter(
+        (i) =>
+          (i.isReady || (i as any).status === 'ready') &&
+          !i.isServed &&
+          (i as any).status !== 'served'
+      ).length
+    );
   }, 0);
 
   return (
@@ -373,8 +390,38 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
           </div>
         </div>
 
-        {/* Center: Tabs (Active vs History) & Station Filters */}
+        {/* Center: Tabs (Active vs History), Waiter Scope Toggle & Station Filters */}
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Waiter Scope Selector (Mis Mesas vs Todo el Salón) */}
+          {isWaiter && (
+            <div className="flex items-center gap-1 bg-surface-container p-1 rounded-xl">
+              <button
+                onClick={() => setScopeMode('my_tables')}
+                className={`h-8 px-2.5 sm:px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  scopeMode === 'my_tables'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-on-surface-variant hover:bg-surface-variant'
+                }`}
+                title="Ver comandas de mis mesas asignadas o mesas de turno"
+              >
+                <span className="material-symbols-outlined text-[16px]">person_check</span>
+                <span>Mis Mesas ({allActiveTickets.filter(isMyTicket).length})</span>
+              </button>
+              <button
+                onClick={() => setScopeMode('all')}
+                className={`h-8 px-2.5 sm:px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  scopeMode === 'all'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-on-surface-variant hover:bg-surface-variant'
+                }`}
+                title="Ver todas las comandas de la cocina en todo el salón"
+              >
+                <span className="material-symbols-outlined text-[16px]">apps</span>
+                <span>Todo el Salón ({allActiveTickets.length})</span>
+              </button>
+            </div>
+          )}
+
           {/* Active Queue vs Finished History Toggle */}
           <div className="flex items-center gap-1 bg-surface-container p-1 rounded-xl">
             <button
@@ -573,10 +620,18 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
           {sortedTickets.map((ticket, queueIndex) => {
             const isFirstInQueue = queueIndex === 0 && activeTab === 'active';
             const totalItems = ticket.items.length;
-            const readyItemsCount = ticket.items.filter((i) => i.isReady).length;
-            const servedItemsCount = ticket.items.filter((i) => i.isServed).length;
-            const readyUnservedCount = ticket.items.filter((i) => i.isReady && !i.isServed).length;
-            const pendingCookingCount = ticket.items.filter((i) => !i.isReady).length;
+            const readyItemsCount = ticket.items.filter(
+              (i) => i.isReady || (i as any).status === 'ready' || (i as any).status === 'served'
+            ).length;
+            const servedItemsCount = ticket.items.filter(
+              (i) => i.isServed || (i as any).status === 'served'
+            ).length;
+            const readyUnservedCount = ticket.items.filter(
+              (i) => (i.isReady || (i as any).status === 'ready') && !i.isServed && (i as any).status !== 'served'
+            ).length;
+            const pendingCookingCount = ticket.items.filter(
+              (i) => !i.isReady && (i as any).status !== 'ready' && (i as any).status !== 'served'
+            ).length;
 
             const isAllReady = totalItems > 0 && readyItemsCount === totalItems;
             const hasAnyReady = readyItemsCount > 0;
@@ -617,7 +672,7 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
                     <div className="flex flex-col">
                       <div className="flex items-center gap-2">
                         <span className="font-black text-base sm:text-lg text-primary leading-tight">
-                          {ticket.table}
+                          {ticket.table || (ticket as any).tableName || ((ticket as any).tableNumber ? `Mesa ${(ticket as any).tableNumber}` : 'Mesa')}
                         </span>
                         <span className="font-mono text-xs text-on-surface-variant font-bold bg-surface-container px-2 py-0.5 rounded-md">
                           #{ticket.id}
@@ -626,7 +681,7 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
                       <div className="flex items-center gap-2 text-xs text-on-surface-variant mt-0.5 flex-wrap">
                         <span className="flex items-center gap-1 font-bold text-primary">
                           <span className="material-symbols-outlined text-[14px]">person</span>
-                          <span>Mozo: {ticket.waiter}</span>
+                          <span>Mozo: {ticket.waiter || (ticket as any).waiterName || 'Mozo de Turno'}</span>
                         </span>
                         <span>•</span>
                         <span className="font-medium">{ticket.time || '13:30'}</span>
@@ -648,7 +703,7 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
                       }`}
                     >
                       <span className="material-symbols-outlined text-[14px]">schedule</span>
-                      <span>{ticket.elapsed}</span>
+                      <span>{ticket.elapsed || (ticket as any).timeElapsed || '05:00 min'}</span>
                     </div>
 
                     <span className="text-[10px] font-extrabold text-on-surface-variant uppercase mt-1">
@@ -687,8 +742,9 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
                 {/* Dish Items List with Granular Controls */}
                 <div className="flex flex-col gap-2 my-1">
                   {ticket.items.map((item, itemIndex) => {
-                    const isItemReady = !!item.isReady;
-                    const isItemServed = !!item.isServed;
+                    const isItemReady = Boolean(item.isReady || (item as any).status === 'ready' || (item as any).status === 'served');
+                    const isItemServed = Boolean(item.isServed || (item as any).status === 'served');
+                    const isDrink = isDrinkKDSTicketItem(item);
 
                     return (
                       <div
@@ -697,7 +753,7 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
                           isItemServed
                             ? 'bg-emerald-50/60 border-emerald-200 opacity-75'
                             : isItemReady
-                            ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-400/40 shadow-xs'
+                            ? isDrink ? 'bg-sky-50 border-sky-400 ring-2 ring-sky-400/40 shadow-xs' : 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-400/40 shadow-xs'
                             : 'bg-surface-container-high border-outline-variant/30'
                         }`}
                       >
@@ -709,8 +765,8 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
                                 isItemServed
                                   ? 'bg-emerald-200 text-emerald-900'
                                   : isItemReady
-                                  ? 'bg-emerald-600 text-white animate-pulse'
-                                  : 'bg-primary text-on-primary'
+                                  ? isDrink ? 'bg-sky-600 text-white animate-pulse' : 'bg-emerald-600 text-white animate-pulse'
+                                  : isDrink ? 'bg-sky-700 text-white' : 'bg-primary text-on-primary'
                               }`}
                             >
                               {item.qty}x
@@ -726,8 +782,12 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
                                 >
                                   {item.name}
                                 </span>
-                                <span className="text-[10px] bg-surface-container px-1.5 py-0.5 rounded font-bold text-on-surface-variant uppercase">
-                                  {item.substation}
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                                  isDrink
+                                    ? 'bg-sky-100 text-sky-900 border border-sky-300'
+                                    : 'bg-surface-container text-on-surface-variant'
+                                }`}>
+                                  {isDrink ? 'BEBIDAS (ATENCIÓN MOZO)' : (item.substation || (item as any).station || 'COCINA')}
                                 </span>
                               </div>
 
@@ -745,14 +805,22 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
                                     <span>Servido en mesa</span>
                                   </span>
                                 ) : isItemReady ? (
-                                  <span className="text-[10px] font-black text-emerald-900 bg-emerald-200 px-2.5 py-0.5 rounded-md flex items-center gap-1 animate-pulse border border-emerald-400">
-                                    <span className="material-symbols-outlined text-[14px]">room_service</span>
-                                    <span>¡Listo para recoger!</span>
+                                  <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-md flex items-center gap-1 animate-pulse border ${
+                                    isDrink
+                                      ? 'bg-sky-100 text-sky-950 border-sky-400'
+                                      : 'bg-emerald-200 text-emerald-900 border-emerald-400'
+                                  }`}>
+                                    <span className="material-symbols-outlined text-[14px]">
+                                      {isDrink ? 'local_bar' : 'room_service'}
+                                    </span>
+                                    <span>{isDrink ? '¡Bebida lista para servir!' : '¡Listo para recoger!'}</span>
                                   </span>
                                 ) : (
                                   <span className="text-[10px] font-bold text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded-md flex items-center gap-1">
-                                    <span className="material-symbols-outlined text-[13px]">skillet</span>
-                                    <span>En preparación</span>
+                                    <span className="material-symbols-outlined text-[13px]">
+                                      {isDrink ? 'local_bar' : 'skillet'}
+                                    </span>
+                                    <span>{isDrink ? 'Bebida por atender' : 'En preparación'}</span>
                                   </span>
                                 )}
 
@@ -767,19 +835,33 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
 
                           {/* Action Controls for this specific dish */}
                           <div className="flex items-center gap-1.5 shrink-0 self-center">
-                            {/* 1. Cocina Button: Marcar este plato preparado */}
-                            {!isItemReady && !isWaiter && (
-                              <button
-                                onClick={() => handleItemReady(ticket.id, itemIndex, item.name)}
-                                className="px-2.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs flex items-center gap-1 shadow-xs cursor-pointer active:scale-95 transition-all"
-                                title="Marcar plato como preparado y avisar al mozo"
-                              >
-                                <span className="material-symbols-outlined text-[16px]">check</span>
-                                <span>Listo</span>
-                              </button>
+                            {/* 1. Preparar Button:
+                               - Para bebidas: TANTO el mozo como cocina pueden prepararla.
+                               - Para comida: Solo cocina puede prepararla.
+                            */}
+                            {!isItemReady && (
+                              isDrink ? (
+                                <button
+                                  onClick={() => handleItemReady(ticket.id, itemIndex, item.name, true)}
+                                  className="px-2.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-xs flex items-center gap-1 shadow-xs cursor-pointer active:scale-95 transition-all"
+                                  title="Preparar bebida y marcarla lista para servir al cliente"
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">local_bar</span>
+                                  <span>Preparar</span>
+                                </button>
+                              ) : (!isWaiter) ? (
+                                <button
+                                  onClick={() => handleItemReady(ticket.id, itemIndex, item.name, false)}
+                                  className="px-2.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs flex items-center gap-1 shadow-xs cursor-pointer active:scale-95 transition-all"
+                                  title="Marcar plato como preparado y avisar al mozo"
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">check</span>
+                                  <span>Listo</span>
+                                </button>
+                              ) : null
                             )}
 
-                            {/* 2. Mozo Button: Marcar este plato servido */}
+                            {/* 2. Mozo Button: Marcar este plato o bebida servido */}
                             {isItemReady && !isItemServed && (isWaiter || isAdmin) && (
                               <button
                                 onClick={() =>
@@ -787,13 +869,17 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
                                 }
                                 className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center gap-1 shadow-md transition-all cursor-pointer active:scale-95 ${
                                   isWaiter
-                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-400'
+                                    ? isDrink
+                                      ? 'bg-sky-600 hover:bg-sky-700 text-white ring-2 ring-sky-400'
+                                      : 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-400'
                                     : 'bg-emerald-100 text-emerald-900 hover:bg-emerald-200'
                                 }`}
-                                title="Confirmar que ya entregaste este plato al cliente en la mesa"
+                                title={isDrink ? "Confirmar que ya entregaste esta bebida al cliente" : "Confirmar que ya entregaste este plato al cliente en la mesa"}
                               >
-                                <span className="material-symbols-outlined text-[16px]">done_all</span>
-                                <span>{isWaiter ? '✓ Ya lo serví' : 'Servido'}</span>
+                                <span className="material-symbols-outlined text-[16px]">
+                                  {isDrink ? 'local_bar' : 'done_all'}
+                                </span>
+                                <span>{isWaiter ? (isDrink ? '✓ Servir Bebida' : '✓ Ya lo serví') : 'Servido'}</span>
                               </button>
                             )}
 

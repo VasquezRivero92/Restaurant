@@ -9,6 +9,7 @@ import {
   StaffMember,
   MasterCarta
 } from '../types';
+import { DEFAULT_DISH_PLACEHOLDER_IMAGE } from '../data/mockData';
 
 interface ScreenCartaSedeProps {
   menuItems: MenuItem[];
@@ -32,6 +33,7 @@ interface ScreenCartaSedeProps {
   onSelectBranch?: (branchId: string) => void;
   onSelectChain?: (chainId: string) => void;
   onAddLocation?: (chainId: string, newLocation: BranchLocation, managerAdmin?: AdminUser) => void;
+  onUpdateLocation?: (chainId: string, updatedLocation: BranchLocation, managerAdmin?: AdminUser) => void;
   onUpdateChain?: (chain: ChainBrand) => void;
   currentRole?: AppRole;
   currentAdminName?: string;
@@ -41,13 +43,19 @@ interface ScreenCartaSedeProps {
 
 // Preset appetizing images for Cevichería dishes
 const PRESET_DISH_IMAGES = [
-  { label: 'Ceviche Clásico', url: 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?auto=format&fit=crop&w=400&q=80' },
-  { label: 'Arroz con Mariscos', url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=400&q=80' },
-  { label: 'Leche de Tigre', url: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=400&q=80' },
-  { label: 'Chicharrón / Jalea', url: 'https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?auto=format&fit=crop&w=400&q=80' },
-  { label: 'Parihuela / Caliente', url: 'https://images.unsplash.com/photo-1547496502-affa22d38842?auto=format&fit=crop&w=400&q=80' },
-  { label: 'Bebida / Chilcano', url: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=400&q=80' }
+  { label: 'Sin imagen (Por defecto)', url: DEFAULT_DISH_PLACEHOLDER_IMAGE },
+  { label: 'Ceviche Clásico', url: 'https://images.unsplash.com/photo-1535400255456-984241443b29?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Ceviche Mixto', url: 'https://images.unsplash.com/photo-1551248429-40975aa4de74?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Arroz con Mariscos', url: 'https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Arroz Chaufa Marino', url: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Jalea / Chicharrón', url: 'https://images.unsplash.com/photo-1580476262798-bddd9f4b7369?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Parihuela / Sudado', url: 'https://images.unsplash.com/photo-1534939561126-855b8675edd7?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Causa Limeña', url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Arroz con Pollo Criollo', url: 'https://images.unsplash.com/photo-1633964913295-ceb43826e7c9?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Chicha Morada Natural', url: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Cerveza Helada', url: 'https://images.unsplash.com/photo-1535958636474-b021ee887b13?auto=format&fit=crop&w=600&q=80' }
 ];
+
 
 export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   menuItems,
@@ -71,6 +79,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   onSelectBranch,
   onSelectChain,
   onAddLocation,
+  onUpdateLocation,
   onUpdateChain,
   currentRole = 'admin_general',
   currentAdminName = 'Roberto Morales',
@@ -146,6 +155,58 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   const [staffFilterMode, setStaffFilterMode] = useState<'current_sede' | 'all_managed'>('current_sede');
   const [staffSearchQuery, setStaffSearchQuery] = useState('');
 
+  // Helper to load and optimize uploaded image files
+  const handleImageFileUpload = (
+    file: File,
+    setImageUrl: (url: string) => void
+  ) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      triggerToast('Por favor selecciona un archivo de imagen válido (JPG, PNG, WebP).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 800;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/jpeg', 0.85);
+            setImageUrl(compressed);
+            triggerToast('Foto cargada y optimizada.');
+          } else {
+            setImageUrl(result);
+            triggerToast('Foto cargada.');
+          }
+        };
+        img.onerror = () => {
+          setImageUrl(result);
+          triggerToast('Foto cargada.');
+        };
+        img.src = result;
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   // --------------------------------------------------------------------------
   // MODAL 1: EDITAR PLATO DE LA CARTA
   // --------------------------------------------------------------------------
@@ -160,6 +221,8 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   const [editDishTag, setEditDishTag] = useState('');
   const [editDishStockNote, setEditDishStockNote] = useState('');
   const [editDishAvailable, setEditDishAvailable] = useState(true);
+  const [editDishImageUrl, setEditDishImageUrl] = useState('');
+  const [editDishAllowSpiceLevel, setEditDishAllowSpiceLevel] = useState<boolean>(false);
 
   const openEditDishModal = (dish: MenuItem) => {
     setEditingDish(dish);
@@ -177,6 +240,12 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
     setEditDishTag(dish.tag || '');
     setEditDishStockNote(dish.stockNote || '');
     setEditDishAvailable(dish.available);
+    setEditDishImageUrl(dish.image || DEFAULT_DISH_PLACEHOLDER_IMAGE);
+    setEditDishAllowSpiceLevel(
+      dish.allowSpiceLevel !== undefined
+        ? dish.allowSpiceLevel
+        : ['ceviches', 'leches', 'calientes'].includes(dish.category)
+    );
   };
 
   const handleAddSizeToEditDish = () => {
@@ -230,7 +299,9 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
       description: editDishDescription.trim(),
       tag: editDishTag.trim() || undefined,
       stockNote: editDishStockNote.trim() || undefined,
-      available: editDishAvailable
+      available: editDishAvailable,
+      image: editDishImageUrl.trim() || DEFAULT_DISH_PLACEHOLDER_IMAGE,
+      allowSpiceLevel: editDishAllowSpiceLevel
     };
 
     if (onUpdateMenuItem) {
@@ -256,8 +327,9 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   const [newDishCategory, setNewDishCategory] = useState<MenuItem['category']>('ceviches');
   const [newDishDescription, setNewDishDescription] = useState('');
   const [newDishTag, setNewDishTag] = useState('ESPECIALIDAD');
-  const [newDishImageUrl, setNewDishImageUrl] = useState(PRESET_DISH_IMAGES[0].url);
+  const [newDishImageUrl, setNewDishImageUrl] = useState(DEFAULT_DISH_PLACEHOLDER_IMAGE);
   const [newDishStockNote, setNewDishStockNote] = useState('');
+  const [newDishAllowSpiceLevel, setNewDishAllowSpiceLevel] = useState<boolean>(true);
 
   const handleAddSizeToNewDish = () => {
     if (!newDishSizeNameInput.trim() || newDishSizePriceInput <= 0) {
@@ -304,10 +376,11 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
       sizes: sortedSizes,
       description: newDishDescription.trim() || 'Elaborado con pesca fresca del día y sazón criolla tradicional.',
       tag: newDishTag.trim() || undefined,
-      image: newDishImageUrl || PRESET_DISH_IMAGES[0].url,
+      image: newDishImageUrl.trim() || DEFAULT_DISH_PLACEHOLDER_IMAGE,
       available: true,
       stockNote: newDishStockNote.trim() || undefined,
-      isDrink: newDishCategory === 'bebidas'
+      isDrink: newDishCategory === 'bebidas',
+      allowSpiceLevel: newDishAllowSpiceLevel
     };
 
     if (onAddMenuItem) {
@@ -317,6 +390,8 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
     setNewDishName('');
     setNewDishDescription('');
     setNewDishStockNote('');
+    setNewDishImageUrl(DEFAULT_DISH_PLACEHOLDER_IMAGE);
+    setNewDishAllowSpiceLevel(true);
     setHasUnsavedChanges(true);
     triggerToast(`¡Nuevo plato "${newDish.name}" agregado con precio por defecto S/ ${basePrice.toFixed(2)}!`);
   };
@@ -533,6 +608,55 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   const [newSedeManager, setNewSedeManager] = useState('');
   const [newSedePhone, setNewSedePhone] = useState('');
 
+  // --------------------------------------------------------------------------
+  // MODAL 6: EDITAR SEDE (ADMINISTRADOR GENERAL O GLOBAL)
+  // --------------------------------------------------------------------------
+  const [editingSede, setEditingSede] = useState<BranchLocation | null>(null);
+  const [editSedeName, setEditSedeName] = useState('');
+  const [editSedeAddress, setEditSedeAddress] = useState('');
+  const [editSedeDistrict, setEditSedeDistrict] = useState('San Isidro');
+  const [editSedeTables, setEditSedeTables] = useState(14);
+  const [editSedeManager, setEditSedeManager] = useState('');
+  const [editSedePhone, setEditSedePhone] = useState('');
+  const [editSedeActive, setEditSedeActive] = useState(true);
+
+  const handleOpenEditSede = (loc: BranchLocation) => {
+    setEditingSede(loc);
+    setEditSedeName(loc.name);
+    setEditSedeAddress(loc.address);
+    setEditSedeDistrict(loc.district || 'San Isidro');
+    setEditSedeTables(loc.tables || 12);
+    setEditSedeManager(loc.managerName || '');
+    setEditSedePhone(loc.phone || '');
+    setEditSedeActive(loc.active !== false);
+  };
+
+  const handleSaveEditSede = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSede || !currentChain) return;
+    if (!editSedeName.trim()) {
+      triggerToast('Ingresa el nombre de la sede');
+      return;
+    }
+
+    const updatedLocation: BranchLocation = {
+      ...editingSede,
+      name: editSedeName.trim(),
+      address: editSedeAddress.trim() || 'Av. Principal 100',
+      district: editSedeDistrict.trim() || 'San Isidro',
+      tables: Math.max(1, Number(editSedeTables) || 12),
+      managerName: editSedeManager.trim() || editingSede.managerName,
+      phone: editSedePhone.trim() || '+51 1 445-0000',
+      active: editSedeActive
+    };
+
+    if (onUpdateLocation) {
+      onUpdateLocation(currentChain.id, updatedLocation);
+    }
+    setEditingSede(null);
+    triggerToast(`Sede "${updatedLocation.name}" actualizada con éxito`);
+  };
+
   const triggerToast = (text: string) => {
     setToastText(text);
     setShowToast(true);
@@ -710,11 +834,13 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
         </div>
 
         <button
-          onClick={() => onNavigate('saas-console')}
+          onClick={() => onNavigate(currentRole === 'admin_global' ? 'saas-console' : 'dashboard-admin')}
           className="text-xs text-primary font-bold hover:underline flex items-center gap-1 cursor-pointer"
         >
-          <span className="material-symbols-outlined text-[16px]">public</span>
-          <span>Consola Global</span>
+          <span className="material-symbols-outlined text-[16px]">
+            {currentRole === 'admin_global' ? 'public' : 'dashboard'}
+          </span>
+          <span>{currentRole === 'admin_global' ? 'Consola Global' : 'Panel de Resumen'}</span>
         </button>
       </div>
 
@@ -1043,13 +1169,27 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <img
-                    src={item.image}
-                    alt={item.name}
-                    className={`w-14 h-14 rounded-lg object-cover flex-shrink-0 border ${
-                      item.available ? 'border-outline-variant/30' : 'grayscale opacity-60 border-red-300'
-                    }`}
-                  />
+                  <div className="relative group shrink-0">
+                    <img
+                      src={item.image || DEFAULT_DISH_PLACEHOLDER_IMAGE}
+                      alt={item.name}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = DEFAULT_DISH_PLACEHOLDER_IMAGE;
+                      }}
+                      referrerPolicy="no-referrer"
+                      className={`w-14 h-14 rounded-lg object-cover flex-shrink-0 border ${
+                        item.available ? 'border-outline-variant/30' : 'grayscale opacity-60 border-red-300'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => openEditDishModal(item)}
+                      title="Editar foto y plato"
+                      className="absolute inset-0 bg-slate-950/50 opacity-0 group-hover:opacity-100 rounded-lg flex flex-col items-center justify-center text-white transition-opacity cursor-pointer text-[10px] font-bold gap-0.5"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">photo_camera</span>
+                    </button>
+                  </div>
 
                   <div className="flex flex-col min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -1087,6 +1227,34 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                         <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold text-[9px] uppercase tracking-wider">
                           DISPONIBLE
                         </span>
+                      )}
+
+                      {/* Botón rápido / Badge para Activar o Desactivar Picante */}
+                      {item.category !== 'bebidas' && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onUpdateMenuItem) {
+                              const nextSpice = item.allowSpiceLevel === false ? true : false;
+                              onUpdateMenuItem({ ...item, allowSpiceLevel: nextSpice });
+                              triggerToast(`Nivel de picante para "${item.name}" ${nextSpice ? 'ACTIVADO' : 'DESACTIVADO'}`);
+                            }
+                          }}
+                          title={
+                            item.allowSpiceLevel
+                              ? 'Opción de picante activada. Clic para desactivar'
+                              : 'Opción de picante desactivada. Clic para activar'
+                          }
+                          className={`px-2 py-0.5 rounded text-[9px] font-black flex items-center gap-1 cursor-pointer transition-all border ${
+                            item.allowSpiceLevel
+                              ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300 shadow-2xs'
+                              : 'bg-surface-container text-on-surface-variant border-outline-variant/30 hover:bg-surface-container-high'
+                          }`}
+                        >
+                          <span>🌶️</span>
+                          <span>{item.allowSpiceLevel ? 'Picante: Sí' : 'Picante: No'}</span>
+                        </button>
                       )}
                     </div>
 
@@ -1195,8 +1363,12 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <img
-                        src={delDish.image}
+                        src={delDish.image || DEFAULT_DISH_PLACEHOLDER_IMAGE}
                         alt={delDish.name}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = DEFAULT_DISH_PLACEHOLDER_IMAGE;
+                        }}
+                        referrerPolicy="no-referrer"
                         className="w-10 h-10 rounded-lg object-cover grayscale opacity-70 shrink-0 border border-amber-200"
                       />
                       <div className="flex flex-col min-w-0">
@@ -1700,7 +1872,18 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                       <strong>{loc.tables}</strong> mesas asignadas • <strong>S/ {loc.todaySales.toLocaleString()}</strong> hoy
                     </span>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {(currentRole === 'admin_general' || currentRole === 'admin_global') && (
+                        <button
+                          onClick={() => handleOpenEditSede(loc)}
+                          className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs flex items-center gap-1 transition-all cursor-pointer"
+                          title="Editar datos de esta sede"
+                        >
+                          <span className="material-symbols-outlined text-[15px] text-amber-700">edit</span>
+                          <span>Editar Sede</span>
+                        </button>
+                      )}
+
                       <button
                         onClick={() => {
                           if (onSelectBranch) onSelectBranch(loc.id);
@@ -1736,247 +1919,426 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
       {/* MODAL: EDITAR PLATO DE LA CARTA                                         */}
       {/* ======================================================================= */}
       {editingDish && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-outline-variant/40 animate-in zoom-in-95 my-8">
-            <div className="px-6 py-4 bg-primary text-on-primary flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-teal-300 text-[24px]">edit_note</span>
-                <div>
-                  <h3 className="font-extrabold text-base text-white">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+          <div className="bg-surface-container-lowest rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-2xl lg:max-w-3xl max-h-[92dvh] sm:max-h-[90vh] flex flex-col overflow-hidden border-t sm:border border-outline-variant/40 animate-in slide-in-from-bottom-6 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
+            {/* Header del Modal - Siempre fijo en la parte superior */}
+            <div className="px-4 py-3.5 sm:px-6 sm:py-4 bg-primary text-on-primary flex items-center justify-between shrink-0 border-b border-white/10 shadow-xs">
+              <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-teal-300 shrink-0">
+                  <span className="material-symbols-outlined text-[22px]">edit_note</span>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-sm sm:text-base text-white truncate">
                     Editar Plato en {currentBranch?.name}
                   </h3>
-                  <p className="text-xs text-teal-200">
-                    Ajusta precios, descripción y stock del día para esta sede.
+                  <p className="text-[11px] sm:text-xs text-teal-200 truncate">
+                    Ajusta precios, foto, variantes, picante y stock del día para esta sede
                   </p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setEditingDish(null)}
-                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white cursor-pointer"
+                className="w-9 h-9 rounded-full hover:bg-white/10 flex items-center justify-center text-white cursor-pointer shrink-0 transition-colors"
+                title="Cerrar modal"
               >
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            <form onSubmit={handleSaveDishChanges} className="p-6 flex flex-col gap-4">
-              <div>
-                <label className="font-bold text-xs text-on-surface block mb-1">
-                  Nombre del Plato *
-                </label>
-                <input
-                  type="text"
-                  value={editDishName}
-                  onChange={(e) => setEditDishName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none font-bold"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-xs text-on-surface">
-                      Precio Base en Sede (S/.) *
+            <form onSubmit={handleSaveDishChanges} className="flex-1 flex flex-col overflow-hidden min-h-0">
+              {/* Cuerpo del Formulario con scroll independiente y fluido */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 overscroll-contain">
+                {/* Bloque 1: Datos Principales */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  <div className="sm:col-span-6">
+                    <label className="font-bold text-xs text-on-surface block mb-1">
+                      Nombre del Plato *
                     </label>
-                    {editDishSizes.length > 0 && (
-                      <span className="text-[10px] text-emerald-700 bg-emerald-100 font-extrabold px-1.5 py-0.2 rounded">
-                        Mínimo automático
+                    <input
+                      type="text"
+                      value={editDishName}
+                      onChange={(e) => setEditDishName(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
+                      required
+                    />
+                  </div>
+
+                  <div className="sm:col-span-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-bold text-xs text-on-surface">
+                        Precio Base (S/.) *
+                      </label>
+                      {editDishSizes.length > 0 && (
+                        <span className="text-[9px] text-emerald-700 bg-emerald-100 font-extrabold px-1 rounded">
+                          Mínimo
+                        </span>
+                      )}
+                    </div>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="1"
+                      value={editDishPrice}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setEditDishPrice(val);
+                        if (editDishSizes.length > 0) {
+                          // Keep minimum rule
+                          const updated = [...editDishSizes];
+                          updated[0].price = val;
+                          setEditDishSizes(updated.sort((a, b) => a.price - b.price));
+                        }
+                      }}
+                      className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-extrabold text-primary"
+                      required
+                    />
+                  </div>
+
+                  <div className="sm:col-span-3">
+                    <label className="font-bold text-xs text-on-surface block mb-1">
+                      Categoría *
+                    </label>
+                    <select
+                      value={editDishCategory}
+                      onChange={(e) => setEditDishCategory(e.target.value as MenuItem['category'])}
+                      className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
+                    >
+                      <option value="ceviches">Ceviches</option>
+                      <option value="leches">Leches de Tigre</option>
+                      <option value="calientes">Calientes</option>
+                      <option value="arroces">Arroces</option>
+                      <option value="combinados">Combinados</option>
+                      <option value="jaleas">Jaleas</option>
+                      <option value="bebidas">Bebidas</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Bloque 2: Descripción */}
+                <div>
+                  <label className="font-bold text-xs text-on-surface block mb-1">
+                    Descripción / Ingredientes Frescos
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editDishDescription}
+                    onChange={(e) => setEditDishDescription(e.target.value)}
+                    placeholder="Describe los ingredientes principales o sugerencias del chef..."
+                    className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+
+                {/* Bloque 3: Tamaños y Presentaciones */}
+                <div className="bg-surface-container-low p-3.5 sm:p-4 rounded-2xl border border-outline-variant/30 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[18px] text-secondary">tune</span>
+                      <label className="font-extrabold text-xs text-on-surface uppercase tracking-wide">
+                        Tamaños y Presentaciones ({editDishSizes.length})
+                      </label>
+                    </div>
+                    <span className="text-[10px] text-amber-800 bg-amber-100 font-bold px-2 py-0.5 rounded">
+                      Por defecto = Mínimo
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-on-surface-variant">
+                    El sistema asigna por defecto el precio <strong>mínimo</strong> al mostrar el plato. Luego en salón el mesero puede seleccionar otros tamaños.
+                  </p>
+
+                  {/* List of existing sizes */}
+                  {editDishSizes.length > 0 ? (
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                      {editDishSizes.map((sz, szIdx) => (
+                        <div
+                          key={szIdx}
+                          className="flex items-center justify-between bg-surface-container-lowest px-3 py-2 rounded-xl border border-outline-variant/20 text-xs"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-on-surface">{sz.name}</span>
+                            {szIdx === 0 && (
+                              <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-black text-[9px] uppercase">
+                                ★ Mínimo por Defecto
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-primary">S/ {sz.price.toFixed(2)}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSizeFromEditDish(szIdx)}
+                              className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 cursor-pointer transition-colors"
+                              title="Eliminar tamaño"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">delete</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-surface-container-lowest text-center text-xs text-on-surface-variant border border-dashed border-outline-variant/40">
+                      No tiene tamaños configurados aún. El plato tiene un único precio fijo.
+                    </div>
+                  )}
+
+                  {/* Add new size input row */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="text"
+                      value={newSizeInputName}
+                      onChange={(e) => setNewSizeInputName(e.target.value)}
+                      placeholder="Nuevo tamaño (ej. Familiar, Jarra 1L)"
+                      className="flex-1 px-3 py-1.5 rounded-xl bg-surface-container-lowest text-xs text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                    <div className="relative w-28">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-bold text-on-surface-variant">
+                        S/
+                      </span>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0.5"
+                        value={newSizeInputPrice || ''}
+                        onChange={(e) => setNewSizeInputPrice(Number(e.target.value))}
+                        placeholder="Precio"
+                        className="w-full pl-7 pr-2 py-1.5 rounded-xl bg-surface-container-lowest text-xs text-on-surface font-bold border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddSizeToEditDish}
+                      className="px-3 py-1.5 rounded-xl bg-secondary hover:bg-secondary/90 text-on-secondary font-bold text-xs flex items-center gap-1 shadow-xs cursor-pointer shrink-0 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">add</span>
+                      <span>Añadir</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Bloque 4: Fotografía del Plato */}
+                <div className="bg-surface-container-low p-3.5 sm:p-4 rounded-2xl border border-outline-variant/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[18px] text-primary">add_photo_alternate</span>
+                      <label className="font-extrabold text-xs text-on-surface uppercase tracking-wide">
+                        Fotografía del Plato
+                      </label>
+                    </div>
+                    {editDishImageUrl === DEFAULT_DISH_PLACEHOLDER_IMAGE ? (
+                      <span className="text-[10px] text-amber-800 bg-amber-100 font-extrabold px-2 py-0.5 rounded">
+                        Imagen por Defecto
+                      </span>
+                    ) : editDishImageUrl.startsWith('data:') ? (
+                      <span className="text-[10px] text-emerald-800 bg-emerald-100 font-extrabold px-2 py-0.5 rounded">
+                        Foto desde Equipo
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-blue-800 bg-blue-100 font-extrabold px-2 py-0.5 rounded">
+                        Foto Catálogo / Web
                       </span>
                     )}
                   </div>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="1"
-                    value={editDishPrice}
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      setEditDishPrice(val);
-                      if (editDishSizes.length > 0) {
-                        // Keep minimum rule
-                        const updated = [...editDishSizes];
-                        updated[0].price = val;
-                        setEditDishSizes(updated.sort((a, b) => a.price - b.price));
-                      }
-                    }}
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none font-extrabold text-primary"
-                    required
-                  />
+
+                  {/* Previsualización actual + Acciones de Carga */}
+                  <div className="flex items-center gap-3">
+                    <div className="relative shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 border-outline-variant/40 shadow-xs bg-surface-container-lowest">
+                      <img
+                        src={editDishImageUrl || DEFAULT_DISH_PLACEHOLDER_IMAGE}
+                        alt="Vista previa"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = DEFAULT_DISH_PLACEHOLDER_IMAGE;
+                        }}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
+                    <div className="flex-1 flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <label className="px-3 py-1.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors">
+                          <span className="material-symbols-outlined text-[16px]">upload</span>
+                          <span>Subir Foto del Plato</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files[0]) {
+                                handleImageFileUpload(e.target.files[0], setEditDishImageUrl);
+                              }
+                            }}
+                          />
+                        </label>
+
+                        {editDishImageUrl !== DEFAULT_DISH_PLACEHOLDER_IMAGE && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditDishImageUrl(DEFAULT_DISH_PLACEHOLDER_IMAGE);
+                              triggerToast('Foto restablecida a imagen por defecto');
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container text-on-surface-variant font-bold text-[11px] flex items-center gap-1 border border-outline-variant/30 cursor-pointer transition-colors"
+                            title="Restablecer imagen por defecto"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">restart_alt</span>
+                            <span>Quitar / Por Defecto</span>
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-on-surface-variant">
+                        Formatos JPG, PNG o WebP. Se redimensionan automáticamente para carga ultra rápida.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Galería de Selección Rápida */}
+                  <div>
+                    <span className="text-[11px] font-bold text-on-surface block mb-1.5">
+                      O selecciona una fotografía sugerida del catálogo:
+                    </span>
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                      {PRESET_DISH_IMAGES.map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setEditDishImageUrl(preset.url)}
+                          className={`relative rounded-xl overflow-hidden border p-1 flex flex-col items-center gap-0.5 cursor-pointer transition-all ${
+                            editDishImageUrl === preset.url
+                              ? 'border-primary ring-2 ring-primary/40 bg-teal-50 shadow-xs'
+                              : 'border-outline-variant/30 hover:border-primary/50 bg-surface-container-lowest'
+                          }`}
+                          title={preset.label}
+                        >
+                          <img
+                            src={preset.url}
+                            alt={preset.label}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-11 object-cover rounded-lg"
+                          />
+                          <span className="text-[9px] font-bold text-on-surface truncate w-full text-center mt-0.5">
+                            {preset.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Campo URL directo */}
+                  <div>
+                    <label className="text-[11px] font-bold text-on-surface block mb-1">
+                      O pega el enlace web de la imagen (URL directa):
+                    </label>
+                    <input
+                      type="url"
+                      value={editDishImageUrl}
+                      onChange={(e) => setEditDishImageUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="w-full px-3 py-1.5 rounded-xl bg-surface-container-lowest text-[11px] text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Bloque 5: Configuración de Salón y Cocina */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-bold text-xs text-on-surface block mb-1">
+                      Etiqueta Destacada
+                    </label>
+                    <input
+                      type="text"
+                      value={editDishTag}
+                      onChange={(e) => setEditDishTag(e.target.value)}
+                      placeholder="ej. MÁS PEDIDO, PESCA DEL DÍA"
+                      className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-xs text-on-surface block mb-1">
+                      Estado en esta Sede
+                    </label>
+                    <select
+                      value={editDishAvailable ? 'true' : 'false'}
+                      onChange={(e) => setEditDishAvailable(e.target.value === 'true')}
+                      className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
+                    >
+                      <option value="true">✅ Disponible</option>
+                      <option value="false">❌ Agotado / Quiebre Stock</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
                   <label className="font-bold text-xs text-on-surface block mb-1">
-                    Categoría *
+                    Nota de Stock / Motivo de Quiebre (Opcional)
                   </label>
-                  <select
-                    value={editDishCategory}
-                    onChange={(e) => setEditDishCategory(e.target.value as MenuItem['category'])}
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
-                  >
-                    <option value="ceviches">Ceviches</option>
-                    <option value="leches">Leches de Tigre</option>
-                    <option value="calientes">Calientes</option>
-                    <option value="arroces">Arroces</option>
-                    <option value="combinados">Combinados</option>
-                    <option value="jaleas">Jaleas</option>
-                    <option value="bebidas">Bebidas</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Tamaños y Presentaciones de la Sede */}
-              <div className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/30 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[18px] text-secondary">tune</span>
-                    <label className="font-extrabold text-xs text-on-surface uppercase tracking-wide">
-                      Tamaños y Presentaciones ({editDishSizes.length})
-                    </label>
-                  </div>
-                  <span className="text-[10px] text-amber-800 bg-amber-100 font-bold px-2 py-0.5 rounded">
-                    Por defecto = Mínimo
-                  </span>
-                </div>
-
-                <p className="text-[11px] text-on-surface-variant">
-                  El sistema asigna por defecto el precio <strong>mínimo</strong> al mostrar el plato. Luego en salón el mesero puede seleccionar otros tamaños.
-                </p>
-
-                {/* List of existing sizes */}
-                {editDishSizes.length > 0 ? (
-                  <div className="space-y-1.5">
-                    {editDishSizes.map((sz, szIdx) => (
-                      <div
-                        key={szIdx}
-                        className="flex items-center justify-between bg-surface-container-lowest px-3 py-2 rounded-lg border border-outline-variant/20 text-xs"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-on-surface">{sz.name}</span>
-                          {szIdx === 0 && (
-                            <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-black text-[9px] uppercase">
-                              ★ Mínimo por Defecto
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-primary">S/ {sz.price.toFixed(2)}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSizeFromEditDish(szIdx)}
-                            className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 cursor-pointer"
-                            title="Eliminar tamaño"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">delete</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-2.5 rounded-lg bg-surface-container-lowest text-center text-xs text-on-surface-variant border border-dashed border-outline-variant/40">
-                    No tiene tamaños configurados aún. El plato tiene un único precio fijo.
-                  </div>
-                )}
-
-                {/* Add new size input row */}
-                <div className="flex items-center gap-2 pt-1">
                   <input
                     type="text"
-                    value={newSizeInputName}
-                    onChange={(e) => setNewSizeInputName(e.target.value)}
-                    placeholder="Nuevo tamaño (ej. Familiar, Jarra 1L)"
-                    className="flex-1 px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
+                    value={editDishStockNote}
+                    onChange={(e) => setEditDishStockNote(e.target.value)}
+                    placeholder="ej. Solo 6 porciones de pesca fresca disponibles hoy"
+                    className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
-                  <div className="relative w-28">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-bold text-on-surface-variant">
-                      S/
-                    </span>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0.5"
-                      value={newSizeInputPrice || ''}
-                      onChange={(e) => setNewSizeInputPrice(Number(e.target.value))}
-                      placeholder="Precio"
-                      className="w-full pl-7 pr-2 py-1.5 rounded-lg bg-surface-container-lowest text-xs text-on-surface font-bold border border-outline-variant/30 focus:outline-none"
-                    />
+                </div>
+
+                {/* Opción de Nivel de Picante */}
+                <div className="bg-surface-container-low p-3.5 rounded-2xl border border-outline-variant/30 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-2xl shrink-0">🌶️</span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <label className="font-extrabold text-xs text-on-surface">
+                          Nivel de Picante al Ordenar
+                        </label>
+                        {editDishAllowSpiceLevel ? (
+                          <span className="text-[10px] text-red-800 bg-red-100 font-extrabold px-1.5 py-0.2 rounded border border-red-200">
+                            Activado en salón
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-on-surface-variant bg-surface-container font-extrabold px-1.5 py-0.2 rounded">
+                            Desactivado
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-on-surface-variant mt-0.5">
+                        {editDishAllowSpiceLevel
+                          ? 'Los meseros y clientes podrán elegir el picante (Sin ají, Moderado o Bien Bravo) al tomar el pedido.'
+                          : 'El plato se preparará de manera estándar sin solicitar nivel de picante.'}
+                      </p>
+                    </div>
                   </div>
+
                   <button
                     type="button"
-                    onClick={handleAddSizeToEditDish}
-                    className="px-3 py-1.5 rounded-lg bg-secondary text-on-secondary font-bold text-xs flex items-center gap-1 shadow-xs cursor-pointer hover:bg-secondary/90 shrink-0"
+                    onClick={() => setEditDishAllowSpiceLevel(!editDishAllowSpiceLevel)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      editDishAllowSpiceLevel ? 'bg-red-600' : 'bg-surface-container-highest'
+                    }`}
+                    title={editDishAllowSpiceLevel ? 'Desactivar nivel de picante' : 'Activar nivel de picante'}
                   >
-                    <span className="material-symbols-outlined text-[16px]">add</span>
-                    <span>Añadir</span>
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        editDishAllowSpiceLevel ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
                   </button>
                 </div>
               </div>
 
-              <div>
-                <label className="font-bold text-xs text-on-surface block mb-1">
-                  Descripción / Ingredientes Frescos
-                </label>
-                <textarea
-                  rows={2}
-                  value={editDishDescription}
-                  onChange={(e) => setEditDishDescription(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-xs text-on-surface block mb-1">
-                    Etiqueta Destacada
-                  </label>
-                  <input
-                    type="text"
-                    value={editDishTag}
-                    onChange={(e) => setEditDishTag(e.target.value)}
-                    placeholder="ej. MÁS PEDIDO, PESCA DEL DÍA"
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-bold text-xs text-on-surface block mb-1">
-                    Estado en esta Sede
-                  </label>
-                  <select
-                    value={editDishAvailable ? 'true' : 'false'}
-                    onChange={(e) => setEditDishAvailable(e.target.value === 'true')}
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none font-bold"
-                  >
-                    <option value="true">✅ Disponible</option>
-                    <option value="false">❌ Agotado / Quiebre Stock</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-xs text-on-surface block mb-1">
-                  Nota de Stock / Motivo de Quiebre (Opcional)
-                </label>
-                <input
-                  type="text"
-                  value={editDishStockNote}
-                  onChange={(e) => setEditDishStockNote(e.target.value)}
-                  placeholder="ej. Solo 6 porciones de pesca fresca disponibles hoy"
-                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant/20">
+              {/* Pie del Modal: Siempre visible / Sticky con botones cómodos */}
+              <div className="shrink-0 bg-surface-container-lowest px-4 py-3 sm:px-6 sm:py-3.5 border-t border-outline-variant/20 flex items-center justify-end gap-2.5 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
                 <button
                   type="button"
                   onClick={() => setEditingDish(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container active:scale-95 transition-all cursor-pointer min-h-[42px] flex items-center justify-center"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer min-h-[42px]"
                 >
                   <span className="material-symbols-outlined text-[18px]">save</span>
                   <span>Guardar Cambios</span>
@@ -1991,267 +2353,412 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
       {/* MODAL: AGREGAR NUEVO PLATO A LA CARTA DE LA SEDE                        */}
       {/* ======================================================================= */}
       {showAddDishModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-outline-variant/40 animate-in zoom-in-95 my-8">
-            <div className="px-6 py-4 bg-primary text-on-primary flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-teal-300 text-[24px]">add_circle</span>
-                <div>
-                  <h3 className="font-extrabold text-base text-white">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+          <div className="bg-surface-container-lowest rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-2xl lg:max-w-3xl max-h-[92dvh] sm:max-h-[90vh] flex flex-col overflow-hidden border-t sm:border border-outline-variant/40 animate-in slide-in-from-bottom-6 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200">
+            {/* Header del Modal - Siempre visible */}
+            <div className="px-4 py-3.5 sm:px-6 sm:py-4 bg-primary text-on-primary flex items-center justify-between shrink-0 border-b border-white/10 shadow-xs">
+              <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-teal-300 shrink-0">
+                  <span className="material-symbols-outlined text-[22px]">add_circle</span>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-sm sm:text-base text-white truncate">
                     Nuevo Plato para {currentBranch?.name}
                   </h3>
-                  <p className="text-xs text-teal-200">
-                    Crea un nuevo plato o especial del día para la carta de esta sede.
+                  <p className="text-[11px] sm:text-xs text-teal-200 truncate">
+                    Crea un nuevo plato o especial del día para la carta de esta sede
                   </p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowAddDishModal(false)}
-                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white cursor-pointer"
+                className="w-9 h-9 rounded-full hover:bg-white/10 flex items-center justify-center text-white cursor-pointer shrink-0 transition-colors"
+                title="Cerrar modal"
               >
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            <form onSubmit={handleCreateNewDish} className="p-6 flex flex-col gap-4">
-              <div>
-                <label className="font-bold text-xs text-on-surface block mb-1">
-                  Nombre del Plato *
-                </label>
-                <input
-                  type="text"
-                  value={newDishName}
-                  onChange={(e) => setNewDishName(e.target.value)}
-                  placeholder="ej. Ceviche Carretillero Especial"
-                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none font-bold"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="font-bold text-xs text-on-surface">
-                      Precio Base en Sede (S/.) *
+            <form onSubmit={handleCreateNewDish} className="flex-1 flex flex-col overflow-hidden min-h-0">
+              {/* Cuerpo del Formulario Desplazable */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 overscroll-contain">
+                {/* Bloque 1: Datos Principales */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  <div className="sm:col-span-6">
+                    <label className="font-bold text-xs text-on-surface block mb-1">
+                      Nombre del Plato *
                     </label>
-                    {newDishSizes.length > 0 && (
-                      <span className="text-[10px] text-emerald-700 bg-emerald-100 font-extrabold px-1.5 py-0.2 rounded">
-                        Mínimo automático
-                      </span>
-                    )}
+                    <input
+                      type="text"
+                      value={newDishName}
+                      onChange={(e) => setNewDishName(e.target.value)}
+                      placeholder="ej. Ceviche Carretillero Especial"
+                      className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
+                      required
+                    />
                   </div>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="1"
-                    value={newDishPrice}
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      setNewDishPrice(val);
-                      if (newDishSizes.length > 0) {
-                        const updated = [...newDishSizes];
-                        updated[0].price = val;
-                        setNewDishSizes(updated.sort((a, b) => a.price - b.price));
-                      }
-                    }}
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none font-extrabold text-primary"
-                    required
-                  />
-                </div>
 
-                <div>
-                  <label className="font-bold text-xs text-on-surface block mb-1">
-                    Categoría *
-                  </label>
-                  <select
-                    value={newDishCategory}
-                    onChange={(e) => setNewDishCategory(e.target.value as MenuItem['category'])}
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none font-bold"
-                  >
-                    <option value="ceviches">Ceviches</option>
-                    <option value="leches">Leches de Tigre</option>
-                    <option value="calientes">Calientes</option>
-                    <option value="arroces">Arroces</option>
-                    <option value="combinados">Combinados</option>
-                    <option value="jaleas">Jaleas</option>
-                    <option value="bebidas">Bebidas</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Tamaños y Presentaciones para el Nuevo Plato */}
-              <div className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/30 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[18px] text-secondary">tune</span>
-                    <label className="font-extrabold text-xs text-on-surface uppercase tracking-wide">
-                      Tamaños y Presentaciones ({newDishSizes.length})
-                    </label>
-                  </div>
-                  <span className="text-[10px] text-amber-800 bg-amber-100 font-bold px-2 py-0.5 rounded">
-                    Por defecto = Mínimo
-                  </span>
-                </div>
-
-                <p className="text-[11px] text-on-surface-variant">
-                  El sistema siempre asigna el precio <strong>mínimo</strong> como valor por defecto. Luego en salón el mesero puede seleccionar otros tamaños.
-                </p>
-
-                {/* List of existing sizes */}
-                {newDishSizes.length > 0 ? (
-                  <div className="space-y-1.5">
-                    {newDishSizes.map((sz, szIdx) => (
-                      <div
-                        key={szIdx}
-                        className="flex items-center justify-between bg-surface-container-lowest px-3 py-2 rounded-lg border border-outline-variant/20 text-xs"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-on-surface">{sz.name}</span>
-                          {szIdx === 0 && (
-                            <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-black text-[9px] uppercase">
-                              ★ Mínimo por Defecto
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-primary">S/ {sz.price.toFixed(2)}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSizeFromNewDish(szIdx)}
-                            className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 cursor-pointer"
-                            title="Eliminar tamaño"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">delete</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-2.5 rounded-lg bg-surface-container-lowest text-center text-xs text-on-surface-variant border border-dashed border-outline-variant/40">
-                    Sin tamaños adicionales. Se utilizará un precio único.
-                  </div>
-                )}
-
-                {/* Add new size input row */}
-                <div className="flex items-center gap-2 pt-1">
-                  <input
-                    type="text"
-                    value={newDishSizeNameInput}
-                    onChange={(e) => setNewDishSizeNameInput(e.target.value)}
-                    placeholder="ej. Mediano, Familiar, Jarra 1L"
-                    className="flex-1 px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
-                  />
-                  <div className="relative w-28">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-bold text-on-surface-variant">
-                      S/
-                    </span>
+                  <div className="sm:col-span-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-bold text-xs text-on-surface">
+                        Precio Base (S/.) *
+                      </label>
+                      {newDishSizes.length > 0 && (
+                        <span className="text-[9px] text-emerald-700 bg-emerald-100 font-extrabold px-1 rounded">
+                          Mínimo
+                        </span>
+                      )}
+                    </div>
                     <input
                       type="number"
                       step="0.5"
-                      min="0.5"
-                      value={newDishSizePriceInput || ''}
-                      onChange={(e) => setNewDishSizePriceInput(Number(e.target.value))}
-                      placeholder="Precio"
-                      className="w-full pl-7 pr-2 py-1.5 rounded-lg bg-surface-container-lowest text-xs text-on-surface font-bold border border-outline-variant/30 focus:outline-none"
+                      min="1"
+                      value={newDishPrice}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setNewDishPrice(val);
+                        if (newDishSizes.length > 0) {
+                          const updated = [...newDishSizes];
+                          updated[0].price = val;
+                          setNewDishSizes(updated.sort((a, b) => a.price - b.price));
+                        }
+                      }}
+                      className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-extrabold text-primary"
+                      required
                     />
                   </div>
+
+                  <div className="sm:col-span-3">
+                    <label className="font-bold text-xs text-on-surface block mb-1">
+                      Categoría *
+                    </label>
+                    <select
+                      value={newDishCategory}
+                      onChange={(e) => setNewDishCategory(e.target.value as MenuItem['category'])}
+                      className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold"
+                    >
+                      <option value="ceviches">Ceviches</option>
+                      <option value="leches">Leches de Tigre</option>
+                      <option value="calientes">Calientes</option>
+                      <option value="arroces">Arroces</option>
+                      <option value="combinados">Combinados</option>
+                      <option value="jaleas">Jaleas</option>
+                      <option value="bebidas">Bebidas</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Bloque 2: Descripción */}
+                <div>
+                  <label className="font-bold text-xs text-on-surface block mb-1">
+                    Descripción / Ingredientes
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={newDishDescription}
+                    onChange={(e) => setNewDishDescription(e.target.value)}
+                    placeholder="ej. Pesca fresca del día, con pota crocante, camote glaseado y choclo tierno."
+                    className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+
+                {/* Bloque 3: Tamaños y Presentaciones */}
+                <div className="bg-surface-container-low p-3.5 sm:p-4 rounded-2xl border border-outline-variant/30 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[18px] text-secondary">tune</span>
+                      <label className="font-extrabold text-xs text-on-surface uppercase tracking-wide">
+                        Tamaños y Presentaciones ({newDishSizes.length})
+                      </label>
+                    </div>
+                    <span className="text-[10px] text-amber-800 bg-amber-100 font-bold px-2 py-0.5 rounded">
+                      Por defecto = Mínimo
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-on-surface-variant">
+                    El sistema siempre asigna el precio <strong>mínimo</strong> como valor por defecto. Luego en salón el mesero puede seleccionar otros tamaños.
+                  </p>
+
+                  {/* List of existing sizes */}
+                  {newDishSizes.length > 0 ? (
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                      {newDishSizes.map((sz, szIdx) => (
+                        <div
+                          key={szIdx}
+                          className="flex items-center justify-between bg-surface-container-lowest px-3 py-2 rounded-xl border border-outline-variant/20 text-xs"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-on-surface">{sz.name}</span>
+                            {szIdx === 0 && (
+                              <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-black text-[9px] uppercase">
+                                ★ Mínimo por Defecto
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-primary">S/ {sz.price.toFixed(2)}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSizeFromNewDish(szIdx)}
+                              className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 cursor-pointer transition-colors"
+                              title="Eliminar tamaño"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">delete</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-surface-container-lowest text-center text-xs text-on-surface-variant border border-dashed border-outline-variant/40">
+                      Sin tamaños adicionales. Se utilizará un precio único.
+                    </div>
+                  )}
+
+                  {/* Add new size input row */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="text"
+                      value={newDishSizeNameInput}
+                      onChange={(e) => setNewDishSizeNameInput(e.target.value)}
+                      placeholder="ej. Mediano, Familiar, Jarra 1L"
+                      className="flex-1 px-3 py-1.5 rounded-xl bg-surface-container-lowest text-xs text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                    <div className="relative w-28">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-bold text-on-surface-variant">
+                        S/
+                      </span>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0.5"
+                        value={newDishSizePriceInput || ''}
+                        onChange={(e) => setNewDishSizePriceInput(Number(e.target.value))}
+                        placeholder="Precio"
+                        className="w-full pl-7 pr-2 py-1.5 rounded-xl bg-surface-container-lowest text-xs text-on-surface font-bold border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddSizeToNewDish}
+                      className="px-3 py-1.5 rounded-xl bg-secondary hover:bg-secondary/90 text-on-secondary font-bold text-xs flex items-center gap-1 shadow-xs cursor-pointer shrink-0 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">add</span>
+                      <span>Añadir</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Bloque 4: Fotografía del Plato */}
+                <div className="bg-surface-container-low p-3.5 sm:p-4 rounded-2xl border border-outline-variant/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[18px] text-primary">add_photo_alternate</span>
+                      <label className="font-extrabold text-xs text-on-surface uppercase tracking-wide">
+                        Fotografía del Plato
+                      </label>
+                    </div>
+                    {newDishImageUrl === DEFAULT_DISH_PLACEHOLDER_IMAGE ? (
+                      <span className="text-[10px] text-amber-800 bg-amber-100 font-extrabold px-2 py-0.5 rounded">
+                        Por Defecto (Sin imagen)
+                      </span>
+                    ) : newDishImageUrl.startsWith('data:') ? (
+                      <span className="text-[10px] text-emerald-800 bg-emerald-100 font-extrabold px-2 py-0.5 rounded">
+                        Foto desde Equipo
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-blue-800 bg-blue-100 font-extrabold px-2 py-0.5 rounded">
+                        Foto Catálogo / Web
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Previsualización y Carga de Archivo */}
+                  <div className="flex items-center gap-3">
+                    <div className="relative shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 border-outline-variant/40 shadow-xs bg-surface-container-lowest">
+                      <img
+                        src={newDishImageUrl || DEFAULT_DISH_PLACEHOLDER_IMAGE}
+                        alt="Vista previa nuevo plato"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = DEFAULT_DISH_PLACEHOLDER_IMAGE;
+                        }}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
+                    <div className="flex-1 flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <label className="px-3 py-1.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors">
+                          <span className="material-symbols-outlined text-[16px]">upload</span>
+                          <span>Subir Foto del Plato</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files[0]) {
+                                handleImageFileUpload(e.target.files[0], setNewDishImageUrl);
+                              }
+                            }}
+                          />
+                        </label>
+
+                        {newDishImageUrl !== DEFAULT_DISH_PLACEHOLDER_IMAGE && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewDishImageUrl(DEFAULT_DISH_PLACEHOLDER_IMAGE);
+                              triggerToast('Foto restablecida a imagen por defecto');
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container text-on-surface-variant font-bold text-[11px] flex items-center gap-1 border border-outline-variant/30 cursor-pointer transition-colors"
+                            title="Restablecer imagen por defecto"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">restart_alt</span>
+                            <span>Por Defecto</span>
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-on-surface-variant">
+                        Por defecto se asigna el ícono oficial sin imagen hasta que subas una foto o selecciones una de la galería.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Galería de Selección Rápida */}
+                  <div>
+                    <span className="text-[11px] font-bold text-on-surface block mb-1.5">
+                      O selecciona una fotografía sugerida del catálogo:
+                    </span>
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                      {PRESET_DISH_IMAGES.map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setNewDishImageUrl(preset.url)}
+                          className={`relative rounded-xl overflow-hidden border p-1 flex flex-col items-center gap-0.5 cursor-pointer transition-all ${
+                            newDishImageUrl === preset.url
+                              ? 'border-primary ring-2 ring-primary/40 bg-teal-50 shadow-xs'
+                              : 'border-outline-variant/30 hover:border-primary/50 bg-surface-container-lowest'
+                          }`}
+                          title={preset.label}
+                        >
+                          <img
+                            src={preset.url}
+                            alt={preset.label}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-11 object-cover rounded-lg"
+                          />
+                          <span className="text-[9px] font-bold text-on-surface truncate w-full text-center mt-0.5">
+                            {preset.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Campo URL directo */}
+                  <div>
+                    <label className="text-[11px] font-bold text-on-surface block mb-1">
+                      O pega el enlace web de la imagen (URL):
+                    </label>
+                    <input
+                      type="url"
+                      value={newDishImageUrl}
+                      onChange={(e) => setNewDishImageUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="w-full px-3 py-1.5 rounded-xl bg-surface-container-lowest text-[11px] text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Bloque 5: Configuración de Salón y Cocina */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-bold text-xs text-on-surface block mb-1">
+                      Etiqueta
+                    </label>
+                    <input
+                      type="text"
+                      value={newDishTag}
+                      onChange={(e) => setNewDishTag(e.target.value)}
+                      placeholder="ESPECIAL DE LA CASA"
+                      className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-xs text-on-surface block mb-1">
+                      Nota de Stock (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={newDishStockNote}
+                      onChange={(e) => setNewDishStockNote(e.target.value)}
+                      placeholder="ej. Pesca del día limitada"
+                      className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+                </div>
+
+                {/* Opción de Nivel de Picante para el Nuevo Plato */}
+                <div className="bg-surface-container-low p-3.5 rounded-2xl border border-outline-variant/30 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-2xl shrink-0">🌶️</span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <label className="font-extrabold text-xs text-on-surface">
+                          Nivel de Picante al Ordenar
+                        </label>
+                        {newDishAllowSpiceLevel ? (
+                          <span className="text-[10px] text-red-800 bg-red-100 font-extrabold px-1.5 py-0.2 rounded border border-red-200">
+                            Activado en salón
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-on-surface-variant bg-surface-container font-extrabold px-1.5 py-0.2 rounded">
+                            Desactivado
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-on-surface-variant mt-0.5">
+                        {newDishAllowSpiceLevel
+                          ? 'Al ordenar, se solicitará al cliente o mesero el grado de ají deseado (Sin ají, Moderado o Bien Bravo).'
+                          : 'El plato se ordenará directamente sin opción de nivel de picante.'}
+                      </p>
+                    </div>
+                  </div>
+
                   <button
                     type="button"
-                    onClick={handleAddSizeToNewDish}
-                    className="px-3 py-1.5 rounded-lg bg-secondary text-on-secondary font-bold text-xs flex items-center gap-1 shadow-xs cursor-pointer hover:bg-secondary/90 shrink-0"
+                    onClick={() => setNewDishAllowSpiceLevel(!newDishAllowSpiceLevel)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      newDishAllowSpiceLevel ? 'bg-red-600' : 'bg-surface-container-highest'
+                    }`}
+                    title={newDishAllowSpiceLevel ? 'Desactivar nivel de picante' : 'Activar nivel de picante'}
                   >
-                    <span className="material-symbols-outlined text-[16px]">add</span>
-                    <span>Añadir</span>
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        newDishAllowSpiceLevel ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
                   </button>
                 </div>
               </div>
 
-              <div>
-                <label className="font-bold text-xs text-on-surface block mb-1">
-                  Descripción / Ingredientes
-                </label>
-                <textarea
-                  rows={2}
-                  value={newDishDescription}
-                  onChange={(e) => setNewDishDescription(e.target.value)}
-                  placeholder="ej. Pesca fresca del día, con pota crocante, camote glaseado y choclo tierno."
-                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
-                />
-              </div>
-
-              {/* Preset Image Selector */}
-              <div>
-                <label className="font-bold text-xs text-on-surface block mb-1.5">
-                  Foto del Plato (Selecciona una o ingresa URL)
-                </label>
-                <div className="grid grid-cols-3 gap-2 mb-2">
-                  {PRESET_DISH_IMAGES.map((preset, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setNewDishImageUrl(preset.url)}
-                      className={`relative rounded-lg overflow-hidden border p-1 flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                        newDishImageUrl === preset.url
-                          ? 'border-primary ring-2 ring-primary/40 bg-teal-50'
-                          : 'border-outline-variant/30 hover:border-primary/50'
-                      }`}
-                    >
-                      <img src={preset.url} alt={preset.label} className="w-full h-12 object-cover rounded" />
-                      <span className="text-[10px] font-bold text-on-surface truncate w-full text-center">
-                        {preset.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                <input
-                  type="url"
-                  value={newDishImageUrl}
-                  onChange={(e) => setNewDishImageUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-3 py-1.5 rounded-lg bg-surface-container-low text-[11px] text-on-surface border border-outline-variant/30 focus:outline-none font-mono"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-xs text-on-surface block mb-1">
-                    Etiqueta
-                  </label>
-                  <input
-                    type="text"
-                    value={newDishTag}
-                    onChange={(e) => setNewDishTag(e.target.value)}
-                    placeholder="ESPECIAL DE LA CASA"
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-bold text-xs text-on-surface block mb-1">
-                    Nota de Stock (Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={newDishStockNote}
-                    onChange={(e) => setNewDishStockNote(e.target.value)}
-                    placeholder="ej. Pesca del día limitada"
-                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant/20">
+              {/* Pie del Modal: Fijo y siempre visible */}
+              <div className="shrink-0 bg-surface-container-lowest px-4 py-3 sm:px-6 sm:py-3.5 border-t border-outline-variant/20 flex items-center justify-end gap-2.5 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
                 <button
                   type="button"
                   onClick={() => setShowAddDishModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container active:scale-95 transition-all cursor-pointer min-h-[42px] flex items-center justify-center"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer min-h-[42px]"
                 >
                   <span className="material-symbols-outlined text-[18px]">add_circle</span>
                   <span>Publicar en Sede</span>
@@ -2813,6 +3320,152 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                 >
                   <span className="material-symbols-outlined text-[18px]">add_location</span>
                   <span>Aperturar Sede</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 6: EDITAR SEDE (ADMIN GENERAL / GLOBAL)                             */}
+      {/* ========================================================================= */}
+      {editingSede && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-outline-variant/40 animate-in fade-in zoom-in-95">
+            <div className="px-5 py-4 bg-primary text-on-primary flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[22px] text-secondary">edit_location</span>
+                <h3 className="font-extrabold text-sm sm:text-base text-on-primary">
+                  Editar Sede: {editingSede.name}
+                </h3>
+              </div>
+              <button
+                onClick={() => setEditingSede(null)}
+                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditSede} className="p-5 flex flex-col gap-3.5">
+              <div>
+                <label className="font-bold text-xs text-on-surface block mb-1">
+                  Nombre de la Sede *
+                </label>
+                <input
+                  type="text"
+                  value={editSedeName}
+                  onChange={(e) => setEditSedeName(e.target.value)}
+                  placeholder="ej. Sede San Borja Chacarilla"
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none font-bold"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-xs text-on-surface block mb-1">
+                    Distrito
+                  </label>
+                  <input
+                    type="text"
+                    value={editSedeDistrict}
+                    onChange={(e) => setEditSedeDistrict(e.target.value)}
+                    placeholder="San Borja"
+                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-xs text-on-surface block mb-1">
+                    Mesas
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={editSedeTables}
+                    onChange={(e) => setEditSedeTables(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-xs text-on-surface block mb-1">
+                  Dirección Exacta
+                </label>
+                <input
+                  type="text"
+                  value={editSedeAddress}
+                  onChange={(e) => setEditSedeAddress(e.target.value)}
+                  placeholder="Av. Primavera 650, San Borja"
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-xs text-on-surface block mb-1">
+                  Estado Operativo
+                </label>
+                <select
+                  value={editSedeActive ? 'active' : 'paused'}
+                  onChange={(e) => setEditSedeActive(e.target.value === 'active')}
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none font-bold"
+                >
+                  <option value="active">Activa (En Operación)</option>
+                  <option value="paused">Pausada</option>
+                </select>
+              </div>
+
+              <div className="bg-amber-500/10 p-3.5 rounded-xl border border-amber-500/30 flex flex-col gap-2">
+                <span className="font-extrabold text-xs text-amber-900 uppercase tracking-wider flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[16px] text-amber-700">badge</span>
+                  Administrador de Sede Designado
+                </span>
+
+                <div>
+                  <label className="font-bold text-[11px] text-on-surface block mb-0.5">
+                    Nombre del Administrador de Sede
+                  </label>
+                  <input
+                    type="text"
+                    value={editSedeManager}
+                    onChange={(e) => setEditSedeManager(e.target.value)}
+                    placeholder="ej. Daniel Arévalo"
+                    className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-[11px] text-on-surface block mb-0.5">
+                    Teléfono / WhatsApp de la Sede
+                  </label>
+                  <input
+                    type="tel"
+                    value={editSedePhone}
+                    onChange={(e) => setEditSedePhone(e.target.value)}
+                    placeholder="+51 988 554 433"
+                    className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant/20">
+                <button
+                  type="button"
+                  onClick={() => setEditingSede(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center gap-2 shadow-sm cursor-pointer active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-[18px]">save</span>
+                  <span>Guardar Cambios</span>
                 </button>
               </div>
             </form>

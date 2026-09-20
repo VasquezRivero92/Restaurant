@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { MenuItem, ScreenType, CartItem, TableItem, AppRole } from '../types';
+import { isGenericWaiter } from '../utils/waiterUtils';
+import { DEFAULT_DISH_PLACEHOLDER_IMAGE } from '../data/mockData';
 
 interface ScreenTomarPedidoProps {
   menuItems: MenuItem[];
@@ -159,7 +161,7 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
     if (!selectedTable?.waiter) return true; // Mesa libre o sin asignar -> se autoasigna
     const w = selectedTable.waiter.toLowerCase().trim();
     const u = (currentUserName || '').toLowerCase().trim();
-    if (!w || !u || w === 'sin asignar') return true;
+    if (!w || !u || isGenericWaiter(w)) return true;
     const curFirst = u.split(' ')[0];
     const tableFirst = w.split(' ')[0];
     return w === u || (curFirst && w.includes(curFirst)) || (tableFirst && u.includes(tableFirst));
@@ -471,8 +473,12 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
               {/* Top Row: Image + Title + Info */}
               <div className="flex items-start gap-3">
                 <img
-                  src={dish.image}
+                  src={dish.image || DEFAULT_DISH_PLACEHOLDER_IMAGE}
                   alt={dish.name}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = DEFAULT_DISH_PLACEHOLDER_IMAGE;
+                  }}
+                  referrerPolicy="no-referrer"
                   className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-cover shrink-0 shadow-sm border border-outline-variant/20"
                 />
 
@@ -507,6 +513,12 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
                     {dish.sizes && (
                       <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-bold text-[10px] border border-emerald-200">
                         {dish.sizes.length} presentaciones
+                      </span>
+                    )}
+                    {dish.allowSpiceLevel && (
+                      <span className="px-2 py-0.5 rounded-full bg-red-50 text-red-700 font-extrabold text-[10px] border border-red-200 flex items-center gap-0.5">
+                        <span>🌶️</span>
+                        <span>Picante a elegir</span>
                       </span>
                     )}
                   </div>
@@ -648,7 +660,9 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
                   <span className="text-xs truncate">
                     {isDrink 
                       ? 'Entrega en mesa por mozo • Inmediato' 
-                      : `${dish.customization?.puntoSal ? 'Punto exacto' : 'Normal'} • ${dish.customization?.picante || 'Moderado'}`}
+                      : dish.allowSpiceLevel
+                        ? `🌶️ ${dish.customization?.picante || 'Picante al gusto'} • ${dish.customization?.puntoSal ? 'Punto exacto' : 'Normal'}`
+                        : `Receta tradicional • ${dish.customization?.puntoSal ? 'Punto exacto' : 'Normal'}`}
                   </span>
                 </div>
                 <button
@@ -720,10 +734,16 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
                     <span className="font-bold text-on-surface truncate">
                       {item.dishName}
                     </span>
-                    <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant">
+                    <div className="flex items-center gap-1.5 text-[11px] text-on-surface-variant flex-wrap">
                       {item.selectedSize && (
                         <span className="px-1.5 py-0.2 rounded bg-primary/10 text-primary font-bold text-[10px]">
                           {item.selectedSize}
+                        </span>
+                      )}
+                      {item.customization?.picante && (
+                        <span className="px-1.5 py-0.2 rounded bg-red-100 text-red-800 font-extrabold text-[10px] flex items-center gap-0.5 border border-red-200">
+                          <span>🌶️</span>
+                          <span>{item.customization.picante}</span>
                         </span>
                       )}
                       <span>S/ {item.price.toFixed(2)} c/u</span>
@@ -909,22 +929,28 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
               </div>
             )}
 
-            {/* Option 1: Nivel de Picante (For ceviches/calientes) */}
-            {customizingDish.category !== 'bebidas' && (
-              <div className="space-y-1.5">
-                <label className="font-bold text-xs text-on-surface uppercase tracking-wide">
-                  Nivel de Picante / Ají Limo
-                </label>
+            {/* Option 1: Nivel de Picante (Solo si está activado en el panel de la carta) */}
+            {customizingDish.category !== 'bebidas' && customizingDish.allowSpiceLevel && (
+              <div className="space-y-1.5 p-2.5 rounded-xl bg-surface-container-low border border-outline-variant/30">
+                <div className="flex items-center justify-between">
+                  <label className="font-extrabold text-xs text-on-surface uppercase tracking-wide flex items-center gap-1.5">
+                    <span>🌶️</span>
+                    <span>Nivel de Picante / Ají Limo</span>
+                  </label>
+                  <span className="text-[10px] text-red-800 bg-red-100 font-bold px-1.5 py-0.2 rounded border border-red-200">
+                    Opcional activo
+                  </span>
+                </div>
                 <div className="grid grid-cols-3 gap-2">
                   {(['Sin ají', 'Moderado', 'Bien Bravo'] as const).map((lvl) => (
                     <button
                       key={lvl}
                       type="button"
                       onClick={() => setCustomPicante(lvl)}
-                      className={`px-2 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      className={`px-2 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
                         customPicante === lvl
-                          ? 'bg-secondary text-on-secondary shadow-sm'
-                          : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
+                          ? 'bg-red-600 text-white shadow-sm ring-2 ring-red-300 border-red-700'
+                          : 'bg-surface-container text-on-surface hover:bg-surface-container-high border-outline-variant/20'
                       }`}
                     >
                       {lvl} {lvl === 'Bien Bravo' && '🔥'}
@@ -1031,7 +1057,7 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
                     chosenSizeName,
                     chosenPrice,
                     {
-                      picante: customPicante,
+                      picante: customizingDish.allowSpiceLevel ? customPicante : undefined,
                       puntoSal: prefSal,
                       sinCulantro: prefSinCulantro,
                       ajiAparte: prefAjiAparte,

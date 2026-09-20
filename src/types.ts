@@ -72,6 +72,7 @@ export interface MenuItem {
   stockNote?: string;
   portionCount?: number;
   sizes?: { name: string; price: number }[];
+  allowSpiceLevel?: boolean; // Activar o desactivar opción de nivel de picante en la carta
   customization?: {
     picante: 'Sin ají' | 'Moderado' | 'Bien Bravo';
     puntoSal: boolean;

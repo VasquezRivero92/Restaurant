@@ -21,7 +21,8 @@ import {
   INITIAL_CHAINS,
   INITIAL_ADMINS,
   INITIAL_STAFF,
-  INITIAL_MASTER_CARTAS
+  INITIAL_MASTER_CARTAS,
+  DISH_IMAGE_MAP
 } from './data/mockData';
 import { HeaderTop } from './components/HeaderTop';
 import { BottomNav } from './components/BottomNav';
@@ -37,6 +38,13 @@ import { ScreenGlobalLogin } from './components/ScreenGlobalLogin';
 import { ScreenLanding } from './components/ScreenLanding';
 import { ScreenAdminDashboard } from './components/ScreenAdminDashboard';
 import { ModalBandejaBebidas } from './components/ModalBandejaBebidas';
+import {
+  isTableAssignedToWaiter,
+  isTicketAssignedToWaiter,
+  isDrinkKDSTicketItem,
+  matchesTable,
+  extractDrinksFromTickets
+} from './utils/waiterUtils';
 import {
   initRTDBSeedIfEmpty,
   setFirestoreScope,
@@ -56,11 +64,22 @@ import {
   syncAdminsToRTDB,
   resetAllDataInRTDB
 } from './services/rtdbService';
+import { loadSession, saveSession, clearSession } from './services/sessionService';
+import { closeAdminSession } from './services/authService';
+import { auth } from './services/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const initialSession = React.useMemo(() => loadSession(), []);
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => Boolean(initialSession?.isAuthenticated));
   const [isGlobalLoginOpen, setIsGlobalLoginOpen] = useState(false);
-  const [currentScreen, setCurrentScreen] = useState<ScreenType>('pin-lock');
+  const [currentScreen, setCurrentScreen] = useState<ScreenType>(() => {
+    if (initialSession?.isAuthenticated) {
+      return initialSession.currentScreen || 'dashboard-admin';
+    }
+    return 'pin-lock';
+  });
   const [tables, setTables] = useState<TableItem[]>(INITIAL_TABLES);
   
   // Master Cartas SaaS Catalog
@@ -115,14 +134,14 @@ export default function App() {
   const [kdsTickets, setKdsTickets] = useState<KDSTicket[]>(INITIAL_KDS_TICKETS);
   const [admins, setAdmins] = useState<AdminUser[]>(INITIAL_ADMINS);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>(INITIAL_STAFF);
-  const [selectedTableId, setSelectedTableId] = useState<string>('mesa-05');
+  const [selectedTableId, setSelectedTableId] = useState<string>(() => initialSession?.selectedTableId || 'mesa-05');
   const [isDrinksTrayOpen, setIsDrinksTrayOpen] = useState(false);
   const [isRoleSwitcherOpen, setIsRoleSwitcherOpen] = useState(false);
-  const [currentRole, setCurrentRole] = useState<AppRole>('admin_sede');
-  const [activeChainId, setActiveChainId] = useState<string>('la-barra');
-  const [activeBranchId, setActiveBranchId] = useState<string>('loc-miraflores');
-  const [cartaInitialTab, setCartaInitialTab] = useState<'carta' | 'sedes' | 'equipo'>('carta');
-  const [staffUser, setStaffUser] = useState<{ name: string; role: 'mesero' | 'admin' }>({
+  const [currentRole, setCurrentRole] = useState<AppRole>(() => initialSession?.currentRole || 'admin_sede');
+  const [activeChainId, setActiveChainId] = useState<string>(() => initialSession?.activeChainId || 'la-barra');
+  const [activeBranchId, setActiveBranchId] = useState<string>(() => initialSession?.activeBranchId || 'loc-miraflores');
+  const [cartaInitialTab, setCartaInitialTab] = useState<'carta' | 'sedes' | 'equipo'>(() => initialSession?.cartaInitialTab || 'carta');
+  const [staffUser, setStaffUser] = useState<{ name: string; role: 'mesero' | 'admin' }>(() => initialSession?.staffUser || {
     name: '',
     role: 'mesero'
   });
@@ -185,11 +204,50 @@ export default function App() {
       if (foundChain) {
         setActiveChainId(foundChain.id);
         if (foundChain.locations && foundChain.locations.length > 0) {
-          setActiveBranchId(foundChain.locations[0].id);
+          setActiveBranchId((prev) => {
+            if (foundChain.locations.some((l) => l.id === prev)) {
+              return prev;
+            }
+            return foundChain.locations[0].id;
+          });
         }
       }
     }
   }, [tenantSlug, chains]);
+
+  // Persistir la sesión activa en localStorage
+  React.useEffect(() => {
+    saveSession({
+      isAuthenticated,
+      currentRole,
+      staffUser,
+      currentScreen,
+      activeChainId,
+      activeBranchId,
+      selectedTableId,
+      cartaInitialTab
+    });
+  }, [
+    isAuthenticated,
+    currentRole,
+    staffUser,
+    currentScreen,
+    activeChainId,
+    activeBranchId,
+    selectedTableId,
+    cartaInitialTab
+  ]);
+
+  // Escuchar cambios de autenticación de Firebase
+  React.useEffect(() => {
+    if (!auth) return;
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setIsAuthenticated(true);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Actualizar el alcance de Firestore cuando cambia el tenant o la sede activa
   React.useEffect(() => {
@@ -214,7 +272,59 @@ export default function App() {
     const unsubTables = subscribeToTables((cloudTables) => {
       if (cloudTables && cloudTables.length > 0) {
         isRemoteTables.current = true;
-        setTables(cloudTables);
+        setTables((prevTables) => {
+          if (!prevTables || prevTables.length === 0) return cloudTables;
+          return cloudTables.map((cTable) => {
+            const lTable = prevTables.find((lt) => lt.id === cTable.id);
+            if (!lTable) return cTable;
+
+            // Merge drinks: once marked served locally, keep it served unless explicitly cleared
+            const mergedDrinks = (cTable.drinks || []).map((cDrink) => {
+              const lDrink = lTable.drinks?.find(
+                (ld) => ld.id === cDrink.id || ld.name.toLowerCase().trim() === cDrink.name.toLowerCase().trim()
+              );
+              if (!lDrink) return cDrink;
+              const isServed = Boolean(cDrink.served || lDrink.served);
+              return {
+                ...cDrink,
+                served: isServed,
+                servedAt: isServed ? (cDrink.servedAt || lDrink.servedAt) : undefined
+              };
+            });
+
+            // Keep any local drinks that haven't synced to Firestore yet
+            const cDrinkNames = new Set(mergedDrinks.map((d) => d.name.toLowerCase().trim()));
+            const localOnlyDrinks = (lTable.drinks || []).filter(
+              (ld) => !cDrinkNames.has(ld.name.toLowerCase().trim())
+            );
+
+            // Merge dishes: keep served status if served locally
+            const mergedDishes = (cTable.dishes || []).map((cD) => {
+              const lD = lTable.dishes?.find((ld) => ld.id === cD.id || ld.name === cD.name);
+              if (!lD) return cD;
+              const isServed = cD.status === 'served' || lD.status === 'served';
+              const isReady = cD.status === 'ready' || lD.status === 'ready';
+              return {
+                ...cD,
+                status: isServed ? ('served' as const) : isReady ? ('ready' as const) : cD.status
+              };
+            });
+
+            const effectiveStatus =
+              lTable.status === 'eating' && (cTable.status === 'ready' || cTable.status === 'cooking')
+                ? 'eating'
+                : lTable.status === 'free' && cTable.status !== 'free' && cTable.status !== 'reserved'
+                ? 'free'
+                : cTable.status;
+
+            return {
+              ...cTable,
+              status: effectiveStatus,
+              drinks: [...mergedDrinks, ...localOnlyDrinks],
+              dishes: mergedDishes.length > 0 ? mergedDishes : cTable.dishes
+            };
+          });
+        });
         setIsCloudConnected(true);
       }
     });
@@ -222,7 +332,26 @@ export default function App() {
     const unsubMenus = subscribeToBranchMenus((cloudMenus) => {
       if (cloudMenus && Object.keys(cloudMenus).length > 0) {
         isRemoteMenus.current = true;
-        setBranchMenus(cloudMenus);
+        const normalized: Record<string, MenuItem[]> = {};
+        Object.entries(cloudMenus).forEach(([branchId, list]) => {
+          normalized[branchId] = list.map((dish) => {
+            const isOutdated = !dish.image ||
+              dish.image.includes('photo-1567620832903') ||
+              dish.image.includes('photo-1565299585323') ||
+              dish.image.includes('photo-1544025162-d76694265947') ||
+              dish.image.includes('photo-1555396273-367ea4eb4db5');
+            const img = (DISH_IMAGE_MAP[dish.id] && isOutdated) ? DISH_IMAGE_MAP[dish.id] : dish.image;
+            const spiceLevel = dish.allowSpiceLevel !== undefined
+              ? dish.allowSpiceLevel
+              : ['ceviches', 'leches', 'calientes'].includes(dish.category) || [301, 302, 303, 701, 702].includes(dish.id);
+            return {
+              ...dish,
+              image: img,
+              allowSpiceLevel: spiceLevel
+            };
+          });
+        });
+        setBranchMenus(normalized);
         setIsCloudConnected(true);
       }
     });
@@ -230,7 +359,49 @@ export default function App() {
     const unsubTickets = subscribeToKDSTickets((cloudTickets) => {
       if (cloudTickets) {
         isRemoteTickets.current = true;
-        setKdsTickets(cloudTickets);
+        setKdsTickets((prevTickets) => {
+          if (!prevTickets || prevTickets.length === 0) return cloudTickets;
+          return cloudTickets.map((cTicket) => {
+            const localTicket = prevTickets.find((lt) => lt.id === cTicket.id);
+            if (!localTicket) return cTicket;
+
+            const mergedItems = cTicket.items.map((cItem, idx) => {
+              const lItem =
+                localTicket.items[idx] ||
+                localTicket.items.find((li) => li.id === cItem.id || li.name === cItem.name);
+              if (!lItem) return cItem;
+              const isReady = Boolean(cItem.isReady || lItem.isReady);
+              const isServed = Boolean(cItem.isServed || lItem.isServed);
+              return {
+                ...cItem,
+                isReady,
+                isServed,
+                status: isServed
+                  ? ('served' as const)
+                  : isReady
+                  ? ('ready' as const)
+                  : cItem.status,
+                readyAt: cItem.readyAt || lItem.readyAt,
+                servedAt: cItem.servedAt || lItem.servedAt
+              };
+            });
+
+            const allReady = mergedItems.every((i) => i.isReady);
+            const allServed = mergedItems.every((i) => i.isServed);
+
+            return {
+              ...cTicket,
+              items: mergedItems,
+              status: allServed
+                ? ('served' as const)
+                : allReady
+                ? ('ready' as const)
+                : localTicket.status === 'ready'
+                ? ('ready' as const)
+                : cTicket.status
+            };
+          });
+        });
         setIsCloudConnected(true);
       }
     });
@@ -391,11 +562,10 @@ export default function App() {
       setCurrentScreen('mesas');
     } else if (role === 'admin_sede') {
       setStaffUser({ name: 'Roberto Morales', role: 'admin' });
-      setCurrentScreen('mesas');
+      setCurrentScreen('dashboard-admin');
     } else if (role === 'admin_general') {
       setStaffUser({ name: 'Mariana Alva', role: 'admin' });
-      setCurrentScreen('carta-sede');
-      setCartaInitialTab('carta');
+      setCurrentScreen('dashboard-admin');
     } else if (role === 'admin_global') {
       setStaffUser({ name: 'José Manuel Vasquez Rivero', role: 'admin' });
       setCurrentScreen('saas-console');
@@ -404,6 +574,7 @@ export default function App() {
 
   // Navegar a un tenant específico (actualiza la URL y el slug)
   const navigateToTenant = (slug: string) => {
+    clearSession();
     window.history.pushState({}, '', `/${slug}`);
     setTenantSlug(slug);
     setIsAuthenticated(false);
@@ -413,6 +584,7 @@ export default function App() {
 
   // Navegar de regreso al portal global
   const navigateToGlobal = () => {
+    clearSession();
     window.history.pushState({}, '', '/');
     setTenantSlug(null);
     setIsAuthenticated(false);
@@ -422,6 +594,8 @@ export default function App() {
 
   // Cerrar sesión y bloquear terminal (Solo se puede reingresar con PIN de 6 dígitos o credenciales de Admin Global)
   const handleLogout = () => {
+    clearSession();
+    closeAdminSession().catch(() => {});
     setIsAuthenticated(false);
     setCurrentScreen('pin-lock');
     setStaffUser({ name: '', role: 'mesero' });
@@ -462,17 +636,50 @@ export default function App() {
   };
 
   const handleMarkDelivered = (tableId: string) => {
-    setTables((prev) =>
-      prev.map((t) =>
-        t.id === tableId
-          ? {
-              ...t,
-              status: 'eating',
-              notes: 'Platos servidos en mesa. Comensales atendidos.'
-            }
-          : t
-      )
-    );
+    const currentTbl = tables.find((t) => t.id === tableId);
+    const targetTableNum = currentTbl ? currentTbl.number : '';
+
+    let updatedTablesList: TableItem[] = [];
+    setTables((prev) => {
+      updatedTablesList = prev.map((t) => {
+        if (t.id !== tableId) return t;
+        return {
+          ...t,
+          status: 'eating',
+          notes: 'Platos servidos en mesa. Comensales atendidos.',
+          dishes: t.dishes?.map((d) => ({ ...d, status: 'served' as const }))
+        };
+      });
+      return updatedTablesList;
+    });
+
+    let updatedTicketsList: KDSTicket[] = [];
+    // Also mark KDS tickets for this table as served so they complete cleanly
+    setKdsTickets((prev) => {
+      updatedTicketsList = prev.map((tk) => {
+        if (!matchesTable(tk.table, targetTableNum, tableId)) return tk;
+        const updatedItems = tk.items.map((item) => ({
+          ...item,
+          isReady: true,
+          isServed: true,
+          status: 'served' as const
+        }));
+        return {
+          ...tk,
+          status: 'served' as const,
+          items: updatedItems
+        };
+      });
+      return updatedTicketsList;
+    });
+
+    // Immediate Firestore persistence
+    if (updatedTablesList.length > 0) {
+      syncTablesToRTDB(updatedTablesList);
+    }
+    if (updatedTicketsList.length > 0) {
+      syncKDSTicketsToRTDB(updatedTicketsList);
+    }
   };
 
   const handleTablePaidAndFreed = (tableId: string) => {
@@ -563,45 +770,161 @@ export default function App() {
 
   // Waiter-managed drink toggle
   const handleToggleDrinkServed = (tableId: string, drinkId: string) => {
-    setTables((prev) =>
-      prev.map((t) => {
+    const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const currentTbl = tables.find((t) => t.id === tableId);
+    const targetTableNum = currentTbl ? currentTbl.number : '';
+
+    let affectedDrinkName = '';
+    let isNowServed = false;
+    let updatedTablesList: TableItem[] = [];
+
+    setTables((prev) => {
+      updatedTablesList = prev.map((t) => {
         if (t.id !== tableId) return t;
-        const updatedDrinks = t.drinks?.map((d) =>
-          d.id === drinkId
-            ? {
-                ...d,
-                served: !d.served,
-                servedAt: !d.served
-                  ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                  : undefined
-              }
-            : d
-        );
-        return {
-          ...t,
-          drinks: updatedDrinks
-        };
-      })
-    );
+        const existingDrinks = t.drinks || [];
+        const found = existingDrinks.find((d) => d.id === drinkId);
+
+        if (found) {
+          affectedDrinkName = found.name;
+          isNowServed = !found.served;
+          const updatedDrinks = existingDrinks.map((d) =>
+            d.id === drinkId
+              ? {
+                  ...d,
+                  served: !d.served,
+                  servedAt: !d.served ? timeNow : undefined
+                }
+              : d
+          );
+          return {
+            ...t,
+            drinks: updatedDrinks
+          };
+        } else {
+          // If the drink came from a KDS ticket item
+          const ticketDrinks = extractDrinksFromTickets(kdsTickets, t.number, t.id);
+          const fromTicket = ticketDrinks.find((d) => d.id === drinkId);
+          if (fromTicket) {
+            affectedDrinkName = fromTicket.name;
+            isNowServed = !fromTicket.served;
+            const newDrink: DrinkOrder = {
+              ...fromTicket,
+              served: isNowServed,
+              servedAt: isNowServed ? timeNow : undefined
+            };
+            return {
+              ...t,
+              drinks: [...existingDrinks, newDrink]
+            };
+          }
+        }
+        return t;
+      });
+      return updatedTablesList;
+    });
+
+    let updatedTicketsList: KDSTicket[] = [];
+    if (affectedDrinkName) {
+      setKdsTickets((prev) => {
+        updatedTicketsList = prev.map((tk) => {
+          if (!matchesTable(tk.table, targetTableNum, tableId)) return tk;
+          const updatedItems = tk.items.map((item) => {
+            if (
+              item.id === drinkId ||
+              item.name.toLowerCase().includes(affectedDrinkName.toLowerCase()) ||
+              affectedDrinkName.toLowerCase().includes(item.name.toLowerCase())
+            ) {
+              return {
+                ...item,
+                isReady: true,
+                isServed: isNowServed,
+                status: isNowServed ? ('served' as const) : ('ready' as const),
+                servedAt: isNowServed ? timeNow : undefined
+              };
+            }
+            return item;
+          });
+          const allCompleted = updatedItems.length > 0 && updatedItems.every((i) => i.isReady && i.isServed);
+          return {
+            ...tk,
+            items: updatedItems,
+            status: allCompleted ? ('served' as const) : tk.status
+          };
+        });
+        return updatedTicketsList;
+      });
+    }
+
+    // Immediate Firestore persistence
+    if (updatedTablesList.length > 0) {
+      syncTablesToRTDB(updatedTablesList);
+    }
+    if (updatedTicketsList.length > 0) {
+      syncKDSTicketsToRTDB(updatedTicketsList);
+    }
   };
 
   // Mark all drinks for a table as served
   const handleServeAllDrinks = (tableId: string) => {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setTables((prev) =>
-      prev.map((t) => {
+    const currentTbl = tables.find((t) => t.id === tableId);
+    const targetTableNum = currentTbl ? currentTbl.number : '';
+
+    let updatedTablesList: TableItem[] = [];
+    setTables((prev) => {
+      updatedTablesList = prev.map((t) => {
         if (t.id !== tableId) return t;
-        const updatedDrinks = t.drinks?.map((d) => ({
+        const ticketDrinks = extractDrinksFromTickets(kdsTickets, t.number, t.id);
+        const existingDrinks = t.drinks || [];
+        const existingNames = new Set(existingDrinks.map((d) => d.name.toLowerCase().trim()));
+        const missingDrinks = ticketDrinks.filter((td) => !existingNames.has(td.name.toLowerCase().trim()));
+        const allDrinks = [...existingDrinks, ...missingDrinks].map((d) => ({
           ...d,
           served: true,
           servedAt: d.servedAt || timeNow
         }));
         return {
           ...t,
-          drinks: updatedDrinks
+          drinks: allDrinks
         };
-      })
-    );
+      });
+      return updatedTablesList;
+    });
+
+    let updatedTicketsList: KDSTicket[] = [];
+    // Also mark all drink items in kdsTickets as served
+    setKdsTickets((prev) => {
+      updatedTicketsList = prev.map((tk) => {
+        if (!matchesTable(tk.table, targetTableNum, tableId)) return tk;
+        const updatedItems = tk.items.map((item) => {
+          if (isDrinkKDSTicketItem(item)) {
+            return {
+              ...item,
+              isReady: true,
+              isServed: true,
+              status: 'served' as const,
+              servedAt: item.servedAt || timeNow
+            };
+          }
+          return item;
+        });
+        const allCompleted = updatedItems.length > 0 && updatedItems.every((i) => i.isReady && i.isServed);
+        return {
+          ...tk,
+          items: updatedItems,
+          status: allCompleted ? ('served' as const) : tk.status
+        };
+      });
+      return updatedTicketsList;
+    });
+
+    // Immediate Firestore persistence
+    if (updatedTablesList.length > 0) {
+      syncTablesToRTDB(updatedTablesList);
+    }
+    if (updatedTicketsList.length > 0) {
+      syncKDSTicketsToRTDB(updatedTicketsList);
+    }
   };
 
   // Send comanda (Kitchen dishes separated from Waiter drinks, with size and exact price applied)
@@ -790,34 +1113,37 @@ export default function App() {
 
   // 1. Kitchen cook marks individual dish as ready
   const handleMarkDishReady = (ticketId: string, itemIndex: number) => {
-    let ticketTable = '';
-    let isAllReady = false;
+    const targetTicket = kdsTickets.find((t) => t.id === ticketId);
+    const ticketTable = targetTicket ? targetTicket.table : '';
+    let updatedTicketsList: KDSTicket[] = [];
 
-    setKdsTickets((prev) =>
-      prev.map((t) => {
+    setKdsTickets((prev) => {
+      updatedTicketsList = prev.map((t) => {
         if (t.id !== ticketId) return t;
-        ticketTable = t.table;
         const newItems = t.items.map((item, idx) => {
           if (idx !== itemIndex) return item;
           return {
             ...item,
             isReady: true,
-            readyAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            status: 'ready' as const,
+            readyAt: item.readyAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           };
         });
-        isAllReady = newItems.every((i) => i.isReady);
+        const isAllReady = newItems.every((i) => i.isReady || (i as any).status === 'ready');
         return {
           ...t,
           items: newItems,
-          status: isAllReady ? 'ready' : t.status === 'pending' ? 'cooking' : t.status
+          status: isAllReady ? 'ready' : (t.status === 'pending' ? 'cooking' : (t.status as string) === 'preparing' ? 'cooking' : t.status)
         };
-      })
-    );
+      });
+      return updatedTicketsList;
+    });
 
+    let updatedTablesList: TableItem[] = [];
     if (ticketTable) {
-      setTables((prev) =>
-        prev.map((tbl) => {
-          if (!ticketTable.includes(tbl.number)) return tbl;
+      setTables((prev) => {
+        updatedTablesList = prev.map((tbl) => {
+          if (!matchesTable(ticketTable, tbl.number, tbl.id)) return tbl;
           const updatedDishes =
             tbl.dishes?.map((dish, dIdx) => {
               if (dIdx === itemIndex) {
@@ -830,43 +1156,52 @@ export default function App() {
             status: 'ready',
             dishes: updatedDishes
           };
-        })
-      );
+        });
+        return updatedTablesList;
+      });
     }
+
+    if (updatedTicketsList.length > 0) syncKDSTicketsToRTDB(updatedTicketsList);
+    if (updatedTablesList.length > 0) syncTablesToRTDB(updatedTablesList);
   };
 
   // 2. Waiter marks individual dish as served in salon
   const handleMarkDishServed = (ticketId: string, itemIndex: number) => {
-    let ticketTable = '';
-    let isAllServedAndReady = false;
+    const targetTicket = kdsTickets.find((t) => t.id === ticketId);
+    const ticketTable = targetTicket ? targetTicket.table : '';
+    let updatedTicketsList: KDSTicket[] = [];
 
-    setKdsTickets((prev) =>
-      prev.map((t) => {
+    setKdsTickets((prev) => {
+      updatedTicketsList = prev.map((t) => {
         if (t.id !== ticketId) return t;
-        ticketTable = t.table;
         const newItems = t.items.map((item, idx) => {
           if (idx !== itemIndex) return item;
           return {
             ...item,
             isReady: true,
             isServed: true,
-            servedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            status: 'served' as const,
+            servedAt: item.servedAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           };
         });
-        isAllServedAndReady = newItems.every((i) => i.isReady && i.isServed);
+        const isAllServedAndReady = newItems.every(
+          (i) => (i.isReady || (i as any).status === 'ready') && (i.isServed || (i as any).status === 'served')
+        );
         return {
           ...t,
           items: newItems,
           // When all dishes are served, the ticket status becomes 'served' and it disappears from active view!
           status: isAllServedAndReady ? 'served' : t.status
         };
-      })
-    );
+      });
+      return updatedTicketsList;
+    });
 
+    let updatedTablesList: TableItem[] = [];
     if (ticketTable) {
-      setTables((prev) =>
-        prev.map((tbl) => {
-          if (!ticketTable.includes(tbl.number)) return tbl;
+      setTables((prev) => {
+        updatedTablesList = prev.map((tbl) => {
+          if (!matchesTable(ticketTable, tbl.number, tbl.id)) return tbl;
           const updatedDishes =
             tbl.dishes?.map((dish, dIdx) => {
               if (dIdx === itemIndex) {
@@ -882,9 +1217,13 @@ export default function App() {
             notes: !hasPendingDishes ? 'Todos los platos servidos por el mozo.' : tbl.notes,
             dishes: updatedDishes
           };
-        })
-      );
+        });
+        return updatedTablesList;
+      });
     }
+
+    if (updatedTicketsList.length > 0) syncKDSTicketsToRTDB(updatedTicketsList);
+    if (updatedTablesList.length > 0) syncTablesToRTDB(updatedTablesList);
   };
 
   // 3. Waiter removes a dish from the order at ANY time
@@ -1074,61 +1413,88 @@ export default function App() {
 
   // 4. Mark all dishes in a ticket ready
   const handleMarkAllDishesReady = (ticketId: string) => {
-    let ticketTable = '';
-    setKdsTickets((prev) =>
-      prev.map((t) => {
+    const targetTicket = kdsTickets.find((t) => t.id === ticketId);
+    const ticketTable = targetTicket ? targetTicket.table : '';
+    let updatedTicketsList: KDSTicket[] = [];
+
+    setKdsTickets((prev) => {
+      updatedTicketsList = prev.map((t) => {
         if (t.id !== ticketId) return t;
-        ticketTable = t.table;
         return {
           ...t,
           status: 'ready',
-          items: t.items.map((i) => ({ ...i, isReady: true }))
+          items: t.items.map((i) => ({
+            ...i,
+            isReady: true,
+            status: 'ready' as const,
+            readyAt: i.readyAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }))
         };
-      })
-    );
+      });
+      return updatedTicketsList;
+    });
 
+    let updatedTablesList: TableItem[] = [];
     if (ticketTable) {
-      setTables((prev) =>
-        prev.map((tbl) => {
-          if (!ticketTable.includes(tbl.number)) return tbl;
+      setTables((prev) => {
+        updatedTablesList = prev.map((tbl) => {
+          if (!matchesTable(ticketTable, tbl.number, tbl.id)) return tbl;
           return {
             ...tbl,
             status: 'ready',
             dishes: tbl.dishes?.map((d) => ({ ...d, status: 'ready' as const }))
           };
-        })
-      );
+        });
+        return updatedTablesList;
+      });
     }
+
+    if (updatedTicketsList.length > 0) syncKDSTicketsToRTDB(updatedTicketsList);
+    if (updatedTablesList.length > 0) syncTablesToRTDB(updatedTablesList);
   };
 
   // 5. Mark all dishes in a ticket served (card disappears immediately)
   const handleMarkAllDishesServed = (ticketId: string) => {
-    let ticketTable = '';
-    setKdsTickets((prev) =>
-      prev.map((t) => {
+    const targetTicket = kdsTickets.find((t) => t.id === ticketId);
+    const ticketTable = targetTicket ? targetTicket.table : '';
+    let updatedTicketsList: KDSTicket[] = [];
+
+    setKdsTickets((prev) => {
+      updatedTicketsList = prev.map((t) => {
         if (t.id !== ticketId) return t;
-        ticketTable = t.table;
         return {
           ...t,
           status: 'served',
-          items: t.items.map((i) => ({ ...i, isReady: true, isServed: true }))
+          items: t.items.map((i) => ({
+            ...i,
+            isReady: true,
+            isServed: true,
+            status: 'served' as const,
+            servedAt: i.servedAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }))
         };
-      })
-    );
+      });
+      return updatedTicketsList;
+    });
 
+    let updatedTablesList: TableItem[] = [];
     if (ticketTable) {
-      setTables((prev) =>
-        prev.map((tbl) => {
-          if (!ticketTable.includes(tbl.number)) return tbl;
+      setTables((prev) => {
+        updatedTablesList = prev.map((tbl) => {
+          if (!matchesTable(ticketTable, tbl.number, tbl.id)) return tbl;
           return {
             ...tbl,
             status: 'eating',
             notes: 'Todos los platos servidos por el mozo.',
             dishes: tbl.dishes?.map((d) => ({ ...d, status: 'served' as const }))
           };
-        })
-      );
+        });
+        return updatedTablesList;
+      });
     }
+
+    if (updatedTicketsList.length > 0) syncKDSTicketsToRTDB(updatedTicketsList);
+    if (updatedTablesList.length > 0) syncTablesToRTDB(updatedTablesList);
   };
 
   // Active branch menu: isolated per branch location
@@ -1353,6 +1719,94 @@ export default function App() {
     );
   };
 
+  // Update an existing branch/sede location (Global Admin or General Admin)
+  const handleUpdateLocation = (
+    chainId: string,
+    updatedLocation: BranchLocation,
+    managerAdmin?: AdminUser
+  ) => {
+    setChains((prev) =>
+      prev.map((c) =>
+        c.id === chainId
+          ? {
+              ...c,
+              locations: c.locations.map((loc) =>
+                loc.id === updatedLocation.id ? updatedLocation : loc
+              )
+            }
+          : c
+      )
+    );
+
+    // If active branch is this one and table count changed, adjust tables if necessary
+    if (activeBranchId === updatedLocation.id) {
+      setTables((prev) => {
+        if (prev.length < updatedLocation.tables) {
+          const addedCount = updatedLocation.tables - prev.length;
+          const newTables: TableItem[] = Array.from({ length: addedCount }).map((_, idx) => {
+            const num = (prev.length + idx + 1).toString().padStart(2, '0');
+            return {
+              id: `tbl-${updatedLocation.id}-${num}`,
+              number: num,
+              status: 'free',
+              statusLabel: 'Disponible',
+              zone: 'Salón Principal',
+              waiter: '',
+              diners: 4,
+              branchId: updatedLocation.id
+            };
+          });
+          return [...prev, ...newTables];
+        }
+        return prev;
+      });
+    }
+
+    // Synchronize or update Admin User for this sede in admins directory
+    if (updatedLocation.managerName || updatedLocation.managerEmail) {
+      setAdmins((prev) => {
+        const existingIdx = prev.findIndex(
+          (a) =>
+            a.brandId === chainId &&
+            a.roleKey === 'admin_sede' &&
+            (a.assignedBranchIds?.includes(updatedLocation.id) || a.branchId === updatedLocation.id)
+        );
+        if (existingIdx >= 0) {
+          const updated = [...prev];
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            name: updatedLocation.managerName || updated[existingIdx].name,
+            email: updatedLocation.managerEmail || updated[existingIdx].email,
+            phone: updatedLocation.managerPhone || updated[existingIdx].phone,
+            docType: updatedLocation.managerDocType || updated[existingIdx].docType,
+            docNumber: updatedLocation.managerDocNumber || updated[existingIdx].docNumber,
+            branchName: updatedLocation.name,
+            initials: (updatedLocation.managerName || 'AS').split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase()
+          };
+          return updated;
+        } else if (managerAdmin) {
+          return [managerAdmin, ...prev];
+        }
+        return prev;
+      });
+    }
+  };
+
+  // Delete a branch/location from chain
+  const handleDeleteLocation = (chainId: string, locationId: string) => {
+    setChains((prev) =>
+      prev.map((c) =>
+        c.id === chainId
+          ? {
+              ...c,
+              locationsCount: Math.max(0, c.locations.length - 1),
+              locations: c.locations.filter((loc) => loc.id !== locationId)
+            }
+          : c
+      )
+    );
+  };
+
   // Update chain brand details (e.g. logo, name, branding, and designated general admin)
   const handleUpdateChain = (updatedChain: ChainBrand) => {
     setChains((prev) => prev.map((c) => (c.id === updatedChain.id ? updatedChain : c)));
@@ -1455,8 +1909,7 @@ export default function App() {
       return;
     }
     if (role === 'admin_general' || role === 'admin_sede') {
-      setCurrentScreen('carta-sede');
-      setCartaInitialTab('carta');
+      setCurrentScreen('dashboard-admin');
       return;
     }
 
@@ -1555,26 +2008,50 @@ export default function App() {
   };
 
   const isWaiterUser = currentRole === 'mesero';
-  const isMyTableForAlerts = (tableWaiter?: string) => {
-    if (!tableWaiter) return false;
-    const waiterLower = tableWaiter.toLowerCase().trim();
-    const currentLower = (staffUser.name || '').toLowerCase().trim();
-    if (!waiterLower || !currentLower) return false;
-    const currentFirst = currentLower.split(' ')[0];
-    const tableFirst = waiterLower.split(' ')[0];
-    return (
-      waiterLower === currentLower ||
-      (currentFirst && waiterLower.includes(currentFirst)) ||
-      (tableFirst && currentLower.includes(tableFirst))
+
+  // Harmonize tables with active tickets from KDS so drinks and dishes are in sync across salon and drinks tray
+  const tablesWithTicketDrinks = tables.map((t) => {
+    const activeTicket = kdsTickets.find(
+      (tk) => tk.status !== 'served' && matchesTable(tk.table, t.number, t.id)
     );
-  };
+    const ticketDrinks = extractDrinksFromTickets(kdsTickets, t.number, t.id);
+    const existingDrinks = t.drinks || [];
+    const existingNames = new Set(existingDrinks.map((d) => d.name.toLowerCase().trim()));
+    const missingDrinks = ticketDrinks.filter((td) => !existingNames.has(td.name.toLowerCase().trim()));
+    const combinedDrinks = [...existingDrinks, ...missingDrinks];
+
+    if (activeTicket) {
+      const foodItems = activeTicket.items.filter((i) => !isDrinkKDSTicketItem(i));
+      const allFoodReady = foodItems.length > 0 && foodItems.every((i) => i.isReady);
+      const newStatus =
+        t.status === 'free'
+          ? (foodItems.length > 0 && allFoodReady ? 'ready' : 'cooking')
+          : (allFoodReady && t.status !== 'bill_requested' ? 'ready' : t.status);
+      const newWaiter =
+        activeTicket.waiter && activeTicket.waiter !== 'Mozo de Turno' && activeTicket.waiter !== 'Sin asignar'
+          ? activeTicket.waiter
+          : (t.waiter || (isWaiterUser ? (staffUser.name || 'Carlos Mendoza') : t.waiter));
+
+      return {
+        ...t,
+        status: newStatus,
+        waiter: newWaiter,
+        drinks: combinedDrinks
+      };
+    }
+
+    return {
+      ...t,
+      drinks: combinedDrinks
+    };
+  });
 
   const tablesForAlerts = isWaiterUser
-    ? tables.filter((t) => isMyTableForAlerts(t.waiter))
-    : tables;
+    ? tablesWithTicketDrinks.filter((t) => isTableAssignedToWaiter(t, staffUser.name, true))
+    : tablesWithTicketDrinks;
 
   const ticketsForAlerts = isWaiterUser
-    ? kdsTickets.filter((t) => isMyTableForAlerts(t.waiter))
+    ? kdsTickets.filter((t) => isTicketAssignedToWaiter(t, staffUser.name, tables))
     : kdsTickets;
 
   const totalReadyDishesInKDS = ticketsForAlerts.reduce((acc, t) => {
@@ -1590,15 +2067,19 @@ export default function App() {
   const pendingBillsCount = tables.filter((t) => {
     if (t.status !== 'bill_requested') return false;
     if (isWaiterUser) {
-      return isMyTableForAlerts(t.waiter);
+      return isTableAssignedToWaiter(t, staffUser.name, true);
     }
     return true;
   }).length;
   
-  // Total pending drinks count (for waiter: only their assigned tables)
-  const pendingDrinksCount = tablesForAlerts.reduce((acc, t) => {
+  // Total pending drinks count (for waiter: only their assigned tables and shift orders)
+  const pendingDrinksFromTables = tablesForAlerts.reduce((acc, t) => {
     return acc + (t.drinks?.filter((d) => !d.served).length || 0);
   }, 0);
+  const pendingDrinksFromTickets = ticketsForAlerts.reduce((acc, t) => {
+    return acc + t.items.filter((i) => isDrinkKDSTicketItem(i) && !i.isServed).reduce((sum, di) => sum + (di.qty || 1), 0);
+  }, 0);
+  const pendingDrinksCount = Math.max(pendingDrinksFromTables, pendingDrinksFromTickets);
 
   const currentChain = chains.find((c) => c.id === activeChainId) || chains[0];
   const currentBranch = currentChain?.locations.find((l) => l.id === activeBranchId) || currentChain?.locations[0];
@@ -1628,12 +2109,27 @@ export default function App() {
           /* ROOT URL (/): Web de Presentación de ORDENA con botón de Login arriba a la derecha */
           isGlobalLoginOpen ? (
             <ScreenGlobalLogin
-              onLoginSuccess={() => {
+              onLoginSuccess={(adminUser: AdminUser) => {
                 setIsAuthenticated(true);
-                setCurrentRole('admin_global');
-                setStaffUser({ name: 'José Manuel Vasquez Rivero', role: 'admin' });
-                setCurrentScreen('saas-console');
+                const roleKey = adminUser.roleKey || 'admin_global';
+                setCurrentRole(roleKey);
+                setStaffUser({ name: adminUser.name, role: 'admin' });
+                if (adminUser.brandId) {
+                  setActiveChainId(adminUser.brandId);
+                }
+                if (adminUser.assignedBranchIds && adminUser.assignedBranchIds.length > 0) {
+                  setActiveBranchId(adminUser.assignedBranchIds[0]);
+                } else if (adminUser.branchId) {
+                  setActiveBranchId(adminUser.branchId);
+                }
+                if (roleKey === 'admin_global') {
+                  setCurrentScreen('saas-console');
+                } else {
+                  setCurrentScreen('dashboard-admin');
+                }
+                setIsGlobalLoginOpen(false);
               }}
+              admins={admins}
               chains={chains}
               onNavigateToTenant={navigateToTenant}
               onBack={() => setIsGlobalLoginOpen(false)}
@@ -1645,13 +2141,14 @@ export default function App() {
           /* TENANT URL (/:slug): Terminal del Restaurante aislada con PIN de 6 dígitos */
           <ScreenPinLock
             onUnlock={handleUnlock}
-            onNavigate={handleNavigate}
-            staffMembers={staffMembers}
-            admins={admins}
+            activeChainId={activeChainId}
+            activeBranchId={activeBranchId}
+            branches={currentChain?.locations || []}
+            onSelectBranch={(branchId) => setActiveBranchId(branchId)}
             activeChainName={currentChain?.name || 'Restaurante'}
             activeChainLogo={currentChain?.logoUrl}
-            isTenantMode={true}
-            onBackToGlobalLogin={navigateToGlobal}
+            onBackToLanding={navigateToGlobal}
+            onAdminLogin={() => setIsGlobalLoginOpen(true)}
           />
         )
       ) : (
@@ -1683,10 +2180,11 @@ export default function App() {
             />
 
             {/* Viewport content */}
-            <main className="flex-1 flex flex-col">
+            <main className="flex-1 flex flex-col pb-24">
               {currentScreen === 'mesas' && (
                 <ScreenMesas
-                  tables={tables}
+                  tables={tablesWithTicketDrinks}
+                  kdsTickets={kdsTickets}
                   staffMembers={staffMembers}
                   onNavigate={handleNavigate}
                   onSelectTable={handleSelectTable}
@@ -1708,8 +2206,16 @@ export default function App() {
                   activeBranchId={activeBranchId}
                   tables={tables}
                   tickets={kdsTickets}
+                  menuItems={currentBranchDishes}
+                  staffMembers={staffMembers}
                   onSelectBranch={setActiveBranchId}
                   onNavigate={handleNavigate}
+                  onSelectCartaTab={setCartaInitialTab}
+                  onToggleItemAvailability={handleToggleItemAvailability}
+                  onToggleBranchActive={(branchId) => handleToggleLocation(activeChainId, branchId)}
+                  onSelectTable={handleSelectTable}
+                  onOpenRoleSwitcher={() => setIsRoleSwitcherOpen(true)}
+                  onLogout={handleLogout}
                 />
               )}
 
@@ -1742,6 +2248,7 @@ export default function App() {
               {currentScreen === 'cocina-kds' && (
                 <ScreenCocinaKDS
                   tickets={kdsTickets}
+                  tables={tables}
                   onUpdateTicketStatus={handleUpdateTicketStatus}
                   onMarkDishReady={handleMarkDishReady}
                   onMarkDishServed={handleMarkDishServed}
@@ -1795,6 +2302,7 @@ export default function App() {
                     handleSelectChainAndBranch(chainId, found?.locations[0]?.id || '', 'carta-sede');
                   }}
                   onAddLocation={handleAddLocationToChain}
+                  onUpdateLocation={handleUpdateLocation}
                   onUpdateChain={handleUpdateChain}
                   currentRole={currentRole}
                   currentAdminName={staffUser.name}
@@ -1812,6 +2320,8 @@ export default function App() {
                   onUpdateChain={handleUpdateChain}
                   onDeleteChain={handleDeleteChain}
                   onAddLocationToChain={handleAddLocationToChain}
+                  onUpdateLocation={handleUpdateLocation}
+                  onDeleteLocation={handleDeleteLocation}
                   onToggleLocation={handleToggleLocation}
                   onNavigate={handleNavigate}
                   onSelectChainAndBranch={handleSelectChainAndBranch}
@@ -1846,7 +2356,7 @@ export default function App() {
       <ModalBandejaBebidas
         isOpen={isDrinksTrayOpen}
         onClose={() => setIsDrinksTrayOpen(false)}
-        tables={tables}
+        tables={tablesWithTicketDrinks}
         onToggleDrinkServed={handleToggleDrinkServed}
         onServeAllDrinks={handleServeAllDrinks}
         currentRole={currentRole}
