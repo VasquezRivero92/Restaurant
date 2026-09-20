@@ -220,6 +220,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   const [editDishStockNote, setEditDishStockNote] = useState('');
   const [editDishAvailable, setEditDishAvailable] = useState(true);
   const [editDishImageUrl, setEditDishImageUrl] = useState('');
+  const [editDishAllowSpiceLevel, setEditDishAllowSpiceLevel] = useState<boolean>(false);
 
   const openEditDishModal = (dish: MenuItem) => {
     setEditingDish(dish);
@@ -238,6 +239,11 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
     setEditDishStockNote(dish.stockNote || '');
     setEditDishAvailable(dish.available);
     setEditDishImageUrl(dish.image || DEFAULT_DISH_PLACEHOLDER_IMAGE);
+    setEditDishAllowSpiceLevel(
+      dish.allowSpiceLevel !== undefined
+        ? dish.allowSpiceLevel
+        : ['ceviches', 'leches', 'calientes'].includes(dish.category)
+    );
   };
 
   const handleAddSizeToEditDish = () => {
@@ -292,7 +298,8 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
       tag: editDishTag.trim() || undefined,
       stockNote: editDishStockNote.trim() || undefined,
       available: editDishAvailable,
-      image: editDishImageUrl.trim() || DEFAULT_DISH_PLACEHOLDER_IMAGE
+      image: editDishImageUrl.trim() || DEFAULT_DISH_PLACEHOLDER_IMAGE,
+      allowSpiceLevel: editDishAllowSpiceLevel
     };
 
     if (onUpdateMenuItem) {
@@ -320,6 +327,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   const [newDishTag, setNewDishTag] = useState('ESPECIALIDAD');
   const [newDishImageUrl, setNewDishImageUrl] = useState(DEFAULT_DISH_PLACEHOLDER_IMAGE);
   const [newDishStockNote, setNewDishStockNote] = useState('');
+  const [newDishAllowSpiceLevel, setNewDishAllowSpiceLevel] = useState<boolean>(true);
 
   const handleAddSizeToNewDish = () => {
     if (!newDishSizeNameInput.trim() || newDishSizePriceInput <= 0) {
@@ -369,7 +377,8 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
       image: newDishImageUrl.trim() || DEFAULT_DISH_PLACEHOLDER_IMAGE,
       available: true,
       stockNote: newDishStockNote.trim() || undefined,
-      isDrink: newDishCategory === 'bebidas'
+      isDrink: newDishCategory === 'bebidas',
+      allowSpiceLevel: newDishAllowSpiceLevel
     };
 
     if (onAddMenuItem) {
@@ -380,6 +389,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
     setNewDishDescription('');
     setNewDishStockNote('');
     setNewDishImageUrl(DEFAULT_DISH_PLACEHOLDER_IMAGE);
+    setNewDishAllowSpiceLevel(true);
     setHasUnsavedChanges(true);
     triggerToast(`¡Nuevo plato "${newDish.name}" agregado con precio por defecto S/ ${basePrice.toFixed(2)}!`);
   };
@@ -1166,6 +1176,34 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                         <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold text-[9px] uppercase tracking-wider">
                           DISPONIBLE
                         </span>
+                      )}
+
+                      {/* Botón rápido / Badge para Activar o Desactivar Picante */}
+                      {item.category !== 'bebidas' && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onUpdateMenuItem) {
+                              const nextSpice = item.allowSpiceLevel === false ? true : false;
+                              onUpdateMenuItem({ ...item, allowSpiceLevel: nextSpice });
+                              triggerToast(`Nivel de picante para "${item.name}" ${nextSpice ? 'ACTIVADO' : 'DESACTIVADO'}`);
+                            }
+                          }}
+                          title={
+                            item.allowSpiceLevel
+                              ? 'Opción de picante activada. Clic para desactivar'
+                              : 'Opción de picante desactivada. Clic para activar'
+                          }
+                          className={`px-2 py-0.5 rounded text-[9px] font-black flex items-center gap-1 cursor-pointer transition-all border ${
+                            item.allowSpiceLevel
+                              ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300 shadow-2xs'
+                              : 'bg-surface-container text-on-surface-variant border-outline-variant/30 hover:bg-surface-container-high'
+                          }`}
+                        >
+                          <span>🌶️</span>
+                          <span>{item.allowSpiceLevel ? 'Picante: Sí' : 'Picante: No'}</span>
+                        </button>
                       )}
                     </div>
 
@@ -2172,6 +2210,49 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                 />
               </div>
 
+              {/* Opción de Nivel de Picante */}
+              <div className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/30 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="text-2xl shrink-0">🌶️</span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <label className="font-extrabold text-xs text-on-surface">
+                        Nivel de Picante al Ordenar
+                      </label>
+                      {editDishAllowSpiceLevel ? (
+                        <span className="text-[10px] text-red-800 bg-red-100 font-extrabold px-1.5 py-0.2 rounded border border-red-200">
+                          Activado en salón
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-on-surface-variant bg-surface-container font-extrabold px-1.5 py-0.2 rounded">
+                          Desactivado
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant mt-0.5">
+                      {editDishAllowSpiceLevel
+                        ? 'Los meseros y clientes podrán elegir el picante (Sin ají, Moderado o Bien Bravo) al tomar el pedido.'
+                        : 'El plato se preparará de manera estándar sin solicitar nivel de picante.'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setEditDishAllowSpiceLevel(!editDishAllowSpiceLevel)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    editDishAllowSpiceLevel ? 'bg-red-600' : 'bg-surface-container-highest'
+                  }`}
+                  title={editDishAllowSpiceLevel ? 'Desactivar nivel de picante' : 'Activar nivel de picante'}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      editDishAllowSpiceLevel ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant/20">
                 <button
                   type="button"
@@ -2535,6 +2616,49 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                     className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
                   />
                 </div>
+              </div>
+
+              {/* Opción de Nivel de Picante para el Nuevo Plato */}
+              <div className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/30 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="text-2xl shrink-0">🌶️</span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <label className="font-extrabold text-xs text-on-surface">
+                        Nivel de Picante al Ordenar
+                      </label>
+                      {newDishAllowSpiceLevel ? (
+                        <span className="text-[10px] text-red-800 bg-red-100 font-extrabold px-1.5 py-0.2 rounded border border-red-200">
+                          Activado en salón
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-on-surface-variant bg-surface-container font-extrabold px-1.5 py-0.2 rounded">
+                          Desactivado
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant mt-0.5">
+                      {newDishAllowSpiceLevel
+                        ? 'Al ordenar, se solicitará al cliente o mesero el grado de ají deseado.'
+                        : 'El plato se ordenará directamente sin opción de nivel de picante.'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setNewDishAllowSpiceLevel(!newDishAllowSpiceLevel)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    newDishAllowSpiceLevel ? 'bg-red-600' : 'bg-surface-container-highest'
+                  }`}
+                  title={newDishAllowSpiceLevel ? 'Desactivar nivel de picante' : 'Activar nivel de picante'}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      newDishAllowSpiceLevel ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant/20">

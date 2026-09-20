@@ -969,7 +969,12 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
       { name: 'Porción Completa', price: 30.0 }
     ]
   }
-];
+].map((dish) => ({
+  ...dish,
+  allowSpiceLevel: dish.allowSpiceLevel !== undefined
+    ? dish.allowSpiceLevel
+    : ['ceviches', 'leches', 'calientes'].includes(dish.category) || [301, 302, 303, 701, 702].includes(dish.id)
+}));
 
 export const INITIAL_KDS_TICKETS: KDSTicket[] = [
   {

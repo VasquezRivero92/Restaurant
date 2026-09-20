@@ -281,10 +281,15 @@ export default function App() {
               dish.image.includes('photo-1565299585323') ||
               dish.image.includes('photo-1544025162-d76694265947') ||
               dish.image.includes('photo-1555396273-367ea4eb4db5');
-            if (DISH_IMAGE_MAP[dish.id] && isOutdated) {
-              return { ...dish, image: DISH_IMAGE_MAP[dish.id] };
-            }
-            return dish;
+            const img = (DISH_IMAGE_MAP[dish.id] && isOutdated) ? DISH_IMAGE_MAP[dish.id] : dish.image;
+            const spiceLevel = dish.allowSpiceLevel !== undefined
+              ? dish.allowSpiceLevel
+              : ['ceviches', 'leches', 'calientes'].includes(dish.category) || [301, 302, 303, 701, 702].includes(dish.id);
+            return {
+              ...dish,
+              image: img,
+              allowSpiceLevel: spiceLevel
+            };
           });
         });
         setBranchMenus(normalized);
