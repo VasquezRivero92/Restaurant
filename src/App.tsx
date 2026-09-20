@@ -19,7 +19,7 @@ import {
   CashShift,
   Reservation,
   AttendanceRecord
-  , ApprovalRequest
+  , ApprovalRequest, QrCustomerOrder
 } from './types';
 import {
   INITIAL_TABLES,
@@ -45,6 +45,7 @@ import { ScreenPinLock } from './components/ScreenPinLock';
 import { ScreenGlobalLogin } from './components/ScreenGlobalLogin';
 import { ScreenLanding } from './components/ScreenLanding';
 import { ScreenAdminDashboard } from './components/ScreenAdminDashboard';
+import { ScreenCartaQR } from './components/ScreenCartaQR';
 import { ModalBandejaBebidas } from './components/ModalBandejaBebidas';
 import {
   isTableAssignedToWaiter,
@@ -70,6 +71,7 @@ import {
   subscribeToReservations,
   subscribeToAttendance,
   subscribeToApprovals,
+  subscribeToQrCustomerOrders,
   syncTablesToRTDB,
   syncKDSTicketsToRTDB,
   syncBranchMenusToRTDB,
@@ -167,6 +169,7 @@ export default function App() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
+  const [qrOrders, setQrOrders] = useState<QrCustomerOrder[]>([]);
   const [admins, setAdmins] = useState<AdminUser[]>(INITIAL_ADMINS);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>(INITIAL_STAFF);
   const [selectedTableId, setSelectedTableId] = useState<string>(() => initialSession?.selectedTableId || 'mesa-05');
@@ -214,6 +217,7 @@ export default function App() {
   };
 
   const [tenantSlug, setTenantSlug] = useState<string | null>(() => getSlugFromUrl());
+  const qrBranchId = new URLSearchParams(window.location.search).get('qr');
 
   // Listen for browser navigation (back/forward)
   React.useEffect(() => {
@@ -549,6 +553,7 @@ export default function App() {
       setIsCloudConnected(true);
     });
     const unsubApprovals = subscribeToApprovals((cloudApprovals) => { setApprovals(cloudApprovals); });
+    const unsubQrOrders = subscribeToQrCustomerOrders(setQrOrders);
 
     return () => {
       unsubTables();
@@ -560,6 +565,7 @@ export default function App() {
       unsubReservations();
       unsubAttendance();
       unsubApprovals();
+      unsubQrOrders();
     };
   }, [activeChainId, activeBranchId]);
 
@@ -784,7 +790,7 @@ export default function App() {
       admin_sede: ['dashboard-admin', 'carta-sede', 'mesas', 'tomar-pedido', 'cocina-kds', 'cuenta-cobro'],
       mesero: ['mesas', 'tomar-pedido', 'cuenta-cobro'],
       cocina: ['cocina-kds'],
-      cajero: ['cuenta-cobro']
+      cajero: ['cuenta-cobro', 'mesas']
     };
     if (!allowedScreens[currentRole].includes(screen)) {
       return;
@@ -795,6 +801,35 @@ export default function App() {
   // Table actions
   const handleSelectTable = (tableId: string) => {
     setSelectedTableId(tableId);
+  };
+
+  const handleConfirmQrOrder = async (order: QrCustomerOrder) => {
+    const token = auth?.currentUser ? await auth.currentUser.getIdToken() : '';
+    if (!token) throw new Error('Tu sesión venció. Vuelve a ingresar con tu PIN.');
+    const response = await fetch(`/api/staff/qr-orders/${encodeURIComponent(order.id)}/confirm`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}` }
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'No se pudo confirmar el pedido.');
+  };
+
+  const handleRequestBill = (tableId: string) => {
+    let updatedTablesList: TableItem[] = [];
+    setTables((prev) => {
+      updatedTablesList = prev.map((t) => {
+        if (t.id !== tableId) return t;
+        return {
+          ...t,
+          status: 'bill_requested',
+          statusLabel: 'Cuenta Pedida'
+        };
+      });
+      return updatedTablesList;
+    });
+    setSelectedTableId(tableId);
+    if (updatedTablesList.length > 0) {
+      syncTablesToRTDB(updatedTablesList);
+    }
   };
 
   const handleOpenTable = (tableId: string) => {
@@ -955,9 +990,14 @@ export default function App() {
   // Reassign waiter for a table (Admin authority)
   const handleUpdateTableWaiter = (tableId: string, newWaiterName: string) => {
     const targetTable = tables.find((t) => t.id === tableId);
-    setTables((prev) =>
-      prev.map((t) => (t.id === tableId ? { ...t, waiter: newWaiterName } : t))
-    );
+    let updatedTablesList: TableItem[] = [];
+    setTables((prev) => {
+      updatedTablesList = prev.map((t) => (t.id === tableId ? { ...t, waiter: newWaiterName } : t));
+      return updatedTablesList;
+    });
+    if (updatedTablesList.length > 0) {
+      syncTablesToRTDB(updatedTablesList);
+    }
     if (targetTable) {
       const tableLabel = `Mesa ${targetTable.number}`;
       setKdsTickets((prev) =>
@@ -1115,16 +1155,20 @@ export default function App() {
     }
   };
 
-  // Mark all drinks for a table as served
-  const handleServeAllDrinks = (tableId: string) => {
+  // Mark all drinks for a table or all tables (tableId === 'all') as served
+  const handleServeAllDrinks = (tableIdOrIds?: string | string[]) => {
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const currentTbl = tables.find((t) => t.id === tableId);
-    const targetTableNum = currentTbl ? currentTbl.number : '';
+    const isAll = !tableIdOrIds || tableIdOrIds === 'all';
+    const targetIds = Array.isArray(tableIdOrIds)
+      ? new Set(tableIdOrIds)
+      : isAll
+      ? null
+      : new Set([tableIdOrIds]);
 
     let updatedTablesList: TableItem[] = [];
     setTables((prev) => {
       updatedTablesList = prev.map((t) => {
-        if (t.id !== tableId) return t;
+        if (targetIds && !targetIds.has(t.id)) return t;
         const ticketDrinks = extractDrinksFromTickets(kdsTickets, t.number, t.id);
         const existingDrinks = t.drinks || [];
         const existingNames = new Set(existingDrinks.map((d) => d.name.toLowerCase().trim()));
@@ -1145,8 +1189,19 @@ export default function App() {
     let updatedTicketsList: KDSTicket[] = [];
     // Also mark all drink items in kdsTickets as served
     setKdsTickets((prev) => {
+      const targetTableNumbers = new Set(
+        tables
+          .filter((t) => !targetIds || targetIds.has(t.id))
+          .map((t) => t.number)
+      );
+
       updatedTicketsList = prev.map((tk) => {
-        if (!matchesTable(tk.table, targetTableNum, tableId)) return tk;
+        const matchesAnyTarget =
+          isAll ||
+          (targetIds && Array.from(targetIds).some((tid) => matchesTable(tk.table, '', tid))) ||
+          targetTableNumbers.has(String(tk.table).replace(/\D+/g, ''));
+        if (!matchesAnyTarget) return tk;
+
         const updatedItems = tk.items.map((item) => {
           if (isDrinkKDSTicketItem(item)) {
             return {
@@ -2402,6 +2457,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-surface text-on-surface flex flex-col font-sans antialiased selection:bg-secondary/20 selection:text-secondary">
+      {qrBranchId && tenantSlug ? (
+        <ScreenCartaQR slug={tenantSlug} branchId={qrBranchId} />
+      ) : (<>
       {/* Authentication screens when not logged in or explicitly locked */}
       {(!isAuthenticated || currentScreen === 'pin-lock') ? (
         !tenantSlug ? (
@@ -2489,6 +2547,7 @@ export default function App() {
                   onNavigate={handleNavigate}
                   onSelectTable={handleSelectTable}
                   onMarkDelivered={handleMarkDelivered}
+                  onRequestBill={handleRequestBill}
                   onOpenTable={handleOpenTable}
                   onUpdateTableWaiter={handleUpdateTableWaiter}
                   onToggleDrinkServed={handleToggleDrinkServed}
@@ -2496,6 +2555,8 @@ export default function App() {
                   onOpenDrinksTray={() => setIsDrinksTrayOpen(true)}
                   currentRole={currentRole}
                   currentUserName={staffUser.name}
+                  qrOrders={qrOrders.filter((order) => order.status === 'pending_waiter')}
+                  onConfirmQrOrder={handleConfirmQrOrder}
                 />
               )}
 
@@ -2579,7 +2640,7 @@ export default function App() {
                 <ScreenCuentaCobro
                   onNavigate={handleNavigate}
                   onTablePaidAndFreed={handleTablePaidAndFreed}
-                  tables={tables}
+                  tables={tablesWithTicketDrinks}
                   currentRole={currentRole}
                   currentWaiterName={staffUser.name}
                   staffMembers={staffMembers}
@@ -2693,6 +2754,7 @@ export default function App() {
           activeChainName={currentChain?.name}
         />
       )}
+      </>)}
     </div>
   );
 }

@@ -24,7 +24,7 @@ interface ScreenMesasProps {
   currentRole?: AppRole;
   currentUserName?: string;
   qrOrders?: QrCustomerOrder[];
-  onConfirmQrOrder?: (order: QrCustomerOrder) => void;
+  onConfirmQrOrder?: (order: QrCustomerOrder) => Promise<void>;
 }
 
 export const ScreenMesas: React.FC<ScreenMesasProps> = ({
@@ -61,6 +61,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
   const [selectedNewWaiter, setSelectedNewWaiter] = useState<string>('');
   const [customWaiterName, setCustomWaiterName] = useState<string>('');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [confirmingQrOrderId, setConfirmingQrOrderId] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -185,7 +186,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
       {canManageService && qrOrders.length > 0 && (
         <section className="mx-4 mb-2 rounded-2xl border-2 border-violet-300 bg-violet-50 p-4 shadow-sm" aria-live="polite">
           <div className="flex items-start gap-3"><div className="rounded-xl bg-violet-600 p-2 text-white animate-pulse"><span className="material-symbols-outlined">notifications_active</span></div><div className="min-w-0 flex-1"><p className="text-xs font-black tracking-wide text-violet-700">NUEVO PEDIDO DESDE QR</p><h2 className="text-base font-black text-violet-950">{qrOrders.length} {qrOrders.length === 1 ? 'mesa espera' : 'mesas esperan'} confirmación</h2><p className="mt-1 text-xs text-violet-900">Acércate, revisa el pedido y confírmalo. Nada se envía a cocina antes de tu confirmación.</p></div></div>
-          <div className="mt-3 space-y-2">{qrOrders.map(order => <div key={order.id} className="rounded-xl bg-white p-3 border border-violet-200"><div className="flex items-center justify-between gap-2"><div><strong className="text-sm text-slate-900">Mesa {order.tableNumber}</strong><p className="text-xs text-slate-600">{order.items.map(i => `${i.qty}x ${i.dishName}`).join(' · ')}</p></div><strong className="text-sm text-violet-800">S/ {order.total.toFixed(2)}</strong></div>{order.notes && <p className="mt-2 text-xs italic text-slate-500">“{order.notes}”</p>}<button onClick={() => onConfirmQrOrder?.(order)} className="mt-3 w-full rounded-lg bg-violet-700 py-2.5 text-xs font-black text-white hover:bg-violet-800">Confirmar pedido y enviar a cocina</button></div>)}</div>
+          <div className="mt-3 space-y-2">{qrOrders.map(order => <div key={order.id} className="rounded-xl bg-white p-3 border border-violet-200"><div className="flex items-center justify-between gap-2"><div><strong className="text-sm text-slate-900">Mesa {order.tableNumber}</strong><p className="text-xs text-slate-600">{order.items.map(i => `${i.qty}x ${i.dishName}`).join(' · ')}</p></div><strong className="text-sm text-violet-800">S/ {order.total.toFixed(2)}</strong></div>{order.notes && <p className="mt-2 text-xs italic text-slate-500">“{order.notes}”</p>}<button disabled={confirmingQrOrderId === order.id} onClick={async () => { if (!onConfirmQrOrder) return; setConfirmingQrOrderId(order.id); try { await onConfirmQrOrder(order); showToast(`Pedido QR de Mesa ${order.tableNumber} enviado a cocina.`); } catch (error) { showToast(error instanceof Error ? error.message : 'No se pudo confirmar el pedido.'); } finally { setConfirmingQrOrderId(null); } }} className="mt-3 w-full rounded-lg bg-violet-700 py-2.5 text-xs font-black text-white hover:bg-violet-800 disabled:opacity-50">{confirmingQrOrderId === order.id ? 'Confirmando…' : 'Confirmar pedido y enviar a cocina'}</button></div>)}</div>
         </section>
       )}
       {/* Top Live Alerts Ticker Banner */}

@@ -454,10 +454,10 @@ export const ScreenCuentaCobro: React.FC<ScreenCuentaCobroProps> = ({
                 <div key={i} className="flex justify-between py-1 border-b border-outline-variant/10">
                   <div>
                     <span className="font-bold text-on-surface">{dish.name}</span>
-                    <p className="text-[10px] text-on-surface-variant">{dish.description}</p>
+                    {dish.description && <p className="text-[10px] text-on-surface-variant">{dish.description}</p>}
                   </div>
                   <span className="font-bold text-on-surface whitespace-nowrap">
-                    S/ {(20.00 + (i * 5)).toFixed(2)}
+                    S/ {(dish.price ? dish.price * (dish.qty || 1) : (20.00 + (i * 5))).toFixed(2)}
                   </span>
                 </div>
               ))
@@ -913,7 +913,7 @@ export const ScreenCuentaCobro: React.FC<ScreenCuentaCobroProps> = ({
               {currentTable.dishes?.map((dish, idx) => (
                 <div key={idx} className="flex justify-between">
                   <span className="truncate max-w-[180px]">{dish.name}</span>
-                  <span className="font-bold">S/ {(20.00 + idx * 5).toFixed(2)}</span>
+                  <span className="font-bold">S/ {(dish.price ? dish.price * (dish.qty || 1) : 20.00 + idx * 5).toFixed(2)}</span>
                 </div>
               ))}
               {currentTable.drinks?.map((drink) => (

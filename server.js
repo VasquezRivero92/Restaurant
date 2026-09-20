@@ -124,9 +124,34 @@ app.post('/api/staff/qr-orders/:orderId/confirm', async (req, res) => {
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''); const decoded = await getAuth(firebaseAdminApp).verifyIdToken(token);
     if (!['mesero', 'admin_sede', 'admin_general'].includes(decoded.role)) return res.status(403).json({ error: 'No autorizado.' });
     const snapshot = await firestore.collectionGroup('customerOrders').where('id', '==', req.params.orderId).limit(1).get();
-    if (snapshot.empty) return res.status(404).json({ error: 'Pedido no encontrado.' }); const ref = snapshot.docs[0].ref; const order = snapshot.docs[0].data();
-    if (decoded.platformAdmin !== true && (decoded.tenantId !== ref.parent.parent.parent.id || !Array.isArray(decoded.branchIds) || !decoded.branchIds.includes(order.branchId))) return res.status(403).json({ error: 'Pedido fuera de tu sede.' });
-    await ref.update({ status: 'confirmed', confirmedBy: decoded.uid, confirmedAt: Date.now() }); return res.json({ ok: true });
+    if (snapshot.empty) return res.status(404).json({ error: 'Pedido no encontrado.' });
+    const orderRef = snapshot.docs[0].ref;
+    const branchRef = orderRef.parent.parent;
+    const restaurantId = branchRef.parent.parent.id;
+    const initialOrder = snapshot.docs[0].data();
+    if (decoded.platformAdmin !== true && (decoded.tenantId !== restaurantId || !Array.isArray(decoded.branchIds) || !decoded.branchIds.includes(initialOrder.branchId))) return res.status(403).json({ error: 'Pedido fuera de tu sede.' });
+
+    const tableRef = branchRef.collection('tables').doc(initialOrder.tableId);
+    const ticketRef = branchRef.collection('orders').doc();
+    const staffRef = firestore.collection('users').doc(decoded.uid);
+    await firestore.runTransaction(async (transaction) => {
+      const [orderSnapshot, tableSnapshot, staffSnapshot] = await Promise.all([transaction.get(orderRef), transaction.get(tableRef), transaction.get(staffRef)]);
+      if (!orderSnapshot.exists || orderSnapshot.data().status !== 'pending_waiter') throw new Error('Este pedido ya fue atendido o no está disponible.');
+      if (!tableSnapshot.exists || tableSnapshot.data().status === 'bill_requested') throw new Error('La mesa ya no puede recibir pedidos.');
+      const order = orderSnapshot.data(); const table = tableSnapshot.data();
+      const waiter = String(staffSnapshot.exists ? staffSnapshot.data().name : '') || 'Mozo de turno';
+      const items = Array.isArray(order.items) ? order.items : [];
+      const foodItems = items.filter(item => !item.isDrink && item.category !== 'bebidas').map((item, index) => ({
+        id: `qr-${orderRef.id}-${index}`, dishId: item.dishId, name: item.selectedSize ? `${item.dishName} (${item.selectedSize})` : item.dishName,
+        qty: Number(item.qty), price: Number(item.price), substation: ['ceviches', 'leches'].includes(item.category) ? 'FRÍOS' : 'CALIENTES', notes: order.notes || '', isReady: false, isServed: false, status: 'pending'
+      }));
+      const drinks = items.filter(item => item.isDrink || item.category === 'bebidas').map((item, index) => ({ id: `qr-drink-${orderRef.id}-${index}`, name: item.dishName, size: item.selectedSize || 'Estándar', qty: Number(item.qty), price: Number(item.price), served: false }));
+      const createdAt = Date.now();
+      if (foodItems.length) transaction.create(ticketRef, { id: ticketRef.id, table: `Mesa ${table.number}`, station: foodItems.some(item => item.substation === 'CALIENTES') ? 'calientes' : 'frios', status: 'pending', waiter, elapsed: 'Ahora', time: new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }), createdAt, arrivalOrder: createdAt, items: foodItems, branchId: order.branchId, restaurantId });
+      transaction.update(tableRef, { waiter: table.waiter || waiter, status: foodItems.length ? 'cooking' : 'occupied', statusLabel: 'Pedido QR confirmado', total: Number(table.total || 0) + Number(order.total || 0), dishes: [...(table.dishes || []), ...foodItems.map(item => ({ id: item.id, name: `${item.qty}x ${item.name}`, qty: item.qty, price: item.price, station: item.substation === 'FRÍOS' ? 'Barra Fría' : 'Calientes', description: item.notes || 'Pedido QR confirmado', status: 'cooking' }))], drinks: [...(table.drinks || []), ...drinks] });
+      transaction.update(orderRef, { status: 'confirmed', confirmedBy: decoded.uid, confirmedAt: createdAt, ticketId: foodItems.length ? ticketRef.id : null });
+    });
+    return res.json({ ok: true, ticketId: ticketRef.id });
   } catch (error) { return res.status(400).json({ error: 'No fue posible confirmar el pedido.' }); }
 });
 
