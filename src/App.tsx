@@ -1483,6 +1483,94 @@ export default function App() {
     );
   };
 
+  // Update an existing branch/sede location (Global Admin or General Admin)
+  const handleUpdateLocation = (
+    chainId: string,
+    updatedLocation: BranchLocation,
+    managerAdmin?: AdminUser
+  ) => {
+    setChains((prev) =>
+      prev.map((c) =>
+        c.id === chainId
+          ? {
+              ...c,
+              locations: c.locations.map((loc) =>
+                loc.id === updatedLocation.id ? updatedLocation : loc
+              )
+            }
+          : c
+      )
+    );
+
+    // If active branch is this one and table count changed, adjust tables if necessary
+    if (activeBranchId === updatedLocation.id) {
+      setTables((prev) => {
+        if (prev.length < updatedLocation.tables) {
+          const addedCount = updatedLocation.tables - prev.length;
+          const newTables: TableItem[] = Array.from({ length: addedCount }).map((_, idx) => {
+            const num = (prev.length + idx + 1).toString().padStart(2, '0');
+            return {
+              id: `tbl-${updatedLocation.id}-${num}`,
+              number: num,
+              status: 'free',
+              statusLabel: 'Disponible',
+              zone: 'Salón Principal',
+              waiter: '',
+              diners: 4,
+              branchId: updatedLocation.id
+            };
+          });
+          return [...prev, ...newTables];
+        }
+        return prev;
+      });
+    }
+
+    // Synchronize or update Admin User for this sede in admins directory
+    if (updatedLocation.managerName || updatedLocation.managerEmail) {
+      setAdmins((prev) => {
+        const existingIdx = prev.findIndex(
+          (a) =>
+            a.brandId === chainId &&
+            a.roleKey === 'admin_sede' &&
+            (a.assignedBranchIds?.includes(updatedLocation.id) || a.branchId === updatedLocation.id)
+        );
+        if (existingIdx >= 0) {
+          const updated = [...prev];
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            name: updatedLocation.managerName || updated[existingIdx].name,
+            email: updatedLocation.managerEmail || updated[existingIdx].email,
+            phone: updatedLocation.managerPhone || updated[existingIdx].phone,
+            docType: updatedLocation.managerDocType || updated[existingIdx].docType,
+            docNumber: updatedLocation.managerDocNumber || updated[existingIdx].docNumber,
+            branchName: updatedLocation.name,
+            initials: (updatedLocation.managerName || 'AS').split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase()
+          };
+          return updated;
+        } else if (managerAdmin) {
+          return [managerAdmin, ...prev];
+        }
+        return prev;
+      });
+    }
+  };
+
+  // Delete a branch/location from chain
+  const handleDeleteLocation = (chainId: string, locationId: string) => {
+    setChains((prev) =>
+      prev.map((c) =>
+        c.id === chainId
+          ? {
+              ...c,
+              locationsCount: Math.max(0, c.locations.length - 1),
+              locations: c.locations.filter((loc) => loc.id !== locationId)
+            }
+          : c
+      )
+    );
+  };
+
   // Update chain brand details (e.g. logo, name, branding, and designated general admin)
   const handleUpdateChain = (updatedChain: ChainBrand) => {
     setChains((prev) => prev.map((c) => (c.id === updatedChain.id ? updatedChain : c)));
@@ -1948,6 +2036,7 @@ export default function App() {
                     handleSelectChainAndBranch(chainId, found?.locations[0]?.id || '', 'carta-sede');
                   }}
                   onAddLocation={handleAddLocationToChain}
+                  onUpdateLocation={handleUpdateLocation}
                   onUpdateChain={handleUpdateChain}
                   currentRole={currentRole}
                   currentAdminName={staffUser.name}
@@ -1965,6 +2054,8 @@ export default function App() {
                   onUpdateChain={handleUpdateChain}
                   onDeleteChain={handleDeleteChain}
                   onAddLocationToChain={handleAddLocationToChain}
+                  onUpdateLocation={handleUpdateLocation}
+                  onDeleteLocation={handleDeleteLocation}
                   onToggleLocation={handleToggleLocation}
                   onNavigate={handleNavigate}
                   onSelectChainAndBranch={handleSelectChainAndBranch}

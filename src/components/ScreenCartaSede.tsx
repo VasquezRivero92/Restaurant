@@ -33,6 +33,7 @@ interface ScreenCartaSedeProps {
   onSelectBranch?: (branchId: string) => void;
   onSelectChain?: (chainId: string) => void;
   onAddLocation?: (chainId: string, newLocation: BranchLocation, managerAdmin?: AdminUser) => void;
+  onUpdateLocation?: (chainId: string, updatedLocation: BranchLocation, managerAdmin?: AdminUser) => void;
   onUpdateChain?: (chain: ChainBrand) => void;
   currentRole?: AppRole;
   currentAdminName?: string;
@@ -78,6 +79,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   onSelectBranch,
   onSelectChain,
   onAddLocation,
+  onUpdateLocation,
   onUpdateChain,
   currentRole = 'admin_general',
   currentAdminName = 'Roberto Morales',
@@ -605,6 +607,55 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   const [newSedeTables, setNewSedeTables] = useState(14);
   const [newSedeManager, setNewSedeManager] = useState('');
   const [newSedePhone, setNewSedePhone] = useState('');
+
+  // --------------------------------------------------------------------------
+  // MODAL 6: EDITAR SEDE (ADMINISTRADOR GENERAL O GLOBAL)
+  // --------------------------------------------------------------------------
+  const [editingSede, setEditingSede] = useState<BranchLocation | null>(null);
+  const [editSedeName, setEditSedeName] = useState('');
+  const [editSedeAddress, setEditSedeAddress] = useState('');
+  const [editSedeDistrict, setEditSedeDistrict] = useState('San Isidro');
+  const [editSedeTables, setEditSedeTables] = useState(14);
+  const [editSedeManager, setEditSedeManager] = useState('');
+  const [editSedePhone, setEditSedePhone] = useState('');
+  const [editSedeActive, setEditSedeActive] = useState(true);
+
+  const handleOpenEditSede = (loc: BranchLocation) => {
+    setEditingSede(loc);
+    setEditSedeName(loc.name);
+    setEditSedeAddress(loc.address);
+    setEditSedeDistrict(loc.district || 'San Isidro');
+    setEditSedeTables(loc.tables || 12);
+    setEditSedeManager(loc.managerName || '');
+    setEditSedePhone(loc.phone || '');
+    setEditSedeActive(loc.active !== false);
+  };
+
+  const handleSaveEditSede = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSede || !currentChain) return;
+    if (!editSedeName.trim()) {
+      triggerToast('Ingresa el nombre de la sede');
+      return;
+    }
+
+    const updatedLocation: BranchLocation = {
+      ...editingSede,
+      name: editSedeName.trim(),
+      address: editSedeAddress.trim() || 'Av. Principal 100',
+      district: editSedeDistrict.trim() || 'San Isidro',
+      tables: Math.max(1, Number(editSedeTables) || 12),
+      managerName: editSedeManager.trim() || editingSede.managerName,
+      phone: editSedePhone.trim() || '+51 1 445-0000',
+      active: editSedeActive
+    };
+
+    if (onUpdateLocation) {
+      onUpdateLocation(currentChain.id, updatedLocation);
+    }
+    setEditingSede(null);
+    triggerToast(`Sede "${updatedLocation.name}" actualizada con éxito`);
+  };
 
   const triggerToast = (text: string) => {
     setToastText(text);
@@ -1821,7 +1872,18 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                       <strong>{loc.tables}</strong> mesas asignadas • <strong>S/ {loc.todaySales.toLocaleString()}</strong> hoy
                     </span>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {(currentRole === 'admin_general' || currentRole === 'admin_global') && (
+                        <button
+                          onClick={() => handleOpenEditSede(loc)}
+                          className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs flex items-center gap-1 transition-all cursor-pointer"
+                          title="Editar datos de esta sede"
+                        >
+                          <span className="material-symbols-outlined text-[15px] text-amber-700">edit</span>
+                          <span>Editar Sede</span>
+                        </button>
+                      )}
+
                       <button
                         onClick={() => {
                           if (onSelectBranch) onSelectBranch(loc.id);
@@ -3258,6 +3320,152 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                 >
                   <span className="material-symbols-outlined text-[18px]">add_location</span>
                   <span>Aperturar Sede</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 6: EDITAR SEDE (ADMIN GENERAL / GLOBAL)                             */}
+      {/* ========================================================================= */}
+      {editingSede && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-outline-variant/40 animate-in fade-in zoom-in-95">
+            <div className="px-5 py-4 bg-primary text-on-primary flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[22px] text-secondary">edit_location</span>
+                <h3 className="font-extrabold text-sm sm:text-base text-on-primary">
+                  Editar Sede: {editingSede.name}
+                </h3>
+              </div>
+              <button
+                onClick={() => setEditingSede(null)}
+                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditSede} className="p-5 flex flex-col gap-3.5">
+              <div>
+                <label className="font-bold text-xs text-on-surface block mb-1">
+                  Nombre de la Sede *
+                </label>
+                <input
+                  type="text"
+                  value={editSedeName}
+                  onChange={(e) => setEditSedeName(e.target.value)}
+                  placeholder="ej. Sede San Borja Chacarilla"
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none font-bold"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-xs text-on-surface block mb-1">
+                    Distrito
+                  </label>
+                  <input
+                    type="text"
+                    value={editSedeDistrict}
+                    onChange={(e) => setEditSedeDistrict(e.target.value)}
+                    placeholder="San Borja"
+                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-xs text-on-surface block mb-1">
+                    Mesas
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={editSedeTables}
+                    onChange={(e) => setEditSedeTables(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-xs text-on-surface block mb-1">
+                  Dirección Exacta
+                </label>
+                <input
+                  type="text"
+                  value={editSedeAddress}
+                  onChange={(e) => setEditSedeAddress(e.target.value)}
+                  placeholder="Av. Primavera 650, San Borja"
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-xs text-on-surface block mb-1">
+                  Estado Operativo
+                </label>
+                <select
+                  value={editSedeActive ? 'active' : 'paused'}
+                  onChange={(e) => setEditSedeActive(e.target.value === 'active')}
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none font-bold"
+                >
+                  <option value="active">Activa (En Operación)</option>
+                  <option value="paused">Pausada</option>
+                </select>
+              </div>
+
+              <div className="bg-amber-500/10 p-3.5 rounded-xl border border-amber-500/30 flex flex-col gap-2">
+                <span className="font-extrabold text-xs text-amber-900 uppercase tracking-wider flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[16px] text-amber-700">badge</span>
+                  Administrador de Sede Designado
+                </span>
+
+                <div>
+                  <label className="font-bold text-[11px] text-on-surface block mb-0.5">
+                    Nombre del Administrador de Sede
+                  </label>
+                  <input
+                    type="text"
+                    value={editSedeManager}
+                    onChange={(e) => setEditSedeManager(e.target.value)}
+                    placeholder="ej. Daniel Arévalo"
+                    className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-[11px] text-on-surface block mb-0.5">
+                    Teléfono / WhatsApp de la Sede
+                  </label>
+                  <input
+                    type="tel"
+                    value={editSedePhone}
+                    onChange={(e) => setEditSedePhone(e.target.value)}
+                    placeholder="+51 988 554 433"
+                    className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant/20">
+                <button
+                  type="button"
+                  onClick={() => setEditingSede(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center gap-2 shadow-sm cursor-pointer active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-[18px]">save</span>
+                  <span>Guardar Cambios</span>
                 </button>
               </div>
             </form>

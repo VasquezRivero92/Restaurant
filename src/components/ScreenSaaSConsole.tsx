@@ -11,6 +11,8 @@ interface ScreenSaaSConsoleProps {
   onUpdateChain?: (chain: ChainBrand) => void;
   onDeleteChain?: (chainId: string) => void;
   onAddLocationToChain: (chainId: string, newLocation: BranchLocation, managerAdmin?: AdminUser) => void;
+  onUpdateLocation?: (chainId: string, updatedLocation: BranchLocation, managerAdmin?: AdminUser) => void;
+  onDeleteLocation?: (chainId: string, locationId: string) => void;
   onToggleLocation: (chainId: string, locationId: string) => void;
   onNavigate: (screen: ScreenType) => void;
   onSelectChainAndBranch?: (chainId: string, branchId: string, screen?: ScreenType) => void;
@@ -29,6 +31,8 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
   onUpdateChain,
   onDeleteChain,
   onAddLocationToChain,
+  onUpdateLocation,
+  onDeleteLocation,
   onToggleLocation,
   onNavigate,
   onSelectChainAndBranch,
@@ -43,6 +47,8 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
   const [editingChain, setEditingChain] = useState<ChainBrand | null>(null);
   const [chainToConfirmDelete, setChainToConfirmDelete] = useState<ChainBrand | null>(null);
   const [showModalNewLocation, setShowModalNewLocation] = useState(false);
+  const [editingLocation, setEditingLocation] = useState<{ chainId: string; location: BranchLocation } | null>(null);
+  const [locationToConfirmDelete, setLocationToConfirmDelete] = useState<{ chainId: string; location: BranchLocation } | null>(null);
   const [selectedChainForLocation, setSelectedChainForLocation] = useState<string>(chains[0]?.id || '');
   
   // Search & filters
@@ -234,9 +240,94 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
     managerPhone: ''
   });
 
+  // Form state: Edit Branch / Sede
+  const [editLocationForm, setEditLocationForm] = useState({
+    name: '',
+    address: '',
+    district: 'San Isidro',
+    city: 'Lima',
+    phone: '',
+    tables: 14,
+    active: true,
+    managerName: '',
+    managerDocType: 'DNI' as 'DNI' | 'CE' | 'Pasaporte',
+    managerDocNumber: '',
+    managerEmail: '',
+    managerPhone: ''
+  });
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Open Edit Location Modal
+  const handleOpenEditLocation = (chainId: string, loc: BranchLocation) => {
+    const assignedAdmin = admins.find(
+      (a) =>
+        a.roleKey === 'admin_sede' &&
+        (a.assignedBranchIds?.includes(loc.id) || a.branchId === loc.id || a.name === loc.managerName)
+    );
+
+    setEditingLocation({ chainId, location: loc });
+    setEditLocationForm({
+      name: loc.name,
+      address: loc.address,
+      district: loc.district || 'San Isidro',
+      city: loc.city || 'Lima',
+      phone: loc.phone || assignedAdmin?.phone || '',
+      tables: loc.tables || 12,
+      active: loc.active !== false,
+      managerName: loc.managerName || assignedAdmin?.name || '',
+      managerDocType: loc.managerDocType || (assignedAdmin?.docType as any) || 'DNI',
+      managerDocNumber: loc.managerDocNumber || assignedAdmin?.docNumber || '',
+      managerEmail: loc.managerEmail || assignedAdmin?.email || '',
+      managerPhone: loc.managerPhone || assignedAdmin?.phone || ''
+    });
+  };
+
+  // Save Edited Location
+  const handleSaveEditLocation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLocation) return;
+
+    if (!editLocationForm.name.trim()) {
+      showToast('El nombre de la sede es obligatorio');
+      return;
+    }
+
+    const updatedLocation: BranchLocation = {
+      ...editingLocation.location,
+      name: editLocationForm.name.trim(),
+      address: editLocationForm.address.trim() || 'Av. Principal 100',
+      district: editLocationForm.district.trim() || 'San Isidro',
+      city: editLocationForm.city.trim() || 'Lima',
+      phone: editLocationForm.phone.trim() || editLocationForm.managerPhone.trim() || '+51 1 445-0000',
+      tables: Math.max(1, Number(editLocationForm.tables) || 12),
+      active: editLocationForm.active,
+      managerName: editLocationForm.managerName.trim() || editingLocation.location.managerName,
+      managerDocType: editLocationForm.managerDocType,
+      managerDocNumber: editLocationForm.managerDocNumber.trim() || undefined,
+      managerEmail: editLocationForm.managerEmail.trim() || undefined,
+      managerPhone: editLocationForm.managerPhone.trim() || undefined
+    };
+
+    if (onUpdateLocation) {
+      onUpdateLocation(editingLocation.chainId, updatedLocation);
+    }
+    setEditingLocation(null);
+    showToast(`¡Sede "${updatedLocation.name}" actualizada con éxito!`);
+  };
+
+  // Confirm Delete Location
+  const handleConfirmDeleteLocation = () => {
+    if (!locationToConfirmDelete) return;
+    const { chainId, location } = locationToConfirmDelete;
+    if (onDeleteLocation) {
+      onDeleteLocation(chainId, location.id);
+    }
+    setLocationToConfirmDelete(null);
+    showToast(`Sede "${location.name}" eliminada.`);
   };
 
   // Open Edit Restaurant Modal
@@ -1097,7 +1188,16 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                               </span>
                             </div>
 
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <button
+                                onClick={() => handleOpenEditLocation(chain.id, loc)}
+                                className="px-2.5 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[11px] flex items-center gap-1 active:scale-95 transition-all cursor-pointer"
+                                title={`Editar datos, dirección y administrador de ${loc.name}`}
+                              >
+                                <span className="material-symbols-outlined text-[14px] text-amber-700">edit</span>
+                                <span>Editar</span>
+                              </button>
+
                               <button
                                 onClick={() => onToggleLocation(chain.id, loc.id)}
                                 className={`px-2 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
@@ -1125,6 +1225,16 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                                 <span>Ver Salón</span>
                                 <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
                               </button>
+
+                              {chain.locations.length > 1 && (
+                                <button
+                                  onClick={() => setLocationToConfirmDelete({ chainId: chain.id, location: loc })}
+                                  className="p-1 rounded text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
+                                  title={`Eliminar ${loc.name}`}
+                                >
+                                  <span className="material-symbols-outlined text-[15px]">delete</span>
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -2805,6 +2915,298 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: EDITAR SEDE / LOCAL (ADMIN GLOBAL) */}
+      {/* ========================================================================= */}
+      {editingLocation && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden border border-slate-200 animate-in zoom-in-95 my-8 max-h-[92vh] flex flex-col">
+            <div className="px-6 py-4 bg-teal-800 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-teal-200">
+                  <span className="material-symbols-outlined text-[24px]">edit_location</span>
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-white">
+                    Editar Sede: {editingLocation.location.name}
+                  </h3>
+                  <p className="text-xs text-teal-100">
+                    Modifica ubicación, mesas, estado operativo y administrador de sede
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingLocation(null)}
+                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditLocation} className="p-6 overflow-y-auto flex flex-col gap-4">
+              {/* Sede Name & Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="font-bold text-xs text-slate-800 block mb-1">
+                    Nombre de la Sede *
+                  </label>
+                  <input
+                    type="text"
+                    value={editLocationForm.name}
+                    onChange={(e) => setEditLocationForm({ ...editLocationForm, name: e.target.value })}
+                    placeholder="ej. Sede San Isidro Financiero"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 text-xs sm:text-sm text-slate-900 border border-slate-300 focus:outline-none font-bold"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-xs text-slate-800 block mb-1">
+                    Estado Operativo
+                  </label>
+                  <select
+                    value={editLocationForm.active ? 'active' : 'paused'}
+                    onChange={(e) => setEditLocationForm({ ...editLocationForm, active: e.target.value === 'active' })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 text-xs sm:text-sm text-slate-900 border border-slate-300 focus:outline-none font-bold"
+                  >
+                    <option value="active">Activa (En vivo)</option>
+                    <option value="paused">Pausada</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Address, District, City */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="font-bold text-xs text-slate-800 block mb-1">
+                    Dirección Física *
+                  </label>
+                  <input
+                    type="text"
+                    value={editLocationForm.address}
+                    onChange={(e) => setEditLocationForm({ ...editLocationForm, address: e.target.value })}
+                    placeholder="ej. Av. Las Begonias 441"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 text-xs text-slate-900 border border-slate-300 focus:outline-none font-medium"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-xs text-slate-800 block mb-1">
+                    Distrito
+                  </label>
+                  <input
+                    type="text"
+                    value={editLocationForm.district}
+                    onChange={(e) => setEditLocationForm({ ...editLocationForm, district: e.target.value })}
+                    placeholder="San Isidro"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 text-xs text-slate-900 border border-slate-300 focus:outline-none font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* Tables & Phone */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-xs text-slate-800 block mb-1">
+                    Cantidad de Mesas del Salón *
+                  </label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400">
+                      table_restaurant
+                    </span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={120}
+                      value={editLocationForm.tables}
+                      onChange={(e) => setEditLocationForm({ ...editLocationForm, tables: Number(e.target.value) })}
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 text-xs sm:text-sm text-slate-900 font-bold border border-slate-300 focus:outline-none font-mono"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold text-xs text-slate-800 block mb-1">
+                    Teléfono Fijo / Central de la Sede
+                  </label>
+                  <input
+                    type="text"
+                    value={editLocationForm.phone}
+                    onChange={(e) => setEditLocationForm({ ...editLocationForm, phone: e.target.value })}
+                    placeholder="+51 1 445-0000"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 text-xs sm:text-sm text-slate-900 border border-slate-300 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Sede Manager Info */}
+              <div className="bg-amber-500/10 p-4 rounded-xl border border-amber-500/30 flex flex-col gap-2.5">
+                <span className="font-extrabold text-xs text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[18px] text-amber-700">badge</span>
+                  Administrador de Sede Designado (Gerente Local)
+                </span>
+                <p className="text-[11px] text-amber-900/80">
+                  Responsable de supervisar la carta, mesas y personal de esta sede física.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="font-bold text-[11px] text-slate-800 block mb-0.5">
+                      Tipo Doc. *
+                    </label>
+                    <select
+                      value={editLocationForm.managerDocType}
+                      onChange={(e) => setEditLocationForm({ ...editLocationForm, managerDocType: e.target.value as any })}
+                      className="w-full px-3 py-1.5 rounded-lg bg-white text-xs border border-slate-300 focus:outline-none font-bold"
+                    >
+                      <option value="DNI">DNI (8 dígitos)</option>
+                      <option value="CE">Carnet Extr. (CE)</option>
+                      <option value="Pasaporte">Pasaporte</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-bold text-[11px] text-slate-800 block mb-0.5">
+                      N° de Documento *
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={editLocationForm.managerDocType === 'DNI' ? 8 : 15}
+                      value={editLocationForm.managerDocNumber}
+                      onChange={(e) => setEditLocationForm({ ...editLocationForm, managerDocNumber: e.target.value.replace(editLocationForm.managerDocType === 'DNI' ? /\D/g : /[^a-zA-Z0-9]/g, '') })}
+                      placeholder={editLocationForm.managerDocType === 'DNI' ? '48201945' : 'Número'}
+                      className="w-full px-3 py-1.5 rounded-lg bg-white text-xs border border-slate-300 focus:outline-none font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-[11px] text-slate-800 block mb-0.5">
+                      Nombre Completo *
+                    </label>
+                    <input
+                      type="text"
+                      value={editLocationForm.managerName}
+                      onChange={(e) => setEditLocationForm({ ...editLocationForm, managerName: e.target.value })}
+                      placeholder="ej. Fernando Castro"
+                      className="w-full px-3 py-1.5 rounded-lg bg-white text-xs border border-slate-300 focus:outline-none font-medium"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="font-bold text-[11px] text-slate-800 block mb-0.5">
+                      Email Corporativo
+                    </label>
+                    <input
+                      type="email"
+                      value={editLocationForm.managerEmail}
+                      onChange={(e) => setEditLocationForm({ ...editLocationForm, managerEmail: e.target.value })}
+                      placeholder="fernando@restaurante.pe"
+                      className="w-full px-3 py-1.5 rounded-lg bg-white text-xs border border-slate-300 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-[11px] text-slate-800 block mb-0.5">
+                      WhatsApp / Móvil
+                    </label>
+                    <input
+                      type="tel"
+                      value={editLocationForm.managerPhone}
+                      onChange={(e) => setEditLocationForm({ ...editLocationForm, managerPhone: e.target.value })}
+                      placeholder="+51 978 123 456"
+                      className="w-full px-3 py-1.5 rounded-lg bg-white text-xs border border-slate-300 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setEditingLocation(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-teal-800 hover:bg-teal-900 text-white font-extrabold text-xs flex items-center gap-2 shadow-md cursor-pointer active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-[18px]">save</span>
+                  <span>Guardar Cambios de Sede</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: CONFIRMAR ELIMINACIÓN DE SEDE (ADMIN GLOBAL) */}
+      {/* ========================================================================= */}
+      {locationToConfirmDelete && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-red-200 animate-in zoom-in-95">
+            <div className="px-5 py-4 bg-red-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white">
+                  <span className="material-symbols-outlined text-[24px]">delete_forever</span>
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-white">
+                    Eliminar Sede
+                  </h3>
+                  <p className="text-xs text-red-100">Acción irreversible</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setLocationToConfirmDelete(null)}
+                className="w-7 h-7 rounded-full hover:bg-white/20 flex items-center justify-center text-white cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <div className="p-5 flex flex-col gap-4">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3.5 flex items-start gap-3">
+                <span className="material-symbols-outlined text-red-600 text-[24px] shrink-0 mt-0.5">
+                  warning
+                </span>
+                <div className="flex flex-col text-xs text-red-900 leading-relaxed">
+                  <span className="font-extrabold text-sm text-red-950 mb-1">
+                    ¿Estás seguro de eliminar la sede "{locationToConfirmDelete.location.name}"?
+                  </span>
+                  <p>
+                    Se removerá esta ubicación física ({locationToConfirmDelete.location.address}) con sus {locationToConfirmDelete.location.tables} mesas configuradas.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setLocationToConfirmDelete(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteLocation}
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                  <span>Sí, Eliminar Sede</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
