@@ -136,7 +136,9 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       sizes: sortedSizes,
       description: 'Especialidad culinaria preparada con insumos frescos seleccionados.',
       available: true,
-      image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+      image: dishCategoryInput === 'bebidas'
+        ? 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&auto=format&fit=crop&q=80'
+        : 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?w=600&auto=format&fit=crop&q=80',
       isDrink: dishCategoryInput === 'bebidas'
     };
     setCustomDishesForNewCarta((prev) => [newDish, ...prev]);

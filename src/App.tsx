@@ -21,7 +21,8 @@ import {
   INITIAL_CHAINS,
   INITIAL_ADMINS,
   INITIAL_STAFF,
-  INITIAL_MASTER_CARTAS
+  INITIAL_MASTER_CARTAS,
+  DISH_IMAGE_MAP
 } from './data/mockData';
 import { HeaderTop } from './components/HeaderTop';
 import { BottomNav } from './components/BottomNav';
@@ -272,7 +273,21 @@ export default function App() {
     const unsubMenus = subscribeToBranchMenus((cloudMenus) => {
       if (cloudMenus && Object.keys(cloudMenus).length > 0) {
         isRemoteMenus.current = true;
-        setBranchMenus(cloudMenus);
+        const normalized: Record<string, MenuItem[]> = {};
+        Object.entries(cloudMenus).forEach(([branchId, list]) => {
+          normalized[branchId] = list.map((dish) => {
+            const isOutdated = !dish.image ||
+              dish.image.includes('photo-1567620832903') ||
+              dish.image.includes('photo-1565299585323') ||
+              dish.image.includes('photo-1544025162-d76694265947') ||
+              dish.image.includes('photo-1555396273-367ea4eb4db5');
+            if (DISH_IMAGE_MAP[dish.id] && isOutdated) {
+              return { ...dish, image: DISH_IMAGE_MAP[dish.id] };
+            }
+            return dish;
+          });
+        });
+        setBranchMenus(normalized);
         setIsCloudConnected(true);
       }
     });

@@ -344,6 +344,56 @@ export const INITIAL_TABLES: TableItem[] = [
   }
 ];
 
+export const DISH_IMAGE_MAP: Record<number, string> = {
+  // Calientes
+  101: 'https://images.unsplash.com/photo-1547496502-affa22d38842?w=600&auto=format&fit=crop&q=80', // Sudado Marino
+  102: 'https://images.unsplash.com/photo-1534939561126-855b8675edd7?w=600&auto=format&fit=crop&q=80', // Parihuela Mixta
+  103: 'https://images.unsplash.com/photo-1541832676-9b763b0239ab?w=600&auto=format&fit=crop&q=80', // Chilcano de Pescado
+  // Bebidas
+  201: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&auto=format&fit=crop&q=80', // Chicha Morada
+  202: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80', // Gaseosas heladas
+  203: 'https://images.unsplash.com/photo-1608270195230-058f964dc0b0?w=600&auto=format&fit=crop&q=80', // Cerveza Cusqueña
+  204: 'https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=600&auto=format&fit=crop&q=80', // Cerveza Pilsen
+  // Combinados
+  301: 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?w=600&auto=format&fit=crop&q=80', // Combinado Clásico
+  302: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80', // Combinado Naomi
+  303: 'https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?w=600&auto=format&fit=crop&q=80', // Combinado Súper Nélida
+  304: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=600&auto=format&fit=crop&q=80', // Tallarín Rojo
+  305: 'https://images.unsplash.com/photo-1633964913295-ceb43826e7c9?w=600&auto=format&fit=crop&q=80', // Arroz con Pollo
+  306: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80', // Causa Limeña
+  307: 'https://images.unsplash.com/photo-1621996346565-e3d5d628169a?w=600&auto=format&fit=crop&q=80', // Tallarín Solo
+  // Ceviches
+  401: 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?w=600&auto=format&fit=crop&q=80', // Ceviche de Pescado
+  402: 'https://images.unsplash.com/photo-1535400255456-984241443b29?w=600&auto=format&fit=crop&q=80', // Ceviche Mixto
+  403: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80', // Ceviche de Pota
+  404: 'https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?w=600&auto=format&fit=crop&q=80', // Ceviche de Pulpo
+  405: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&auto=format&fit=crop&q=80', // Ceviche Mixtura Marina
+  406: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=600&auto=format&fit=crop&q=80', // Ceviche Conchas Negras
+  407: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=600&auto=format&fit=crop&q=80', // Ceviche Conchas Negras Mixto
+  408: 'https://images.unsplash.com/photo-1615141982883-c7ad0e69fd62?w=600&auto=format&fit=crop&q=80', // Ceviche de Almejas
+  409: 'https://images.unsplash.com/photo-1551248429-40975aa4de74?w=600&auto=format&fit=crop&q=80', // Ceviche de Langostino
+  410: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80', // Ceviche de Conchas de Abanico
+  411: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=600&auto=format&fit=crop&q=80', // Ceviche en Crema Huancaína
+  // Leches de Tigre
+  501: 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?w=600&auto=format&fit=crop&q=80', // Leche de Tigre de Pescado
+  502: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80', // Leche de Tigre Mixta
+  503: 'https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?w=600&auto=format&fit=crop&q=80', // Leche de Pota
+  504: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=600&auto=format&fit=crop&q=80', // Leche de Pantera
+  505: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=600&auto=format&fit=crop&q=80', // Leche de Pantera Mixta
+  // Arroces
+  601: 'https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?w=600&auto=format&fit=crop&q=80', // Arroz con Mariscos
+  602: 'https://images.unsplash.com/photo-1535400255456-984241443b29?w=600&auto=format&fit=crop&q=80', // Arroz con Mariscos + Ceviche
+  603: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&auto=format&fit=crop&q=80', // Arroz Chaufa de Mariscos
+  604: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80', // Chaufa + Ceviche
+  // Tríos
+  701: 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?w=600&auto=format&fit=crop&q=80', // Trío Marino
+  702: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&auto=format&fit=crop&q=80', // Trío Oriental
+  703: 'https://images.unsplash.com/photo-1633964913295-ceb43826e7c9?w=600&auto=format&fit=crop&q=80', // Trío Criollo
+  // Jaleas
+  801: 'https://images.unsplash.com/photo-1580476262798-bddd9f4b7369?w=600&auto=format&fit=crop&q=80', // Jalea de Pescado
+  802: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=600&auto=format&fit=crop&q=80'  // Jalea Mixta
+};
+
 export const INITIAL_MENU_ITEMS: MenuItem[] = [
   // --- 1. CALIENTES ---
   {
@@ -353,7 +403,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     price: 30.0,
     description: 'Sudado de cabrilla • Sudado de tramboyo • Sudado de pintadilla.',
     tag: 'Especial Marino',
-    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[101],
     available: true,
     portionCount: 18,
     sizes: [
@@ -374,7 +424,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     price: 30.0,
     description: 'Concentrado sustancioso de mariscos surtidos, cangrejo y pescado fresco en punto aromático.',
     tag: 'Levanta Muertos',
-    image: 'https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[102],
     available: true,
     portionCount: 22,
     sizes: [
@@ -388,7 +438,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     price: 8.0,
     description: 'Chilcano especial caliente servido con cancha serrana, limón y cebollita china.',
     tag: 'Especial',
-    image: 'https://images.unsplash.com/photo-1548946526-f69e2424cf45?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[103],
     available: true,
     portionCount: 35,
     sizes: [
@@ -405,7 +455,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     description: 'Chicha morada o maracuyá fresca natural. Servida al instante por el mesero.',
     tag: 'Entrega por Mozo',
     isDrink: true,
-    image: 'https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[201],
     available: true,
     portionCount: 45,
     sizes: [
@@ -422,7 +472,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     description: 'Inca Kola o Coca Cola helada o al tiempo. Servida directamente por el mesero.',
     tag: 'Entrega por Mozo',
     isDrink: true,
-    image: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[202],
     available: true,
     portionCount: 60,
     sizes: [
@@ -440,7 +490,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     description: 'Cerveza Cusqueña helada servida de inmediato por el mesero.',
     tag: 'Entrega por Mozo',
     isDrink: true,
-    image: 'https://images.unsplash.com/photo-1608270195230-058f964dc0b0?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[203],
     available: true,
     portionCount: 30,
     sizes: [
@@ -455,7 +505,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     description: 'Pilsen helada servida al instante en mesa por el mozo.',
     tag: 'Entrega por Mozo',
     isDrink: true,
-    image: 'https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[204],
     available: true,
     portionCount: 40,
     sizes: [
@@ -471,7 +521,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     price: 12.0,
     description: 'Pescado, mariscos, chicharrón, lechuga, choclo y canchita.',
     tag: 'Popular',
-    image: 'https://images.unsplash.com/photo-1535400255456-984241443b29?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[301],
     available: true,
     portionCount: 35,
     sizes: [
@@ -485,7 +535,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     price: 15.0,
     description: 'Tallarín, chicharrón, ceviche, arroz con mariscos y pollo.',
     tag: 'Criollo Marino',
-    image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[302],
     available: true,
     portionCount: 28,
     sizes: [
@@ -499,7 +549,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     price: 30.0,
     description: 'Ceviche, arroz con mariscos, chicharrón, huancaína, arroz con pollo, causa, chicharrón mixto y pescado.',
     tag: 'Plato Bandera',
-    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[303],
     available: true,
     portionCount: 20,
     sizes: [
@@ -512,7 +562,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'combinados',
     price: 12.0,
     description: 'Tallarín a la huancaína tradicional.',
-    image: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[304],
     available: true,
     portionCount: 25,
     sizes: [
@@ -525,7 +575,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'combinados',
     price: 15.0,
     description: 'Arroz con pollo y huancaína aromático con culantro criollo.',
-    image: 'https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[305],
     available: true,
     portionCount: 24,
     sizes: [
@@ -538,7 +588,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'combinados',
     price: 7.0,
     description: 'Masa de papa amarilla sazonada con ají amarillo y limón.',
-    image: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[306],
     available: true,
     portionCount: 30,
     sizes: [
@@ -552,7 +602,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'combinados',
     price: 15.0,
     description: 'Porción de tallarines criollos en salsa especial.',
-    image: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[307],
     available: true,
     portionCount: 20,
     sizes: [
@@ -569,7 +619,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     price: 20.0,
     description: 'Pesca fresca del día con limón norteño, choclo, camote y canchita.',
     tag: 'Clásico La Barra',
-    image: 'https://images.unsplash.com/photo-1535400255456-984241443b29?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[401],
     available: true,
     portionCount: 40,
     sizes: [
@@ -590,7 +640,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     price: 25.0,
     description: 'Pesca del día y mariscos seleccionados bañados en leche de tigre.',
     tag: 'Favorito',
-    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[402],
     available: true,
     portionCount: 35,
     sizes: [
@@ -603,7 +653,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'ceviches',
     price: 20.0,
     description: 'Pota fresca marinada en zumo de limón y ají limo recién cortado.',
-    image: 'https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[403],
     available: true,
     portionCount: 30,
     sizes: [
@@ -616,7 +666,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'ceviches',
     price: 25.0,
     description: 'Tiras tiernas de pulpo marinadas al momento con camote y choclo.',
-    image: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[404],
     available: true,
     portionCount: 20,
     sizes: [
@@ -629,7 +679,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'ceviches',
     price: 30.0,
     description: 'Gran mixtura de mariscos frescos seleccionados.',
-    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[405],
     available: true,
     portionCount: 25,
     sizes: [
@@ -643,7 +693,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     price: 30.0,
     description: 'Conchas negras de Tumbes abiertas al instante.',
     tag: 'Afrodisíaco',
-    image: 'https://images.unsplash.com/photo-1548946526-f69e2424cf45?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[406],
     available: true,
     portionCount: 15,
     sizes: [
@@ -657,7 +707,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     price: 35.0,
     description: 'Conchas negras combinadas con pescado fresco y mariscos surtidos.',
     tag: 'Premium',
-    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[407],
     available: true,
     portionCount: 12,
     sizes: [
@@ -670,7 +720,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'ceviches',
     price: 25.0,
     description: 'Almejas marinas frescas seleccionadas en zumo de limón y ají limo.',
-    image: 'https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[408],
     available: true,
     portionCount: 18,
     sizes: [
@@ -683,7 +733,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'ceviches',
     price: 30.0,
     description: 'Colas de langostinos en su punto exacto con leche de tigre clásica.',
-    image: 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[409],
     available: true,
     portionCount: 22,
     sizes: [
@@ -696,7 +746,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'ceviches',
     price: 30.0,
     description: 'Conchas de abanico con su coral en jugo acevichado y canchita.',
-    image: 'https://images.unsplash.com/photo-1535400255456-984241443b29?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[410],
     available: true,
     portionCount: 16,
     sizes: [
@@ -709,7 +759,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'ceviches',
     price: 25.0,
     description: 'Pescado fresco bañado en fusión de crema huancaína y leche de tigre.',
-    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[411],
     available: true,
     portionCount: 20,
     sizes: [
@@ -724,7 +774,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'leches',
     price: 10.0,
     description: 'Copa concentrada con pescado fresco, chicharrón, canchita y choclo.',
-    image: 'https://images.unsplash.com/photo-1535400255456-984241443b29?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[501],
     available: true,
     portionCount: 30,
     sizes: [
@@ -737,7 +787,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'leches',
     price: 15.0,
     description: 'Pescado y mixtura de mariscos en copa helada con chicharrón crocante.',
-    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[502],
     available: true,
     portionCount: 25,
     sizes: [
@@ -750,7 +800,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'leches',
     price: 20.0,
     description: 'Pota marinada con zumo cítrico, ají limo y camote glaseado.',
-    image: 'https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[503],
     available: true,
     portionCount: 20,
     sizes: [
@@ -764,7 +814,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     price: 25.0,
     description: 'Elaborada a base de conchas negras norteñas, vigorosa y potente.',
     tag: 'Fuerza Marina',
-    image: 'https://images.unsplash.com/photo-1548946526-f69e2424cf45?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[504],
     available: true,
     portionCount: 15,
     sizes: [
@@ -777,7 +827,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'leches',
     price: 30.0,
     description: 'Conchas negras de Tumbes con pescado, langostinos y calamar crocante.',
-    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[505],
     available: true,
     portionCount: 14,
     sizes: [
@@ -792,7 +842,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'arroces',
     price: 20.0,
     description: 'Arroz meloso con mariscos flameados al vino y sarza criolla.',
-    image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[601],
     available: true,
     portionCount: 35,
     sizes: [
@@ -806,7 +856,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     price: 25.0,
     description: 'El clásico dúo marino: arroz caliente con mariscos y ceviche fresco.',
     tag: 'Dúo Preferido',
-    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[602],
     available: true,
     portionCount: 30,
     sizes: [
@@ -819,7 +869,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'arroces',
     price: 15.0,
     description: 'Salteado al wok al estilo chifa con mariscos, cebollita china y sillao.',
-    image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[603],
     available: true,
     portionCount: 32,
     sizes: [
@@ -832,7 +882,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'arroces',
     price: 20.0,
     description: 'Chaufa marino al wok acompañado de ceviche de pescado fresco.',
-    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[604],
     available: true,
     portionCount: 28,
     sizes: [
@@ -848,7 +898,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     price: 15.0,
     description: 'Arroz con mariscos, ceviche o leche, y chicharrón crocante.',
     tag: 'El Más Pedido',
-    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[701],
     available: true,
     portionCount: 40,
     sizes: [
@@ -863,7 +913,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'trios',
     price: 15.0,
     description: 'Arroz chaufa, tallarín, chicharrón o leche.',
-    image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[702],
     available: true,
     portionCount: 30,
     sizes: [
@@ -878,7 +928,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'trios',
     price: 15.0,
     description: 'Arroz con pollo, ceviche o leche de tigre, y papa a la huancaína.',
-    image: 'https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[703],
     available: true,
     portionCount: 25,
     sizes: [
@@ -895,7 +945,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     category: 'jaleas',
     price: 25.0,
     description: 'Filetes de pescado crocantes y dorados con yucas fritas y sarza criolla.',
-    image: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[801],
     available: true,
     portionCount: 22,
     sizes: [
@@ -909,7 +959,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     price: 30.0,
     description: 'Pescado, calamar, langostinos y conchas crocantes con sarza criolla y tártara.',
     tag: 'Mega Crocante',
-    image: 'https://images.unsplash.com/photo-1559847844-5315695dadae?w=600&auto=format&fit=crop&q=80',
+    image: DISH_IMAGE_MAP[802],
     available: true,
     portionCount: 25,
     sizes: [

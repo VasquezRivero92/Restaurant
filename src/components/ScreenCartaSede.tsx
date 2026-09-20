@@ -41,13 +41,18 @@ interface ScreenCartaSedeProps {
 
 // Preset appetizing images for Cevichería dishes
 const PRESET_DISH_IMAGES = [
-  { label: 'Ceviche Clásico', url: 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?auto=format&fit=crop&w=400&q=80' },
-  { label: 'Arroz con Mariscos', url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=400&q=80' },
-  { label: 'Leche de Tigre', url: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=400&q=80' },
-  { label: 'Chicharrón / Jalea', url: 'https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?auto=format&fit=crop&w=400&q=80' },
-  { label: 'Parihuela / Caliente', url: 'https://images.unsplash.com/photo-1547496502-affa22d38842?auto=format&fit=crop&w=400&q=80' },
-  { label: 'Bebida / Chilcano', url: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=400&q=80' }
+  { label: 'Ceviche Clásico', url: 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Ceviche Mixto', url: 'https://images.unsplash.com/photo-1535400255456-984241443b29?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Arroz con Mariscos', url: 'https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Arroz Chaufa Marino', url: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Jalea / Chicharrón', url: 'https://images.unsplash.com/photo-1580476262798-bddd9f4b7369?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Parihuela / Sudado', url: 'https://images.unsplash.com/photo-1534939561126-855b8675edd7?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Causa Limeña', url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Arroz con Pollo Criollo', url: 'https://images.unsplash.com/photo-1633964913295-ceb43826e7c9?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Chicha Morada Natural', url: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=600&q=80' },
+  { label: 'Cerveza Helada', url: 'https://images.unsplash.com/photo-1608270195230-058f964dc0b0?auto=format&fit=crop&w=600&q=80' }
 ];
+
 
 export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   menuItems,
