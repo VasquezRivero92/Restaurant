@@ -9,6 +9,7 @@ import {
   StaffMember,
   MasterCarta
 } from '../types';
+import { DEFAULT_DISH_PLACEHOLDER_IMAGE } from '../data/mockData';
 
 interface ScreenCartaSedeProps {
   menuItems: MenuItem[];
@@ -41,6 +42,7 @@ interface ScreenCartaSedeProps {
 
 // Preset appetizing images for Cevichería dishes
 const PRESET_DISH_IMAGES = [
+  { label: 'Sin imagen (Por defecto)', url: DEFAULT_DISH_PLACEHOLDER_IMAGE },
   { label: 'Ceviche Clásico', url: 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?auto=format&fit=crop&w=600&q=80' },
   { label: 'Ceviche Mixto', url: 'https://images.unsplash.com/photo-1535400255456-984241443b29?auto=format&fit=crop&w=600&q=80' },
   { label: 'Arroz con Mariscos', url: 'https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?auto=format&fit=crop&w=600&q=80' },
@@ -151,6 +153,58 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   const [staffFilterMode, setStaffFilterMode] = useState<'current_sede' | 'all_managed'>('current_sede');
   const [staffSearchQuery, setStaffSearchQuery] = useState('');
 
+  // Helper to load and optimize uploaded image files
+  const handleImageFileUpload = (
+    file: File,
+    setImageUrl: (url: string) => void
+  ) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      triggerToast('Por favor selecciona un archivo de imagen válido (JPG, PNG, WebP).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 800;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/jpeg', 0.85);
+            setImageUrl(compressed);
+            triggerToast('Foto cargada y optimizada.');
+          } else {
+            setImageUrl(result);
+            triggerToast('Foto cargada.');
+          }
+        };
+        img.onerror = () => {
+          setImageUrl(result);
+          triggerToast('Foto cargada.');
+        };
+        img.src = result;
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   // --------------------------------------------------------------------------
   // MODAL 1: EDITAR PLATO DE LA CARTA
   // --------------------------------------------------------------------------
@@ -165,6 +219,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   const [editDishTag, setEditDishTag] = useState('');
   const [editDishStockNote, setEditDishStockNote] = useState('');
   const [editDishAvailable, setEditDishAvailable] = useState(true);
+  const [editDishImageUrl, setEditDishImageUrl] = useState('');
 
   const openEditDishModal = (dish: MenuItem) => {
     setEditingDish(dish);
@@ -182,6 +237,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
     setEditDishTag(dish.tag || '');
     setEditDishStockNote(dish.stockNote || '');
     setEditDishAvailable(dish.available);
+    setEditDishImageUrl(dish.image || DEFAULT_DISH_PLACEHOLDER_IMAGE);
   };
 
   const handleAddSizeToEditDish = () => {
@@ -235,7 +291,8 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
       description: editDishDescription.trim(),
       tag: editDishTag.trim() || undefined,
       stockNote: editDishStockNote.trim() || undefined,
-      available: editDishAvailable
+      available: editDishAvailable,
+      image: editDishImageUrl.trim() || DEFAULT_DISH_PLACEHOLDER_IMAGE
     };
 
     if (onUpdateMenuItem) {
@@ -261,7 +318,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   const [newDishCategory, setNewDishCategory] = useState<MenuItem['category']>('ceviches');
   const [newDishDescription, setNewDishDescription] = useState('');
   const [newDishTag, setNewDishTag] = useState('ESPECIALIDAD');
-  const [newDishImageUrl, setNewDishImageUrl] = useState(PRESET_DISH_IMAGES[0].url);
+  const [newDishImageUrl, setNewDishImageUrl] = useState(DEFAULT_DISH_PLACEHOLDER_IMAGE);
   const [newDishStockNote, setNewDishStockNote] = useState('');
 
   const handleAddSizeToNewDish = () => {
@@ -309,7 +366,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
       sizes: sortedSizes,
       description: newDishDescription.trim() || 'Elaborado con pesca fresca del día y sazón criolla tradicional.',
       tag: newDishTag.trim() || undefined,
-      image: newDishImageUrl || PRESET_DISH_IMAGES[0].url,
+      image: newDishImageUrl.trim() || DEFAULT_DISH_PLACEHOLDER_IMAGE,
       available: true,
       stockNote: newDishStockNote.trim() || undefined,
       isDrink: newDishCategory === 'bebidas'
@@ -322,6 +379,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
     setNewDishName('');
     setNewDishDescription('');
     setNewDishStockNote('');
+    setNewDishImageUrl(DEFAULT_DISH_PLACEHOLDER_IMAGE);
     setHasUnsavedChanges(true);
     triggerToast(`¡Nuevo plato "${newDish.name}" agregado con precio por defecto S/ ${basePrice.toFixed(2)}!`);
   };
@@ -1050,13 +1108,27 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <img
-                    src={item.image}
-                    alt={item.name}
-                    className={`w-14 h-14 rounded-lg object-cover flex-shrink-0 border ${
-                      item.available ? 'border-outline-variant/30' : 'grayscale opacity-60 border-red-300'
-                    }`}
-                  />
+                  <div className="relative group shrink-0">
+                    <img
+                      src={item.image || DEFAULT_DISH_PLACEHOLDER_IMAGE}
+                      alt={item.name}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = DEFAULT_DISH_PLACEHOLDER_IMAGE;
+                      }}
+                      referrerPolicy="no-referrer"
+                      className={`w-14 h-14 rounded-lg object-cover flex-shrink-0 border ${
+                        item.available ? 'border-outline-variant/30' : 'grayscale opacity-60 border-red-300'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => openEditDishModal(item)}
+                      title="Editar foto y plato"
+                      className="absolute inset-0 bg-slate-950/50 opacity-0 group-hover:opacity-100 rounded-lg flex flex-col items-center justify-center text-white transition-opacity cursor-pointer text-[10px] font-bold gap-0.5"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">photo_camera</span>
+                    </button>
+                  </div>
 
                   <div className="flex flex-col min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -1202,8 +1274,12 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <img
-                        src={delDish.image}
+                        src={delDish.image || DEFAULT_DISH_PLACEHOLDER_IMAGE}
                         alt={delDish.name}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = DEFAULT_DISH_PLACEHOLDER_IMAGE;
+                        }}
+                        referrerPolicy="no-referrer"
                         className="w-10 h-10 rounded-lg object-cover grayscale opacity-70 shrink-0 border border-amber-200"
                       />
                       <div className="flex flex-col min-w-0">
@@ -1931,6 +2007,129 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                 />
               </div>
 
+              {/* Edición de Foto del Plato */}
+              <div className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[18px] text-primary">add_photo_alternate</span>
+                    <label className="font-extrabold text-xs text-on-surface uppercase tracking-wide">
+                      Fotografía del Plato
+                    </label>
+                  </div>
+                  {editDishImageUrl === DEFAULT_DISH_PLACEHOLDER_IMAGE ? (
+                    <span className="text-[10px] text-amber-800 bg-amber-100 font-extrabold px-2 py-0.5 rounded">
+                      Imagen por Defecto
+                    </span>
+                  ) : editDishImageUrl.startsWith('data:') ? (
+                    <span className="text-[10px] text-emerald-800 bg-emerald-100 font-extrabold px-2 py-0.5 rounded">
+                      Foto desde Equipo
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-blue-800 bg-blue-100 font-extrabold px-2 py-0.5 rounded">
+                      Foto Catálogo / Web
+                    </span>
+                  )}
+                </div>
+
+                {/* Previsualización actual + Acciones de Carga */}
+                <div className="flex items-center gap-3">
+                  <div className="relative shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 border-outline-variant/40 shadow-xs bg-surface-container-lowest">
+                    <img
+                      src={editDishImageUrl || DEFAULT_DISH_PLACEHOLDER_IMAGE}
+                      alt="Vista previa"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = DEFAULT_DISH_PLACEHOLDER_IMAGE;
+                      }}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <label className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors">
+                        <span className="material-symbols-outlined text-[16px]">upload</span>
+                        <span>Subir Foto del Plato</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handleImageFileUpload(e.target.files[0], setEditDishImageUrl);
+                            }
+                          }}
+                        />
+                      </label>
+
+                      {editDishImageUrl !== DEFAULT_DISH_PLACEHOLDER_IMAGE && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditDishImageUrl(DEFAULT_DISH_PLACEHOLDER_IMAGE);
+                            triggerToast('Foto restablecida a imagen por defecto');
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-surface-container-lowest hover:bg-surface-container text-on-surface-variant font-bold text-[11px] flex items-center gap-1 border border-outline-variant/30 cursor-pointer"
+                          title="Restablecer imagen por defecto"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">restart_alt</span>
+                          <span>Quitar / Por Defecto</span>
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-on-surface-variant">
+                      Puedes subir fotos en formato JPG, PNG o WebP. Se optimizan automáticamente.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Galería de Selección Rápida */}
+                <div>
+                  <span className="text-[11px] font-bold text-on-surface block mb-1.5">
+                    O selecciona una fotografía sugerida:
+                  </span>
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                    {PRESET_DISH_IMAGES.map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setEditDishImageUrl(preset.url)}
+                        className={`relative rounded-lg overflow-hidden border p-1 flex flex-col items-center gap-0.5 cursor-pointer transition-all ${
+                          editDishImageUrl === preset.url
+                            ? 'border-primary ring-2 ring-primary/40 bg-teal-50 shadow-xs'
+                            : 'border-outline-variant/30 hover:border-primary/50 bg-surface-container-lowest'
+                        }`}
+                        title={preset.label}
+                      >
+                        <img
+                          src={preset.url}
+                          alt={preset.label}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-10 object-cover rounded"
+                        />
+                        <span className="text-[9px] font-bold text-on-surface truncate w-full text-center">
+                          {preset.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Campo URL directo */}
+                <div>
+                  <label className="text-[11px] font-bold text-on-surface block mb-1">
+                    O pega el enlace web de la imagen (URL):
+                  </label>
+                  <input
+                    type="url"
+                    value={editDishImageUrl}
+                    onChange={(e) => setEditDishImageUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-[11px] text-on-surface border border-outline-variant/30 focus:outline-none font-mono"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-xs text-on-surface block mb-1">
@@ -2187,37 +2386,127 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                 />
               </div>
 
-              {/* Preset Image Selector */}
-              <div>
-                <label className="font-bold text-xs text-on-surface block mb-1.5">
-                  Foto del Plato (Selecciona una o ingresa URL)
-                </label>
-                <div className="grid grid-cols-3 gap-2 mb-2">
-                  {PRESET_DISH_IMAGES.map((preset, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setNewDishImageUrl(preset.url)}
-                      className={`relative rounded-lg overflow-hidden border p-1 flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                        newDishImageUrl === preset.url
-                          ? 'border-primary ring-2 ring-primary/40 bg-teal-50'
-                          : 'border-outline-variant/30 hover:border-primary/50'
-                      }`}
-                    >
-                      <img src={preset.url} alt={preset.label} className="w-full h-12 object-cover rounded" />
-                      <span className="text-[10px] font-bold text-on-surface truncate w-full text-center">
-                        {preset.label}
-                      </span>
-                    </button>
-                  ))}
+              {/* Selector de Foto para el Nuevo Plato */}
+              <div className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[18px] text-primary">add_photo_alternate</span>
+                    <label className="font-extrabold text-xs text-on-surface uppercase tracking-wide">
+                      Fotografía del Plato
+                    </label>
+                  </div>
+                  {newDishImageUrl === DEFAULT_DISH_PLACEHOLDER_IMAGE ? (
+                    <span className="text-[10px] text-amber-800 bg-amber-100 font-extrabold px-2 py-0.5 rounded">
+                      Por Defecto (Sin imagen)
+                    </span>
+                  ) : newDishImageUrl.startsWith('data:') ? (
+                    <span className="text-[10px] text-emerald-800 bg-emerald-100 font-extrabold px-2 py-0.5 rounded">
+                      Foto desde Equipo
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-blue-800 bg-blue-100 font-extrabold px-2 py-0.5 rounded">
+                      Foto Catálogo / Web
+                    </span>
+                  )}
                 </div>
-                <input
-                  type="url"
-                  value={newDishImageUrl}
-                  onChange={(e) => setNewDishImageUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-3 py-1.5 rounded-lg bg-surface-container-low text-[11px] text-on-surface border border-outline-variant/30 focus:outline-none font-mono"
-                />
+
+                {/* Previsualización y Carga de Archivo */}
+                <div className="flex items-center gap-3">
+                  <div className="relative shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 border-outline-variant/40 shadow-xs bg-surface-container-lowest">
+                    <img
+                      src={newDishImageUrl || DEFAULT_DISH_PLACEHOLDER_IMAGE}
+                      alt="Vista previa nuevo plato"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = DEFAULT_DISH_PLACEHOLDER_IMAGE;
+                      }}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <label className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors">
+                        <span className="material-symbols-outlined text-[16px]">upload</span>
+                        <span>Subir Foto del Plato</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handleImageFileUpload(e.target.files[0], setNewDishImageUrl);
+                            }
+                          }}
+                        />
+                      </label>
+
+                      {newDishImageUrl !== DEFAULT_DISH_PLACEHOLDER_IMAGE && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewDishImageUrl(DEFAULT_DISH_PLACEHOLDER_IMAGE);
+                            triggerToast('Foto restablecida a imagen por defecto');
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-surface-container-lowest hover:bg-surface-container text-on-surface-variant font-bold text-[11px] flex items-center gap-1 border border-outline-variant/30 cursor-pointer"
+                          title="Restablecer imagen por defecto"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">restart_alt</span>
+                          <span>Por Defecto</span>
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-on-surface-variant">
+                      Por defecto se asigna el ícono de plato sin imagen hasta que subas una foto o selecciones una de la galería.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Galería de Selección Rápida */}
+                <div>
+                  <span className="text-[11px] font-bold text-on-surface block mb-1.5">
+                    O selecciona una fotografía sugerida:
+                  </span>
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                    {PRESET_DISH_IMAGES.map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setNewDishImageUrl(preset.url)}
+                        className={`relative rounded-lg overflow-hidden border p-1 flex flex-col items-center gap-0.5 cursor-pointer transition-all ${
+                          newDishImageUrl === preset.url
+                            ? 'border-primary ring-2 ring-primary/40 bg-teal-50 shadow-xs'
+                            : 'border-outline-variant/30 hover:border-primary/50 bg-surface-container-lowest'
+                        }`}
+                        title={preset.label}
+                      >
+                        <img
+                          src={preset.url}
+                          alt={preset.label}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-10 object-cover rounded"
+                        />
+                        <span className="text-[9px] font-bold text-on-surface truncate w-full text-center">
+                          {preset.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Campo URL directo */}
+                <div>
+                  <label className="text-[11px] font-bold text-on-surface block mb-1">
+                    O pega el enlace web de la imagen (URL):
+                  </label>
+                  <input
+                    type="url"
+                    value={newDishImageUrl}
+                    onChange={(e) => setNewDishImageUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-[11px] text-on-surface border border-outline-variant/30 focus:outline-none font-mono"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

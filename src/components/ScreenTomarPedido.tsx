@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MenuItem, ScreenType, CartItem, TableItem, AppRole } from '../types';
+import { DEFAULT_DISH_PLACEHOLDER_IMAGE } from '../data/mockData';
 
 interface ScreenTomarPedidoProps {
   menuItems: MenuItem[];
@@ -471,8 +472,12 @@ export const ScreenTomarPedido: React.FC<ScreenTomarPedidoProps> = ({
               {/* Top Row: Image + Title + Info */}
               <div className="flex items-start gap-3">
                 <img
-                  src={dish.image}
+                  src={dish.image || DEFAULT_DISH_PLACEHOLDER_IMAGE}
                   alt={dish.name}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = DEFAULT_DISH_PLACEHOLDER_IMAGE;
+                  }}
+                  referrerPolicy="no-referrer"
                   className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-cover shrink-0 shadow-sm border border-outline-variant/20"
                 />
 

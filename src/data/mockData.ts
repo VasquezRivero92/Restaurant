@@ -344,6 +344,9 @@ export const INITIAL_TABLES: TableItem[] = [
   }
 ];
 
+export const DEFAULT_DISH_PLACEHOLDER_IMAGE =
+  'https://us.123rf.com/450wm/koblizeek/koblizeek2208/koblizeek220800128/190320173-no-image-vector-symbol-missing-available-icon-no-gallery-for-this-moment-placeholder.jpg';
+
 export const DISH_IMAGE_MAP: Record<number, string> = {
   // Calientes
   101: 'https://images.unsplash.com/photo-1547496502-affa22d38842?w=600&auto=format&fit=crop&q=80', // Sudado Marino

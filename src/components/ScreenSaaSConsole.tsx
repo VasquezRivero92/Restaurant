@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChainBrand, AdminUser, ScreenType, BranchLocation, AppRole, MasterCarta, MenuItem } from '../types';
+import { DEFAULT_DISH_PLACEHOLDER_IMAGE } from '../data/mockData';
 import { getErrorMessage } from '../utils/errorHandler';
 
 interface ScreenSaaSConsoleProps {
@@ -136,9 +137,7 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       sizes: sortedSizes,
       description: 'Especialidad culinaria preparada con insumos frescos seleccionados.',
       available: true,
-      image: dishCategoryInput === 'bebidas'
-        ? 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&auto=format&fit=crop&q=80'
-        : 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?w=600&auto=format&fit=crop&q=80',
+      image: DEFAULT_DISH_PLACEHOLDER_IMAGE,
       isDrink: dishCategoryInput === 'bebidas'
     };
     setCustomDishesForNewCarta((prev) => [newDish, ...prev]);
@@ -2470,8 +2469,12 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                   <div key={dish.id} className="py-3 flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3 min-w-0">
                       <img
-                        src={dish.image}
+                        src={dish.image || DEFAULT_DISH_PLACEHOLDER_IMAGE}
                         alt={dish.name}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = DEFAULT_DISH_PLACEHOLDER_IMAGE;
+                        }}
+                        referrerPolicy="no-referrer"
                         className="w-12 h-12 rounded-lg object-cover shrink-0 border border-outline-variant/30"
                       />
                       <div className="flex flex-col min-w-0">
