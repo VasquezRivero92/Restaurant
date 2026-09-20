@@ -687,13 +687,22 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                     <span>Mesa asignada a <strong>{table.waiter}</strong> • Solo su mozo puede entregar</span>
                   </div>
                 ) : (
-                  <button
-                    onClick={() => onMarkDelivered(table.id)}
-                    className="w-full h-11 sm:h-12 rounded-xl bg-secondary hover:bg-teal-700 text-on-secondary font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-[20px]">task_alt</span>
-                    <span>Marcar Platos como Entregados</span>
-                  </button>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                    <button
+                      onClick={() => onNavigate('cocina-kds')}
+                      className="h-11 sm:h-12 rounded-xl bg-surface-container hover:bg-surface-container-high text-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">skillet</span>
+                      <span>Ver en KDS</span>
+                    </button>
+                    <button
+                      onClick={() => onMarkDelivered(table.id)}
+                      className="h-11 sm:h-12 rounded-xl bg-secondary hover:bg-teal-700 text-on-secondary font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-md active:scale-[0.98] transition-all cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">task_alt</span>
+                      <span>Entregar Platos</span>
+                    </button>
+                  </div>
                 )}
               </div>
             );

@@ -15,11 +15,13 @@ import {
   MasterCarta,
   PaymentDetails,
   SaleRecord,
+  SaleLineItem,
   InventoryItem,
   CashShift,
   Reservation,
-  AttendanceRecord
-  , ApprovalRequest, QrCustomerOrder
+  AttendanceRecord,
+  ApprovalRequest,
+  QrCustomerOrder
 } from './types';
 import {
   INITIAL_TABLES,
@@ -83,6 +85,7 @@ import {
   syncCashShiftsToFirestore,
   syncReservationsToFirestore,
   syncAttendanceToFirestore,
+  syncSaleRecordToFirestore,
   resetAllDataInRTDB
 } from './services/rtdbService';
 import { loadSession, saveSession, clearSession } from './services/sessionService';
@@ -788,7 +791,7 @@ export default function App() {
       admin_global: ['saas-console', 'dashboard-admin', 'carta-sede', 'mesas', 'tomar-pedido', 'cocina-kds', 'cuenta-cobro'],
       admin_general: ['dashboard-admin', 'carta-sede', 'mesas', 'tomar-pedido', 'cocina-kds', 'cuenta-cobro'],
       admin_sede: ['dashboard-admin', 'carta-sede', 'mesas', 'tomar-pedido', 'cocina-kds', 'cuenta-cobro'],
-      mesero: ['mesas', 'tomar-pedido', 'cuenta-cobro'],
+      mesero: ['mesas', 'tomar-pedido', 'cuenta-cobro', 'cocina-kds'],
       cocina: ['cocina-kds'],
       cajero: ['cuenta-cobro', 'mesas']
     };
@@ -897,16 +900,89 @@ export default function App() {
   };
 
   const handleTablePaidAndFreed = async (tableId: string, payment: PaymentDetails) => {
-    if (!isDemoMode) {
-      await recordCompletedSale(activeChainId, activeBranchId, tableId, payment);
+    const currentTbl = tables.find((t) => t.id === tableId);
+    const targetTableNum = currentTbl ? currentTbl.number : '';
+    const baseTotal = currentTbl?.total || 0;
+    const tipAmount = Number(payment.tipAmount || 0);
+    const grandTotal = baseTotal + tipAmount;
+    const businessDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date());
+
+    // Construcción de los items detallados de la venta
+    const lineItems: SaleLineItem[] = [
+      ...(currentTbl?.dishes || []).map((d) => ({
+        id: String(d.id),
+        name: d.name,
+        quantity: d.qty || 1,
+        unitPrice: d.price || 0,
+        total: (d.price || 0) * (d.qty || 1),
+        category: d.category,
+        kind: 'dish' as const
+      })),
+      ...(currentTbl?.drinks || []).map((dr) => ({
+        id: String(dr.id),
+        name: dr.name,
+        quantity: dr.qty || 1,
+        unitPrice: dr.price || 0,
+        total: (dr.price || 0) * (dr.qty || 1),
+        category: dr.category,
+        kind: 'drink' as const
+      }))
+    ];
+
+    const saleId = `sale-${activeBranchId}-${Date.now()}`;
+    const saleRecord: SaleRecord = {
+      id: saleId,
+      tenantId: activeChainId,
+      branchId: activeBranchId,
+      tableId,
+      tableNumber: targetTableNum || tableId,
+      baseAmount: baseTotal,
+      tipAmount,
+      amount: grandTotal,
+      paymentMethod: payment.method,
+      documentType: payment.documentType || 'boleta',
+      customerDoc: payment.customerDoc,
+      customerName: payment.customerName,
+      cashReceived: payment.cashReceived,
+      changeAmount: payment.cashReceived ? Math.max(0, payment.cashReceived - grandTotal) : 0,
+      lineItems,
+      businessDate,
+      cashierName: staffUser?.name || 'Cajero',
+      waiterName: currentTbl?.waiter || staffUser?.name || 'Mozo',
+      createdAt: Date.now(),
+      createdBy: staffUser?.name || 'system',
+      status: 'completed'
+    };
+
+    // 1. Registro seguro en API backend si está activo
+    try {
+      if (!isDemoMode) {
+        await recordCompletedSale(activeChainId, activeBranchId, tableId, payment);
+      }
+    } catch (apiErr) {
+      console.warn('Backend sale registration fallback:', apiErr);
     }
-    setTables((prev) =>
-      prev.map((t) =>
+
+    // 2. Persistencia directa en Firestore para reportes y auditoría
+    try {
+      await syncSaleRecordToFirestore(saleRecord);
+    } catch (fsErr) {
+      console.warn('Firestore direct sale recording error:', fsErr);
+    }
+
+    // 3. Actualización de estado local de ventas
+    setSales((prev) => [saleRecord, ...prev]);
+    setTenantSales((prev) => [saleRecord, ...prev]);
+
+    // 4. Liberar la mesa localmente y sincronizar en RTDB / Firestore
+    let updatedTablesList: TableItem[] = [];
+    setTables((prev) => {
+      updatedTablesList = prev.map((t) =>
         t.id === tableId
           ? {
-            ...t,
-            status: 'free',
-            statusLabel: 'Libre',
+              ...t,
+              status: 'free',
+              statusLabel: 'Libre',
               waiter: '', // Asignación de mesa queda en blanco al liberarse
               notes: 'Mesa desinfectada y libre',
               total: 0,
@@ -915,8 +991,37 @@ export default function App() {
               drinks: []
             }
           : t
-      )
-    );
+      );
+      return updatedTablesList;
+    });
+
+    if (updatedTablesList.length > 0) {
+      syncTablesToRTDB(updatedTablesList);
+    }
+
+    // 5. Completar y cerrar cualquier ticket KDS pendiente de esta mesa
+    let updatedTicketsList: KDSTicket[] = [];
+    setKdsTickets((prev) => {
+      updatedTicketsList = prev.map((tk) => {
+        if (!matchesTable(tk.table, targetTableNum, tableId)) return tk;
+        const updatedItems = tk.items.map((item) => ({
+          ...item,
+          isReady: true,
+          isServed: true,
+          status: 'served' as const
+        }));
+        return {
+          ...tk,
+          status: 'served' as const,
+          items: updatedItems
+        };
+      });
+      return updatedTicketsList;
+    });
+
+    if (updatedTicketsList.length > 0) {
+      syncKDSTicketsToRTDB(updatedTicketsList);
+    }
   };
 
   const handleAdjustInventory = async (itemId: string, adjustment: number) => {

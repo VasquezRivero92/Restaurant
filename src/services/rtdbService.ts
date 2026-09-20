@@ -422,6 +422,16 @@ export const syncCashShiftsToFirestore = async (items: CashShift[]) => {
   await syncCollectionDifferential(`restaurants/${scope.tenantId}/branches/${scope.branchId}/cashShifts`, items);
 };
 
+export const syncSaleRecordToFirestore = async (sale: SaleRecord) => {
+  if (!firestoreDb || !sale.tenantId || !sale.branchId || !sale.id) return;
+  try {
+    const docRef = doc(firestoreDb, `restaurants/${sale.tenantId}/branches/${sale.branchId}/sales`, sale.id);
+    await setDoc(docRef, clean(sale), { merge: true });
+  } catch (err) {
+    console.warn('[RTDB/Firestore Sync Warning] No se pudo guardar la venta en Firestore:', err);
+  }
+};
+
 export const syncReservationsToFirestore = async (items: Reservation[]) => {
   if (!firestoreDb || !scope.branchId || !scope.tenantId) return;
   await syncCollectionDifferential(`restaurants/${scope.tenantId}/branches/${scope.branchId}/reservations`, items);

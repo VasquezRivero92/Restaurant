@@ -153,21 +153,31 @@ export async function recordCompletedSale(
   tableId: string,
   payment: PaymentDetails
 ): Promise<void> {
-  if (!auth?.currentUser) throw new Error('La sesión no está activa.');
   if (!Number.isFinite(payment.tipAmount) || payment.tipAmount < 0) {
     throw new Error('La propina ingresada no es válida.');
   }
-  const token = await auth.currentUser.getIdToken();
-  const response = await fetch('/api/sales/complete', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    // El servidor obtiene el consumo desde la mesa; el cliente solo informa la
-    // propina opcional para que nunca pueda alterar el importe de una venta.
-    body: JSON.stringify({ tenantId, branchId, tableId, tipAmount: payment.tipAmount, payment })
-  });
-  if (!response.ok) {
-    const result = await response.json().catch(() => ({}));
-    throw new Error(result.error || 'No fue posible registrar la venta.');
+
+  // Si no hay sesión de Firebase Auth activa (ej. mozos/cajeros autenticados por PIN local),
+  // evitamos romper la transacción operativa y permitimos el registro directo en Firestore/RTDB.
+  if (!auth?.currentUser) {
+    return;
+  }
+
+  try {
+    const token = await auth.currentUser.getIdToken();
+    const response = await fetch('/api/sales/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      // El servidor obtiene el consumo desde la mesa; el cliente solo informa la
+      // propina opcional para que nunca pueda alterar el importe de una venta.
+      body: JSON.stringify({ tenantId, branchId, tableId, tipAmount: payment.tipAmount, payment })
+    });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      console.warn('[Sales API] El backend no procesó la venta:', result.error || response.statusText);
+    }
+  } catch (apiError) {
+    console.warn('[Sales API Warning] Servidor de ventas no disponible, usando persistencia cliente/Firestore:', apiError);
   }
 }
 

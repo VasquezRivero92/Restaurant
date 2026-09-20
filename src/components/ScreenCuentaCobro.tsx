@@ -65,8 +65,11 @@ export const ScreenCuentaCobro: React.FC<ScreenCuentaCobroProps> = ({
     } else if (payableTables.length > 0 && !payableTables.some((t) => t.id === activeTableId)) {
       const billRequested = payableTables.find((t) => t.status === 'bill_requested');
       setActiveTableId(billRequested ? billRequested.id : payableTables[0].id);
+      setIsPaidSuccess(false);
+      setTipAmount(0);
+      setCustomTipInput('0');
     }
-  }, [selectedTableId, payableTables]);
+  }, [selectedTableId, payableTables, activeTableId]);
 
   const currentTable = payableTables.find((t) => t.id === activeTableId) || payableTables[0];
 

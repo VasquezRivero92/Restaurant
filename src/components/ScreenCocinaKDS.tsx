@@ -388,6 +388,16 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-container-low px-4 py-3 rounded-2xl border border-outline-variant/40 shadow-xs mb-4">
         {/* Left: Title & Status Indicator */}
         <div className="flex items-center gap-3">
+          {!isKitchen && (
+            <button
+              onClick={() => onNavigate('mesas')}
+              className="h-8 px-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-bold flex items-center gap-1 shrink-0 transition-all cursor-pointer"
+              title="Volver al Salón de Mesas"
+            >
+              <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+              <span>Salón</span>
+            </button>
+          )}
           <div className="flex items-center gap-2">
             <span className="relative flex h-3.5 w-3.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>

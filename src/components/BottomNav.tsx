@@ -364,9 +364,16 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                       <span className="material-symbols-outlined text-[18px]">skillet</span>
                     </div>
                     <div>
-                      <span className="font-bold text-xs text-primary block">Cocina KDS</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-xs text-primary block">Cocina KDS</span>
+                        {readyPlatesCount > 0 && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-error text-white font-extrabold text-[9px] animate-pulse">
+                            {readyPlatesCount} listos
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[10px] text-on-surface-variant leading-tight block mt-0.5">
-                        Estado y tiempos de platos
+                        {readyPlatesCount > 0 ? 'Platos listos para recoger' : 'Estado y tiempos de platos'}
                       </span>
                     </div>
                   </button>
