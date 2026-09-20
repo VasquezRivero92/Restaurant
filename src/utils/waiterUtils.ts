@@ -47,7 +47,18 @@ export const matchesTable = (ticketTableStr?: string, tableNumber?: string, tabl
   if (!ticketTableStr) return false;
   const tStr = ticketTableStr.toLowerCase().trim();
 
-  if (tableId && tStr.includes(tableId.toLowerCase())) return true;
+  // Match by tableId (e.g. "mesa-04" -> matches "mesa 04 (4 personas)", "mesa-04", or by digits 04)
+  if (tableId) {
+    const idLower = tableId.toLowerCase().trim();
+    if (tStr.includes(idLower)) return true;
+    const idSpaced = idLower.replace(/[-_]/g, ' ');
+    if (tStr.includes(idSpaced)) return true;
+    const idDigits = idLower.match(/\d+/);
+    const ticketDigits = tStr.match(/\d+/);
+    if (idDigits && ticketDigits && parseInt(idDigits[0], 10) === parseInt(ticketDigits[0], 10)) {
+      return true;
+    }
+  }
 
   if (tableNumber) {
     const numClean = tableNumber.replace(/\D/g, '');
