@@ -355,10 +355,10 @@ export const DISH_IMAGE_MAP: Record<number, string> = {
   // Bebidas
   201: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&auto=format&fit=crop&q=80', // Chicha Morada
   202: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80', // Gaseosas heladas
-  203: 'https://images.unsplash.com/photo-1608270195230-058f964dc0b0?w=600&auto=format&fit=crop&q=80', // Cerveza Cusqueña
+  203: 'https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=600&auto=format&fit=crop&q=80', // Cerveza Cusqueña
   204: 'https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=600&auto=format&fit=crop&q=80', // Cerveza Pilsen
   // Combinados
-  301: 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?w=600&auto=format&fit=crop&q=80', // Combinado Clásico
+  301: 'https://images.unsplash.com/photo-1535400255456-984241443b29?w=600&auto=format&fit=crop&q=80', // Combinado Clásico
   302: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80', // Combinado Naomi
   303: 'https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?w=600&auto=format&fit=crop&q=80', // Combinado Súper Nélida
   304: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=600&auto=format&fit=crop&q=80', // Tallarín Rojo
@@ -366,7 +366,7 @@ export const DISH_IMAGE_MAP: Record<number, string> = {
   306: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80', // Causa Limeña
   307: 'https://images.unsplash.com/photo-1621996346565-e3d5d628169a?w=600&auto=format&fit=crop&q=80', // Tallarín Solo
   // Ceviches
-  401: 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?w=600&auto=format&fit=crop&q=80', // Ceviche de Pescado
+  401: 'https://images.unsplash.com/photo-1535400255456-984241443b29?w=600&auto=format&fit=crop&q=80', // Ceviche de Pescado
   402: 'https://images.unsplash.com/photo-1535400255456-984241443b29?w=600&auto=format&fit=crop&q=80', // Ceviche Mixto
   403: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80', // Ceviche de Pota
   404: 'https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?w=600&auto=format&fit=crop&q=80', // Ceviche de Pulpo
@@ -378,7 +378,7 @@ export const DISH_IMAGE_MAP: Record<number, string> = {
   410: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80', // Ceviche de Conchas de Abanico
   411: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=600&auto=format&fit=crop&q=80', // Ceviche en Crema Huancaína
   // Leches de Tigre
-  501: 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?w=600&auto=format&fit=crop&q=80', // Leche de Tigre de Pescado
+  501: 'https://images.unsplash.com/photo-1551248429-40975aa4de74?w=600&auto=format&fit=crop&q=80', // Leche de Tigre de Pescado
   502: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80', // Leche de Tigre Mixta
   503: 'https://images.unsplash.com/photo-1565680018434-b513d5e5fd47?w=600&auto=format&fit=crop&q=80', // Leche de Pota
   504: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=600&auto=format&fit=crop&q=80', // Leche de Pantera
@@ -389,7 +389,7 @@ export const DISH_IMAGE_MAP: Record<number, string> = {
   603: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&auto=format&fit=crop&q=80', // Arroz Chaufa de Mariscos
   604: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80', // Chaufa + Ceviche
   // Tríos
-  701: 'https://images.unsplash.com/photo-1535399831379-5b7eb9bf6316?w=600&auto=format&fit=crop&q=80', // Trío Marino
+  701: 'https://images.unsplash.com/photo-1535400255456-984241443b29?w=600&auto=format&fit=crop&q=80', // Trío Marino
   702: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&auto=format&fit=crop&q=80', // Trío Oriental
   703: 'https://images.unsplash.com/photo-1633964913295-ceb43826e7c9?w=600&auto=format&fit=crop&q=80', // Trío Criollo
   // Jaleas
