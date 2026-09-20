@@ -35,9 +35,107 @@
 }
 
 @layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+    background: var(--color-surface);
+    color: var(--color-on-surface);
+  }
+
+  button,
+  [role='button'],
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:focus-visible,
+  [role='button']:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 3px solid #f3c25b;
+    outline-offset: 3px;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #64748b;
+    opacity: 1;
+  }
+}
+
+@layer components {
+  .ux-surface {
+    border: 1px solid color-mix(in srgb, var(--color-outline-variant) 78%, transparent);
+    border-radius: 1.25rem;
+    background: var(--color-surface-container-lowest);
+    box-shadow: 0 10px 30px rgb(15 23 42 / 0.06);
+  }
+
+  .ux-empty-state {
+    display: flex;
+    min-height: 16rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 2rem;
+    text-align: center;
+  }
+
+  .ux-touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .ux-tab-strip {
+    display: flex;
+    max-width: 100%;
+    gap: 0.25rem;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+
+  .ux-tab-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .kds-high-contrast {
+    --color-surface: #081211;
+    --color-surface-container-lowest: #101d1c;
+    --color-surface-container-low: #162523;
+    --color-surface-container: #21322f;
+    --color-surface-container-high: #2b3d39;
+    --color-on-surface: #ffffff;
+    --color-on-surface-variant: #d7e4e1;
+    --color-outline-variant: #55716b;
+    --color-primary: #ffffff;
+    --color-on-primary: #071312;
+    --color-secondary: #62e5d8;
+    --color-on-secondary: #071312;
+  }
+
+  .kds-high-contrast .kds-ticket {
+    box-shadow: 0 14px 36px rgb(0 0 0 / 0.38);
   }
 }
 
@@ -64,5 +162,26 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+@media (max-width: 640px) {
+  body {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 

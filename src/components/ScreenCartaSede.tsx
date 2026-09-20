@@ -223,6 +223,11 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   const [editDishAvailable, setEditDishAvailable] = useState(true);
   const [editDishImageUrl, setEditDishImageUrl] = useState('');
   const [editDishAllowSpiceLevel, setEditDishAllowSpiceLevel] = useState<boolean>(false);
+  const [editPromotionActive, setEditPromotionActive] = useState(false);
+  const [editPromotionType, setEditPromotionType] = useState<'percentage' | 'fixed_price'>('percentage');
+  const [editPromotionValue, setEditPromotionValue] = useState('');
+  const [editPromotionStart, setEditPromotionStart] = useState('');
+  const [editPromotionEnd, setEditPromotionEnd] = useState('');
 
   const openEditDishModal = (dish: MenuItem) => {
     setEditingDish(dish);
@@ -246,6 +251,11 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
         ? dish.allowSpiceLevel
         : ['ceviches', 'leches', 'calientes'].includes(dish.category)
     );
+    setEditPromotionActive(Boolean(dish.promotion?.active));
+    setEditPromotionType(dish.promotion?.type || 'percentage');
+    setEditPromotionValue(dish.promotion ? String(dish.promotion.value) : '');
+    setEditPromotionStart(dish.promotion?.startsAt ? dish.promotion.startsAt.slice(0, 16) : '');
+    setEditPromotionEnd(dish.promotion?.endsAt ? dish.promotion.endsAt.slice(0, 16) : '');
   };
 
   const handleAddSizeToEditDish = () => {
@@ -301,7 +311,12 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
       stockNote: editDishStockNote.trim() || undefined,
       available: editDishAvailable,
       image: editDishImageUrl.trim() || DEFAULT_DISH_PLACEHOLDER_IMAGE,
-      allowSpiceLevel: editDishAllowSpiceLevel
+      allowSpiceLevel: editDishAllowSpiceLevel,
+      promotion: editPromotionActive && editPromotionValue && editPromotionStart && editPromotionEnd ? {
+        id: editingDish.promotion?.id || `promo-${editingDish.id}`,
+        name: 'Promoción programada', type: editPromotionType, value: Number(editPromotionValue),
+        startsAt: new Date(editPromotionStart).toISOString(), endsAt: new Date(editPromotionEnd).toISOString(), active: true
+      } : undefined
     };
 
     if (onUpdateMenuItem) {
@@ -2013,6 +2028,11 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                       <option value="bebidas">Bebidas</option>
                     </select>
                   </div>
+                </div>
+
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-3">
+                  <label className="flex items-center gap-2 text-xs font-black text-amber-900"><input type="checkbox" checked={editPromotionActive} onChange={(e) => setEditPromotionActive(e.target.checked)} /> Promoción programada</label>
+                  {editPromotionActive && <div className="mt-3 grid gap-2 sm:grid-cols-4"><select value={editPromotionType} onChange={(e) => setEditPromotionType(e.target.value as 'percentage' | 'fixed_price')} className="rounded-lg border p-2 text-xs"><option value="percentage">Descuento %</option><option value="fixed_price">Precio fijo</option></select><input type="number" min="0" value={editPromotionValue} onChange={(e) => setEditPromotionValue(e.target.value)} placeholder={editPromotionType === 'percentage' ? '% descuento' : 'Precio S/'} className="rounded-lg border p-2 text-xs" required/><input type="datetime-local" value={editPromotionStart} onChange={(e) => setEditPromotionStart(e.target.value)} className="rounded-lg border p-2 text-xs" required/><input type="datetime-local" value={editPromotionEnd} onChange={(e) => setEditPromotionEnd(e.target.value)} className="rounded-lg border p-2 text-xs" required/></div>}
                 </div>
 
                 {/* Bloque 2: Descripción */}

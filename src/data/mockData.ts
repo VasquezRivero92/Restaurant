@@ -1,4 +1,4 @@
-import { TableItem, MenuItem, KDSTicket, ChainBrand, AdminUser, StaffMember, MasterCarta } from '../types';
+import { TableItem, MenuItem, KDSTicket, ChainBrand, AdminUser, StaffMember, MasterCarta, InventoryItem } from '../types';
 
 export const INITIAL_TABLES: TableItem[] = [
   {
@@ -397,7 +397,7 @@ export const DISH_IMAGE_MAP: Record<number, string> = {
   802: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=600&auto=format&fit=crop&q=80'  // Jalea Mixta
 };
 
-export const INITIAL_MENU_ITEMS: MenuItem[] = [
+const INITIAL_MENU_ITEMS_RAW: MenuItem[] = [
   // --- 1. CALIENTES ---
   {
     id: 101,
@@ -969,7 +969,9 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
       { name: 'Porción Completa', price: 30.0 }
     ]
   }
-].map((dish) => ({
+];
+
+export const INITIAL_MENU_ITEMS: MenuItem[] = INITIAL_MENU_ITEMS_RAW.map((dish) => ({
   ...dish,
   allowSpiceLevel: dish.allowSpiceLevel !== undefined
     ? dish.allowSpiceLevel
@@ -1448,5 +1450,12 @@ export const INITIAL_STAFF: StaffMember[] = [
     active: true,
     avatarColor: 'bg-red-600'
   }
+];
+
+export const INITIAL_INVENTORY: InventoryItem[] = [
+  { id: 'inv-pescado', name: 'Pescado fresco', unit: 'kg', currentStock: 18, minimumStock: 12, unitCost: 22, category: 'insumo' },
+  { id: 'inv-limon', name: 'Limón', unit: 'kg', currentStock: 7, minimumStock: 10, unitCost: 5.5, category: 'insumo' },
+  { id: 'inv-chicha', name: 'Chicha morada', unit: 'L', currentStock: 14, minimumStock: 8, unitCost: 3.2, category: 'bebida' },
+  { id: 'inv-envase', name: 'Envases para llevar', unit: 'und', currentStock: 35, minimumStock: 50, unitCost: 0.8, category: 'empaque' }
 ];
 

@@ -25,6 +25,14 @@ const firebaseAdminApp = getApps().length ? getApps()[0] : initializeApp({
 const firestore = getFirestore(firebaseAdminApp);
 const failedPinAttempts = new Map();
 
+async function writeAudit({ tenantId, actorId, action, entityType, entityId, metadata = {} }) {
+  if (!tenantId) return;
+  await firestore.collection('restaurants').doc(tenantId).collection('auditLogs').add({
+    tenantId, actorId, action, entityType, entityId,
+    metadata, createdAt: Date.now()
+  });
+}
+
 app.use(express.json({ limit: '32kb' }));
 
 app.get('/api/public/tenant/:slug', async (req, res) => {
@@ -127,6 +135,7 @@ app.post('/api/staff/sync', async (req, res) => {
       batch.set(firestore.collection('users').doc(String(member.id)), payload, { merge: true });
     }
     await batch.commit();
+    await writeAudit({ tenantId, actorId: decoded.uid, action: 'staff.synced', entityType: 'staff', entityId: tenantId, metadata: { count: staff.length } });
     return res.json({ ok: true });
   } catch (error) {
     console.error('Error al guardar personal:', error);
@@ -191,6 +200,7 @@ app.post('/api/admins/provision', async (req, res) => {
       updatedAt: Date.now()
     };
     await firestore.collection('users').doc(authUser.uid).set(profile, { merge: true });
+    await writeAudit({ tenantId, actorId: decoded.uid, action: 'admin.provisioned', entityType: 'user', entityId: authUser.uid, metadata: { role: profile.roleKey, branchIds: assignedBranchIds } });
     const activationLink = await getAuth(firebaseAdminApp).generatePasswordResetLink(email);
     return res.json({ profile, activationLink });
   } catch (error) {
@@ -203,13 +213,16 @@ app.post('/api/sales/complete', async (req, res) => {
   try {
     const authorization = req.headers.authorization || '';
     const decoded = await getAuth(firebaseAdminApp).verifyIdToken(authorization.startsWith('Bearer ') ? authorization.slice(7) : '');
-    const { tenantId: requestedTenantId, branchId, tableId, tipAmount = 0 } = req.body || {};
+    const { tenantId: requestedTenantId, branchId, tableId, tipAmount = 0, payment = {} } = req.body || {};
     const numericTip = Number(tipAmount);
     const branchIds = Array.isArray(decoded.branchIds) ? decoded.branchIds : [];
     const allowedRoles = new Set(['mesero', 'cajero', 'admin_sede', 'admin_general']);
     const isGlobal = decoded.platformAdmin === true;
     const tenantId = isGlobal ? requestedTenantId : decoded.tenantId;
+    const paymentMethods = new Set(['yape_plin', 'card', 'cash', 'split']);
+    const documentTypes = new Set(['boleta', 'factura']);
     if (!branchId || !tableId || !tenantId || !Number.isFinite(numericTip) || numericTip < 0 ||
+      !paymentMethods.has(payment.method) || !documentTypes.has(payment.documentType) ||
       (!isGlobal && (!allowedRoles.has(decoded.role) || !branchIds.includes(branchId))) ||
       (!isGlobal && requestedTenantId && requestedTenantId !== decoded.tenantId)) {
       return res.status(403).json({ error: 'Venta o sede no autorizada.' });
@@ -217,6 +230,7 @@ app.post('/api/sales/complete', async (req, res) => {
     const branchRef = firestore.collection('restaurants').doc(tenantId).collection('branches').doc(branchId);
     const tableRef = branchRef.collection('tables').doc(tableId);
     const saleRef = branchRef.collection('sales').doc();
+    let recordedAmount = 0;
     await firestore.runTransaction(async (transaction) => {
       const [branchSnapshot, tableSnapshot] = await Promise.all([transaction.get(branchRef), transaction.get(tableRef)]);
       if (!branchSnapshot.exists) throw new Error('Sede no encontrada');
@@ -225,6 +239,46 @@ app.post('/api/sales/complete', async (req, res) => {
       const baseAmount = Number(tableSnapshot.data().total || 0);
       if (!Number.isFinite(baseAmount) || baseAmount <= 0) throw new Error('El consumo de la mesa no es válido');
       const amount = baseAmount + numericTip;
+      recordedAmount = amount;
+      const cashReceived = Number(payment.cashReceived || 0);
+      if (payment.method === 'cash' && (!Number.isFinite(cashReceived) || cashReceived < amount)) {
+        throw new Error('El efectivo recibido no cubre el total de la venta');
+      }
+      const table = tableSnapshot.data();
+      const dishLines = (Array.isArray(table.dishes) ? table.dishes : []).map((item) => ({
+        name: String(item.name || 'Plato'), qty: Number(item.qty || 1), unitPrice: Number(item.price || 0),
+        total: Number(item.qty || 1) * Number(item.price || 0), category: item.station || '', kind: 'dish'
+      }));
+      const drinkLines = (Array.isArray(table.drinks) ? table.drinks : []).map((item) => ({
+        name: String(item.name || 'Bebida'), qty: Number(item.qty || 1), unitPrice: Number(item.price || 0),
+        total: Number(item.qty || 1) * Number(item.price || 0), category: 'bebidas', kind: 'drink'
+      }));
+      const businessDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date());
+      // Descuenta insumos según las recetas vigentes de la carta. La venta es la
+      // única fuente que puede generar este movimiento, evitando ajustes desde el cliente.
+      const recipeUsage = new Map();
+      let recipeCost = 0;
+      for (const dish of Array.isArray(table.dishes) ? table.dishes : []) {
+        if (!dish.dishId) continue;
+        const menuSnapshot = await transaction.get(branchRef.collection('menu').doc(String(dish.dishId)));
+        if (!menuSnapshot.exists) continue;
+        const recipe = Array.isArray(menuSnapshot.data().recipe) ? menuSnapshot.data().recipe : [];
+        for (const ingredient of recipe) {
+          if (!ingredient.inventoryItemId || !Number.isFinite(Number(ingredient.qty))) continue;
+          const used = Number(ingredient.qty) * Number(dish.qty || 1);
+          recipeUsage.set(String(ingredient.inventoryItemId), (recipeUsage.get(String(ingredient.inventoryItemId)) || 0) + used);
+        }
+      }
+      for (const [inventoryItemId, quantity] of recipeUsage) {
+        const inventoryRef = branchRef.collection('inventory').doc(inventoryItemId);
+        const inventorySnapshot = await transaction.get(inventoryRef);
+        if (!inventorySnapshot.exists) continue;
+        const currentStock = Number(inventorySnapshot.data().currentStock || 0);
+        recipeCost += Number(inventorySnapshot.data().unitCost || 0) * quantity;
+        transaction.update(inventoryRef, { currentStock: Math.max(0, currentStock - quantity), updatedAt: Date.now() });
+        const movementRef = branchRef.collection('inventoryMovements').doc();
+        transaction.create(movementRef, { id: movementRef.id, branchId, inventoryItemId, type: 'sale', quantity: -quantity, reason: `Venta mesa ${table.number || tableId}`, createdAt: Date.now(), createdBy: decoded.uid });
+      }
       const todaySales = Number(branch.todaySales || 0) + amount;
       transaction.update(branchRef, { todaySales, updatedAt: Date.now() });
       transaction.update(tableRef, {
@@ -233,14 +287,98 @@ app.post('/api/sales/complete', async (req, res) => {
       });
       transaction.create(saleRef, {
         id: saleRef.id, tenantId, branchId, tableId, baseAmount, tipAmount: numericTip,
-        amount, createdAt: Date.now(), createdBy: decoded.uid, status: 'completed'
+        tableNumber: table.number || '', amount, paymentMethod: payment.method,
+        documentType: payment.documentType, customerDoc: String(payment.customerDoc || ''),
+        customerName: String(payment.customerName || ''), cashReceived: payment.method === 'cash' ? cashReceived : null,
+        changeAmount: payment.method === 'cash' ? cashReceived - amount : 0,
+        lineItems: [...dishLines, ...drinkLines], costAmount: recipeCost, grossMargin: amount - recipeCost, businessDate, waiterName: table.waiter || '',
+        createdAt: Date.now(), createdBy: decoded.uid, status: 'completed'
       });
     });
+    await writeAudit({ tenantId, actorId: decoded.uid, action: 'sale.completed', entityType: 'sale', entityId: saleRef.id, metadata: { branchId, tableId, amount: recordedAmount } });
     return res.json({ ok: true, paymentId: saleRef.id });
   } catch (error) {
     console.error('Error al registrar venta:', error);
     return res.status(401).json({ error: 'No se pudo registrar la venta.' });
   }
+});
+
+app.post('/api/inventory/movement', async (req, res) => {
+  try {
+    const authorization = req.headers.authorization || '';
+    const decoded = await getAuth(firebaseAdminApp).verifyIdToken(authorization.startsWith('Bearer ') ? authorization.slice(7) : '');
+    const { tenantId: requestedTenantId, branchId, inventoryItemId, type, quantity, reason = '' } = req.body || {};
+    const allowedTypes = new Set(['purchase', 'waste', 'adjustment', 'transfer']);
+    const numericQuantity = Number(quantity);
+    const tenantId = decoded.platformAdmin === true ? requestedTenantId : decoded.tenantId;
+    const branchIds = Array.isArray(decoded.branchIds) ? decoded.branchIds : [];
+    if (!tenantId || !branchId || !inventoryItemId || !allowedTypes.has(type) || !Number.isFinite(numericQuantity) || numericQuantity === 0 ||
+      (decoded.platformAdmin !== true && (decoded.tenantId !== tenantId || !branchIds.includes(branchId) || !['admin_general', 'admin_sede'].includes(decoded.role)))) {
+      return res.status(403).json({ error: 'Movimiento de inventario no autorizado.' });
+    }
+    const branchRef = firestore.collection('restaurants').doc(tenantId).collection('branches').doc(branchId);
+    const itemRef = branchRef.collection('inventory').doc(String(inventoryItemId));
+    const movementRef = branchRef.collection('inventoryMovements').doc();
+    await firestore.runTransaction(async (transaction) => {
+      const itemSnapshot = await transaction.get(itemRef);
+      if (!itemSnapshot.exists) throw new Error('Insumo no encontrado');
+      const currentStock = Number(itemSnapshot.data().currentStock || 0);
+      const nextStock = Math.max(0, currentStock + numericQuantity);
+      transaction.update(itemRef, { currentStock: nextStock, updatedAt: Date.now() });
+      transaction.create(movementRef, { id: movementRef.id, branchId, inventoryItemId, type, quantity: numericQuantity, reason: String(reason).slice(0, 240), createdAt: Date.now(), createdBy: decoded.uid });
+    });
+    await writeAudit({ tenantId, actorId: decoded.uid, action: `inventory.${type}`, entityType: 'inventory', entityId: String(inventoryItemId), metadata: { branchId, quantity: numericQuantity } });
+    return res.json({ ok: true, movementId: movementRef.id });
+  } catch (error) {
+    console.error('Error en movimiento de inventario:', error);
+    return res.status(400).json({ error: error.message || 'No fue posible registrar el movimiento.' });
+  }
+});
+
+app.post('/api/approvals', async (req, res) => {
+  try {
+    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    const decoded = await getAuth(firebaseAdminApp).verifyIdToken(token);
+    const { tenantId: requestedTenantId, branchId, type, reason } = req.body || {};
+    const tenantId = decoded.platformAdmin === true ? requestedTenantId : decoded.tenantId;
+    const types = new Set(['discount', 'void', 'refund', 'price_change', 'inventory_transfer']);
+    if (!tenantId || !branchId || !types.has(type) || !String(reason || '').trim() || (decoded.platformAdmin !== true && (!Array.isArray(decoded.branchIds) || !decoded.branchIds.includes(branchId)))) return res.status(403).json({ error: 'Solicitud no autorizada.' });
+    const ref = firestore.collection('restaurants').doc(tenantId).collection('approvals').doc();
+    await ref.create({ id: ref.id, tenantId, branchId, type, status: 'pending', reason: String(reason).trim().slice(0, 500), requestedBy: decoded.uid, requestedAt: Date.now() });
+    await writeAudit({ tenantId, actorId: decoded.uid, action: 'approval.requested', entityType: 'approval', entityId: ref.id, metadata: { branchId, type } });
+    return res.json({ ok: true, id: ref.id });
+  } catch (error) { return res.status(400).json({ error: 'No fue posible crear la solicitud.' }); }
+});
+
+app.post('/api/approvals/:id/decision', async (req, res) => {
+  try {
+    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    const decoded = await getAuth(firebaseAdminApp).verifyIdToken(token);
+    const { decision, note = '' } = req.body || {};
+    if (!['approved', 'rejected'].includes(decision) || (decoded.platformAdmin !== true && decoded.role !== 'admin_general')) return res.status(403).json({ error: 'No tienes permiso para resolver solicitudes.' });
+    const snap = await firestore.collectionGroup('approvals').where('id', '==', req.params.id).limit(1).get();
+    if (snap.empty) return res.status(404).json({ error: 'Solicitud no encontrada.' });
+    const ref = snap.docs[0].ref; const request = snap.docs[0].data();
+    if (decoded.platformAdmin !== true && request.tenantId !== decoded.tenantId) return res.status(403).json({ error: 'Solicitud fuera de tu organización.' });
+    await ref.update({ status: decision, resolvedBy: decoded.uid, resolvedAt: Date.now(), resolutionNote: String(note).slice(0, 500) });
+    await writeAudit({ tenantId: request.tenantId, actorId: decoded.uid, action: `approval.${decision}`, entityType: 'approval', entityId: req.params.id, metadata: { branchId: request.branchId, type: request.type } });
+    return res.json({ ok: true });
+  } catch (error) { return res.status(400).json({ error: 'No fue posible resolver la solicitud.' }); }
+});
+
+app.post('/api/cash/movement', async (req, res) => {
+  try {
+    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    const decoded = await getAuth(firebaseAdminApp).verifyIdToken(token);
+    const { tenantId: requestedTenantId, branchId, shiftId = '', type, amount, concept = '' } = req.body || {};
+    const tenantId = decoded.platformAdmin === true ? requestedTenantId : decoded.tenantId;
+    const numericAmount = Number(amount); const branchIds = Array.isArray(decoded.branchIds) ? decoded.branchIds : [];
+    if (!tenantId || !branchId || !['income', 'expense'].includes(type) || !Number.isFinite(numericAmount) || numericAmount <= 0 || !String(concept).trim() || (decoded.platformAdmin !== true && (!branchIds.includes(branchId) || !['cajero', 'admin_sede', 'admin_general'].includes(decoded.role)))) return res.status(403).json({ error: 'Movimiento de caja no autorizado.' });
+    const ref = firestore.collection('restaurants').doc(tenantId).collection('branches').doc(branchId).collection('cashMovements').doc();
+    await ref.create({ id: ref.id, branchId, shiftId: String(shiftId), type, amount: numericAmount, concept: String(concept).trim().slice(0, 240), createdAt: Date.now(), createdBy: decoded.uid });
+    await writeAudit({ tenantId, actorId: decoded.uid, action: `cash.${type}`, entityType: 'cashMovement', entityId: ref.id, metadata: { branchId, amount: numericAmount } });
+    return res.json({ ok: true, id: ref.id });
+  } catch (error) { return res.status(400).json({ error: 'No fue posible registrar el movimiento de caja.' }); }
 });
 
 // Servir los archivos estáticos de la build de producción

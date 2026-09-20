@@ -10,7 +10,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { auth, firestoreDb } from './firebase';
-import { AdminUser, BranchLocation, ChainBrand, KDSTicket, MasterCarta, MenuItem, StaffMember, TableItem } from '../types';
+import { AdminUser, ApprovalRequest, AttendanceRecord, BranchLocation, CashShift, ChainBrand, InventoryItem, KDSTicket, KDSTicketItem, MasterCarta, MenuItem, Reservation, SaleRecord, StaffMember, TableItem } from '../types';
 
 let scope = { tenantId: '', branchId: '' };
 
@@ -168,6 +168,53 @@ export function subscribeToKDSTickets(callback: (items: KDSTicket[]) => void) {
     knownCollectionIds.set(collPath, currentIds);
     callback(orders);
   });
+}
+
+/** Ventas cerradas de la sede activa para reportes administrativos. */
+export function subscribeToSales(callback: (items: SaleRecord[]) => void) {
+  if (!firestoreDb || !scope.branchId || !scope.tenantId) { callback([]); return noop; }
+  const collPath = `restaurants/${scope.tenantId}/branches/${scope.branchId}/sales`;
+  return onSnapshot(collection(firestoreDb, collPath), (snapshot) => {
+    const sales = fromDocs<SaleRecord>(snapshot).sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+    callback(sales);
+  });
+}
+
+/** Consolidado del tenant para reportes de administrador general/global. */
+export function subscribeToTenantSales(callback: (items: SaleRecord[]) => void) {
+  if (!firestoreDb || !scope.tenantId) { callback([]); return noop; }
+  return onSnapshot(query(collectionGroup(firestoreDb, 'sales'), where('tenantId', '==', scope.tenantId)), (snapshot) => {
+    callback(fromDocs<SaleRecord>(snapshot).sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0)));
+  });
+}
+
+export function subscribeToInventory(callback: (items: InventoryItem[]) => void) {
+  if (!firestoreDb || !scope.branchId || !scope.tenantId) { callback([]); return noop; }
+  const collPath = `restaurants/${scope.tenantId}/branches/${scope.branchId}/inventory`;
+  return onSnapshot(collection(firestoreDb, collPath), (snapshot) => callback(fromDocs<InventoryItem>(snapshot)));
+}
+
+export function subscribeToCashShifts(callback: (items: CashShift[]) => void) {
+  if (!firestoreDb || !scope.branchId || !scope.tenantId) { callback([]); return noop; }
+  const collPath = `restaurants/${scope.tenantId}/branches/${scope.branchId}/cashShifts`;
+  return onSnapshot(collection(firestoreDb, collPath), (snapshot) => callback(fromDocs<CashShift>(snapshot).sort((a, b) => b.openedAt - a.openedAt)));
+}
+
+export function subscribeToReservations(callback: (items: Reservation[]) => void) {
+  if (!firestoreDb || !scope.branchId || !scope.tenantId) { callback([]); return noop; }
+  const collPath = `restaurants/${scope.tenantId}/branches/${scope.branchId}/reservations`;
+  return onSnapshot(collection(firestoreDb, collPath), (snapshot) => callback(fromDocs<Reservation>(snapshot).sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))));
+}
+
+export function subscribeToAttendance(callback: (items: AttendanceRecord[]) => void) {
+  if (!firestoreDb || !scope.branchId || !scope.tenantId) { callback([]); return noop; }
+  const collPath = `restaurants/${scope.tenantId}/branches/${scope.branchId}/attendance`;
+  return onSnapshot(collection(firestoreDb, collPath), (snapshot) => callback(fromDocs<AttendanceRecord>(snapshot).sort((a, b) => b.checkInAt - a.checkInAt)));
+}
+
+export function subscribeToApprovals(callback: (items: ApprovalRequest[]) => void) {
+  if (!firestoreDb || !scope.tenantId) { callback([]); return noop; }
+  return onSnapshot(collection(firestoreDb, `restaurants/${scope.tenantId}/approvals`), (snapshot) => callback(fromDocs<ApprovalRequest>(snapshot).sort((a, b) => b.requestedAt - a.requestedAt)));
 }
 
 /**
@@ -353,6 +400,26 @@ export const syncBranchMenusToRTDB = async (menus: Record<string, MenuItem[]>) =
     const collPath = `restaurants/${scope.tenantId}/branches/${branchId}/menu`;
     await syncCollectionDifferential(collPath, items);
   }
+};
+
+export const syncInventoryToFirestore = async (items: InventoryItem[]) => {
+  if (!firestoreDb || !scope.branchId || !scope.tenantId) return;
+  await syncCollectionDifferential(`restaurants/${scope.tenantId}/branches/${scope.branchId}/inventory`, items);
+};
+
+export const syncCashShiftsToFirestore = async (items: CashShift[]) => {
+  if (!firestoreDb || !scope.branchId || !scope.tenantId) return;
+  await syncCollectionDifferential(`restaurants/${scope.tenantId}/branches/${scope.branchId}/cashShifts`, items);
+};
+
+export const syncReservationsToFirestore = async (items: Reservation[]) => {
+  if (!firestoreDb || !scope.branchId || !scope.tenantId) return;
+  await syncCollectionDifferential(`restaurants/${scope.tenantId}/branches/${scope.branchId}/reservations`, items);
+};
+
+export const syncAttendanceToFirestore = async (items: AttendanceRecord[]) => {
+  if (!firestoreDb || !scope.branchId || !scope.tenantId) return;
+  await syncCollectionDifferential(`restaurants/${scope.tenantId}/branches/${scope.branchId}/attendance`, items);
 };
 
 export const syncMasterCartasToRTDB = async (items: MasterCarta[]) => {

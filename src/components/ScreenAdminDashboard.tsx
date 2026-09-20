@@ -24,7 +24,7 @@ import {
   SlidersHorizontal,
   ChevronRight
 } from 'lucide-react';
-import { AdminUser, ChainBrand, KDSTicket, ScreenType, TableItem, MenuItem, StaffMember } from '../types';
+import { AdminUser, AttendanceRecord, CashShift, ChainBrand, InventoryItem, KDSTicket, ScreenType, TableItem, MenuItem, Reservation, SaleRecord, StaffMember } from '../types';
 
 interface ScreenAdminDashboardProps {
   admin: AdminUser;
@@ -34,12 +34,25 @@ interface ScreenAdminDashboardProps {
   tickets: KDSTicket[];
   menuItems?: MenuItem[];
   staffMembers?: StaffMember[];
+  sales?: SaleRecord[];
+  tenantSales?: SaleRecord[];
+  inventory?: InventoryItem[];
+  cashShifts?: CashShift[];
+  reservations?: Reservation[];
+  attendance?: AttendanceRecord[];
   onSelectBranch: (branchId: string) => void;
   onNavigate: (screen: ScreenType) => void;
   onSelectCartaTab?: (tab: 'carta' | 'sedes' | 'equipo') => void;
   onToggleItemAvailability?: (itemId: number) => void;
   onToggleBranchActive?: (branchId: string) => void;
   onSelectTable?: (tableId: string) => void;
+  onAdjustInventory?: (itemId: string, adjustment: number) => void;
+  onOpenCashShift?: (openingAmount: number) => void;
+  onCloseCashShift?: (shiftId: string, countedAmount: number) => void;
+  onCashMovement?: (type: 'income' | 'expense', amount: number, concept: string) => Promise<void> | void;
+  onCreateReservation?: (reservation: Omit<Reservation, 'id' | 'branchId' | 'createdAt' | 'status'>) => void;
+  onUpdateReservationStatus?: (reservationId: string, status: Reservation['status']) => void;
+  onToggleAttendance?: (staff: StaffMember) => void;
   onOpenRoleSwitcher?: () => void;
   onLogout?: () => void;
 }
@@ -52,17 +65,44 @@ export const ScreenAdminDashboard: React.FC<ScreenAdminDashboardProps> = ({
   tickets,
   menuItems = [],
   staffMembers = [],
+  sales = [],
+  tenantSales = [],
+  inventory = [],
+  cashShifts = [],
+  reservations = [],
+  attendance = [],
   onSelectBranch,
   onNavigate,
   onSelectCartaTab,
   onToggleItemAvailability,
   onToggleBranchActive,
   onSelectTable,
+  onAdjustInventory,
+  onOpenCashShift,
+  onCloseCashShift,
+  onCashMovement,
+  onCreateReservation,
+  onUpdateReservationStatus,
+  onToggleAttendance,
   onOpenRoleSwitcher,
   onLogout
 }) => {
-  const [activeTab, setActiveTab] = useState<'monitor' | 'rendimiento' | 'stock'>('monitor');
+  const [activeTab, setActiveTab] = useState<'monitor' | 'rendimiento' | 'stock' | 'operacion'>('monitor');
   const [stockSearch, setStockSearch] = useState('');
+  const [openingAmount, setOpeningAmount] = useState('0');
+  const [countedAmount, setCountedAmount] = useState('0');
+  const [cashMovementAmount, setCashMovementAmount] = useState('');
+  const [cashMovementConcept, setCashMovementConcept] = useState('');
+  const [reservationName, setReservationName] = useState('');
+  const [reservationPhone, setReservationPhone] = useState('');
+  const [reservationDiners, setReservationDiners] = useState('2');
+  const [reservationTime, setReservationTime] = useState('');
+  const [reportFrom, setReportFrom] = useState('');
+  const [reportTo, setReportTo] = useState('');
+  const [reportProduct, setReportProduct] = useState('');
+  const [reportStaff, setReportStaff] = useState('');
+  const [reportPayment, setReportPayment] = useState('');
+  const [reportCategory, setReportCategory] = useState('');
 
   const assignedIds =
     admin.roleKey === 'admin_general' || admin.roleKey === 'admin_global'
@@ -104,9 +144,60 @@ export const ScreenAdminDashboard: React.FC<ScreenAdminDashboardProps> = ({
 
   const pendingBillsAmount = billRequestedTables.reduce((sum, t) => sum + Number(t.total || 0), 0);
   const totalOccupiedAmount = occupiedTables.reduce((sum, t) => sum + Number(t.total || 0), 0);
-  const branchSales = Number(activeBranch?.todaySales || 0);
+  const businessDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date());
+  const salesToday = sales.filter((sale) => sale.status === 'completed' && sale.businessDate === businessDate);
+  const branchSales = salesToday.reduce((sum, sale) => sum + Number(sale.amount || 0), 0);
   const totalSales = branches.reduce((sum, branch) => sum + Number(branch.todaySales || 0), 0);
-  const avgTicket = occupiedTables.length > 0 ? totalOccupiedAmount / occupiedTables.length : 42.5;
+  const avgTicket = salesToday.length > 0 ? branchSales / salesToday.length : 0;
+  const paymentTotals = salesToday.reduce<Record<string, number>>((result, sale) => {
+    result[sale.paymentMethod] = (result[sale.paymentMethod] || 0) + Number(sale.amount || 0);
+    return result;
+  }, {});
+  const paymentBreakdown = [
+    { key: 'card', label: 'Tarjetas POS', color: 'bg-teal-600' },
+    { key: 'cash', label: 'Efectivo en Caja', color: 'bg-emerald-500' },
+    { key: 'yape_plin', label: 'Yape / Plin', color: 'bg-purple-600' },
+    { key: 'split', label: 'Pagos mixtos', color: 'bg-amber-500' }
+  ].filter(({ key }) => paymentTotals[key] > 0).map(({ key, label, color }) => ({
+    label, amount: paymentTotals[key], pct: branchSales > 0 ? Math.round((paymentTotals[key] / branchSales) * 100) : 0, color
+  }));
+  const topDishes = Object.values(salesToday.flatMap((sale) => sale.lineItems || []).reduce<Record<string, { name: string; qty: number; revenue: number; cat: string }>>((result, item) => {
+    const key = `${item.kind}:${item.name}`;
+    const existing = result[key] || { name: item.name, qty: 0, revenue: 0, cat: item.category || (item.kind === 'drink' ? 'Bebidas' : 'Carta') };
+    existing.qty += Number(item.qty || 0);
+    existing.revenue += Number(item.total || 0);
+    result[key] = existing;
+    return result;
+  }, {})).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+  const averageKdsMinutes = pendingTickets.length > 0
+    ? Math.round(pendingTickets.reduce((sum, ticket) => sum + (ticket.createdAt ? (Date.now() - ticket.createdAt) / 60000 : 0), 0) / pendingTickets.length)
+    : 0;
+  const lowStockItems = inventory.filter((item) => item.currentStock <= item.minimumStock);
+  const activeCashShift = cashShifts.find((shift) => shift.status === 'open');
+  const reportSource = tenantSales.length > 0 ? tenantSales : sales;
+  const historicalSales = reportSource.filter((sale) => sale.status === 'completed'
+    && (!reportFrom || sale.businessDate >= reportFrom)
+    && (!reportTo || sale.businessDate <= reportTo)
+    && (!reportStaff || (sale.waiterName || '').toLowerCase().includes(reportStaff.toLowerCase()))
+    && (!reportPayment || sale.paymentMethod === reportPayment)
+    && (!reportProduct || (sale.lineItems || []).some((item) => item.name.toLowerCase().includes(reportProduct.toLowerCase())))
+    && (!reportCategory || (sale.lineItems || []).some((item) => (item.category || '').toLowerCase().includes(reportCategory.toLowerCase()))));
+  const historicalRevenue = historicalSales.reduce((sum, sale) => sum + sale.amount, 0);
+  const historicalMargin = historicalSales.reduce((sum, sale) => sum + Number(sale.grossMargin ?? sale.amount - (sale.costAmount || 0)), 0);
+  const activeReservations = reservations.filter((reservation) => reservation.status === 'pending' || reservation.status === 'confirmed');
+  const attendanceDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Lima' }).format(new Date());
+  const presentStaffIds = new Set(attendance.filter((record) => record.businessDate === attendanceDate && record.status === 'present').map((record) => record.staffId));
+
+  const exportTodaySales = () => {
+    const header = 'Fecha;Mesa;Total;Método de pago;Comprobante;Mozo';
+    const rows = salesToday.map((sale) => [sale.businessDate, sale.tableNumber || sale.tableId, sale.amount.toFixed(2), sale.paymentMethod, sale.documentType, sale.waiterName || ''].map((value) => `"${String(value).replace(/"/g, '""')}"`).join(';'));
+    const url = URL.createObjectURL(new Blob([[header, ...rows].join('\n')], { type: 'text/csv;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `ventas-${businessDate}-${activeBranch?.id || 'sede'}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
 
   const occupancyRate = visibleTables.length > 0 ? Math.round((occupiedTables.length / visibleTables.length) * 100) : 0;
 
@@ -271,7 +362,7 @@ export const ScreenAdminDashboard: React.FC<ScreenAdminDashboardProps> = ({
             <p className="mt-4 text-xs font-black uppercase tracking-wider text-slate-400">Ventas Registradas</p>
             <div className="mt-1 flex items-baseline gap-2">
               <span className="text-2xl sm:text-3xl font-black tracking-tight text-[#103b39]">
-                S/ {(branchSales || totalOccupiedAmount).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                S/ {branchSales.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
               </span>
             </div>
             <p className="mt-2 text-xs font-semibold text-slate-500">
@@ -365,7 +456,7 @@ export const ScreenAdminDashboard: React.FC<ScreenAdminDashboardProps> = ({
               <strong className="text-slate-700">{hotStationTickets.length}</strong>
             </p>
             <div className="mt-3 flex items-center justify-between border-t border-orange-100/70 pt-2 text-[11px] font-bold text-orange-800">
-              <span>Tiempo promedio: ~12 min</span>
+              <span>{averageKdsMinutes > 0 ? `Promedio actual: ${averageKdsMinutes} min` : 'Sin comandas pendientes'}</span>
               <button
                 type="button"
                 onClick={() => onNavigate('cocina-kds')}
@@ -419,10 +510,12 @@ export const ScreenAdminDashboard: React.FC<ScreenAdminDashboardProps> = ({
       <section className="mx-auto max-w-7xl px-4 pt-8 sm:px-8">
         {/* Navigation Tabs Header */}
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
-          <div className="flex items-center gap-2 rounded-2xl bg-slate-100 p-1">
+          <div className="ux-tab-strip items-center rounded-2xl bg-slate-100 p-1" role="tablist" aria-label="Secciones del panel administrativo">
             <button
               type="button"
               onClick={() => setActiveTab('monitor')}
+              role="tab"
+              aria-selected={activeTab === 'monitor'}
               className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs sm:text-sm font-extrabold transition cursor-pointer ${
                 activeTab === 'monitor'
                   ? 'bg-white text-[#103b39] shadow-xs'
@@ -441,6 +534,8 @@ export const ScreenAdminDashboard: React.FC<ScreenAdminDashboardProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('rendimiento')}
+              role="tab"
+              aria-selected={activeTab === 'rendimiento'}
               className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs sm:text-sm font-extrabold transition cursor-pointer ${
                 activeTab === 'rendimiento'
                   ? 'bg-white text-[#103b39] shadow-xs'
@@ -454,6 +549,8 @@ export const ScreenAdminDashboard: React.FC<ScreenAdminDashboardProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('stock')}
+              role="tab"
+              aria-selected={activeTab === 'stock'}
               className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs sm:text-sm font-extrabold transition cursor-pointer ${
                 activeTab === 'stock'
                   ? 'bg-white text-[#103b39] shadow-xs'
@@ -462,6 +559,22 @@ export const ScreenAdminDashboard: React.FC<ScreenAdminDashboardProps> = ({
             >
               <Flame size={16} />
               <span>Stock Rápido & Carta</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('operacion')}
+              role="tab"
+              aria-selected={activeTab === 'operacion'}
+              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs sm:text-sm font-extrabold transition cursor-pointer ${
+                activeTab === 'operacion'
+                  ? 'bg-white text-[#103b39] shadow-xs'
+                  : 'text-slate-600 hover:text-[#103b39]'
+              }`}
+            >
+              <Banknote size={16} />
+              <span>Turno e Inventario</span>
+              {lowStockItems.length > 0 && <span className="rounded-full bg-rose-100 px-1.5 py-0.2 text-[10px] font-black text-rose-700">{lowStockItems.length}</span>}
             </button>
           </div>
 
@@ -653,19 +766,16 @@ export const ScreenAdminDashboard: React.FC<ScreenAdminDashboardProps> = ({
         {/* Tab 2: Rendimiento & Ventas */}
         {activeTab === 'rendimiento' && (
           <div className="mt-6 grid gap-6 lg:grid-cols-3">
+            <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs lg:col-span-3"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-black text-[#103b39]">Reporte histórico</h3><p className="text-xs text-slate-500">Sede activa: {activeBranch.name}. Administrador general: consolidado de cadena.</p></div><div className="flex flex-wrap gap-2"><input type="date" value={reportFrom} onChange={(e) => setReportFrom(e.target.value)} className="rounded-lg border p-2 text-xs"/><input type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} className="rounded-lg border p-2 text-xs"/><input value={reportProduct} onChange={(e) => setReportProduct(e.target.value)} placeholder="Producto" className="rounded-lg border p-2 text-xs"/><input value={reportStaff} onChange={(e) => setReportStaff(e.target.value)} placeholder="Colaborador" className="rounded-lg border p-2 text-xs"/><select value={reportPayment} onChange={(e) => setReportPayment(e.target.value)} className="rounded-lg border p-2 text-xs"><option value="">Todo pago</option><option value="cash">Efectivo</option><option value="card">Tarjeta</option><option value="yape_plin">Yape/Plin</option><option value="split">Mixto</option></select><input value={reportCategory} onChange={(e) => setReportCategory(e.target.value)} placeholder="Categoría" className="rounded-lg border p-2 text-xs"/></div></div><div className="mt-4 grid grid-cols-3 gap-3 text-xs"><div className="rounded-xl bg-slate-50 p-3"><span className="block text-slate-500">Ventas</span><strong>{historicalSales.length}</strong></div><div className="rounded-xl bg-slate-50 p-3"><span className="block text-slate-500">Ingresos</span><strong>S/ {historicalRevenue.toFixed(2)}</strong></div><div className="rounded-xl bg-emerald-50 p-3"><span className="block text-emerald-700">Margen bruto</span><strong>S/ {historicalMargin.toFixed(2)}</strong></div></div></div>
             {/* Box 1: Métodos de Pago */}
             <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs sm:p-6">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="font-black text-[#103b39]">Desglose de Cobros</h3>
-                <Banknote size={18} className="text-emerald-700" />
+                <div className="flex items-center gap-2"><button type="button" onClick={exportTodaySales} disabled={salesToday.length === 0} className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-black text-teal-800 disabled:opacity-40">Exportar CSV</button><Banknote size={18} className="text-emerald-700" /></div>
               </div>
 
               <div className="mt-5 space-y-4">
-                {[
-                  { label: 'Tarjetas (Visa / MC)', pct: 52, amount: totalSales * 0.52, color: 'bg-teal-600' },
-                  { label: 'Efectivo en Caja', pct: 28, amount: totalSales * 0.28, color: 'bg-emerald-500' },
-                  { label: 'Billeteras (Yape / Plin)', pct: 20, amount: totalSales * 0.2, color: 'bg-purple-600' }
-                ].map((item) => (
+                {paymentBreakdown.length === 0 ? <p className="py-6 text-center text-xs text-slate-400">Aún no hay cobros cerrados hoy.</p> : paymentBreakdown.map((item) => (
                   <div key={item.label}>
                     <div className="flex items-center justify-between text-xs font-bold">
                       <span className="text-slate-700">{item.label}</span>
@@ -696,13 +806,7 @@ export const ScreenAdminDashboard: React.FC<ScreenAdminDashboardProps> = ({
               </div>
 
               <div className="mt-4 space-y-3">
-                {[
-                  { name: 'Ceviche Clásico de Pescado', qty: 28, revenue: 560, cat: 'Ceviches' },
-                  { name: 'Trío Marino (Ceviche + Arroz + Chicharrón)', qty: 22, revenue: 550, cat: 'Especiales' },
-                  { name: 'Arroz con Mariscos al Wok', qty: 17, revenue: 476, cat: 'Calientes' },
-                  { name: 'Chicha Morada Natural (Jarra)', qty: 34, revenue: 272, cat: 'Bebidas' },
-                  { name: 'Leche de Tigre Poderosa', qty: 15, revenue: 270, cat: 'Entradas' }
-                ].map((dish, i) => (
+                {topDishes.length === 0 ? <p className="py-6 text-center text-xs text-slate-400">El ranking aparecerá al cerrar ventas.</p> : topDishes.map((dish, i) => (
                   <div key={dish.name} className="flex items-center justify-between rounded-xl bg-slate-50/70 p-2.5 text-xs">
                     <div className="flex items-center gap-2.5">
                       <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#103b39] text-[#ffd06f] font-black text-[11px]">
@@ -773,7 +877,39 @@ export const ScreenAdminDashboard: React.FC<ScreenAdminDashboardProps> = ({
           </div>
         )}
 
-        {/* Tab 3: Stock Rápido & Carta */}
+        {/* Tab 3: Turno e Inventario */}
+        {activeTab === 'operacion' && (
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs sm:p-6">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div><h3 className="font-black text-[#103b39]">Caja del turno</h3><p className="text-xs text-slate-500">Apertura, arqueo y diferencia de efectivo.</p></div>
+                <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${activeCashShift ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{activeCashShift ? 'TURNO ABIERTO' : 'SIN TURNO'}</span>
+              </div>
+              {!activeCashShift ? (
+                <div className="mt-5 flex items-end gap-3"><label className="flex-1 text-xs font-bold text-slate-600">Fondo inicial (S/)<input value={openingAmount} onChange={(e) => setOpeningAmount(e.target.value)} min="0" step="0.5" type="number" className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-700" /></label><button type="button" onClick={() => onOpenCashShift?.(Number(openingAmount))} className="rounded-xl bg-[#103b39] px-4 py-2.5 text-xs font-black text-[#ffd06f]">Abrir caja</button></div>
+              ) : (
+                <div className="mt-5 space-y-3"><div className="grid grid-cols-2 gap-3 text-xs"><div className="rounded-xl bg-slate-50 p-3"><span className="block text-slate-500">Fondo inicial</span><strong>S/ {activeCashShift.openingAmount.toFixed(2)}</strong></div><div className="rounded-xl bg-slate-50 p-3"><span className="block text-slate-500">Efectivo esperado</span><strong>S/ {(activeCashShift.openingAmount + (paymentTotals.cash || 0)).toFixed(2)}</strong></div></div><div className="flex gap-2"><input value={cashMovementConcept} onChange={(e) => setCashMovementConcept(e.target.value)} placeholder="Concepto de ingreso/gasto" className="min-w-0 flex-1 rounded-lg border px-2 py-1.5 text-xs"/><input value={cashMovementAmount} onChange={(e) => setCashMovementAmount(e.target.value)} placeholder="S/" type="number" className="w-20 rounded-lg border px-2 py-1.5 text-xs"/><button type="button" onClick={() => onCashMovement?.('income', Number(cashMovementAmount), cashMovementConcept)} className="rounded-lg bg-teal-100 px-2 text-xs font-black text-teal-800">Ingreso</button><button type="button" onClick={() => onCashMovement?.('expense', Number(cashMovementAmount), cashMovementConcept)} className="rounded-lg bg-rose-100 px-2 text-xs font-black text-rose-800">Gasto</button></div><div className="flex items-end gap-3"><label className="flex-1 text-xs font-bold text-slate-600">Efectivo contado (S/)<input value={countedAmount} onChange={(e) => setCountedAmount(e.target.value)} min="0" step="0.5" type="number" className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-700" /></label><button type="button" onClick={() => onCloseCashShift?.(activeCashShift.id, Number(countedAmount))} className="rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-black text-white">Cerrar y cuadrar</button></div></div>
+              )}
+            </div>
+
+            <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs sm:p-6">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4"><div><h3 className="font-black text-[#103b39]">Inventario crítico</h3><p className="text-xs text-slate-500">Actualiza existencias y evita quiebres de stock.</p></div><span className="text-xs font-black text-rose-700">{lowStockItems.length} alertas</span></div>
+              <div className="mt-4 space-y-2.5">{inventory.length === 0 ? <p className="py-6 text-center text-xs text-slate-400">No hay insumos registrados.</p> : inventory.map((item) => { const isLow = item.currentStock <= item.minimumStock; return <div key={item.id} className={`flex items-center justify-between rounded-xl border p-3 text-xs ${isLow ? 'border-rose-200 bg-rose-50/50' : 'border-slate-100 bg-slate-50/60'}`}><div><strong className="block text-slate-800">{item.name}</strong><span className={isLow ? 'font-bold text-rose-700' : 'text-slate-500'}>{item.currentStock} {item.unit} · mínimo {item.minimumStock} {item.unit}</span></div><div className="flex gap-1"><button type="button" onClick={() => onAdjustInventory?.(item.id, -1)} className="rounded-lg bg-white px-2 py-1 font-black text-rose-700 shadow-sm">−</button><button type="button" onClick={() => onAdjustInventory?.(item.id, 1)} className="rounded-lg bg-[#103b39] px-2 py-1 font-black text-[#ffd06f]">+</button></div></div>; })}</div>
+            </div>
+
+            <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs sm:p-6 lg:col-span-2">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4"><div><h3 className="font-black text-[#103b39]">Reservas y lista de espera</h3><p className="text-xs text-slate-500">Organiza la llegada de clientes y confirma su atención.</p></div><span className="text-xs font-black text-teal-800">{activeReservations.length} activas</span></div>
+              <form onSubmit={(event) => { event.preventDefault(); if (!reservationName.trim() || !reservationTime) return; onCreateReservation?.({ customerName: reservationName.trim(), phone: reservationPhone.trim(), diners: Math.max(1, Number(reservationDiners)), scheduledAt: reservationTime }); setReservationName(''); setReservationPhone(''); }} className="mt-4 grid gap-2 sm:grid-cols-5"><input required value={reservationName} onChange={(e) => setReservationName(e.target.value)} placeholder="Cliente" className="rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-teal-700" /><input value={reservationPhone} onChange={(e) => setReservationPhone(e.target.value)} placeholder="Teléfono" className="rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-teal-700" /><input required type="number" min="1" value={reservationDiners} onChange={(e) => setReservationDiners(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-teal-700" /><input required type="datetime-local" value={reservationTime} onChange={(e) => setReservationTime(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-teal-700" /><button className="rounded-xl bg-[#103b39] px-3 py-2 text-xs font-black text-[#ffd06f]">Registrar</button></form>
+              <div className="mt-4 space-y-2">{activeReservations.length === 0 ? <p className="py-4 text-center text-xs text-slate-400">No hay reservas pendientes.</p> : activeReservations.map((reservation) => <div key={reservation.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-3 text-xs"><div><strong className="text-slate-800">{reservation.customerName}</strong><span className="ml-2 text-slate-500">{reservation.diners} pers. · {new Date(reservation.scheduledAt).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })}</span></div><div className="flex gap-1"><button type="button" onClick={() => onUpdateReservationStatus?.(reservation.id, 'confirmed')} className="rounded-lg bg-teal-100 px-2 py-1 font-bold text-teal-800">Confirmar</button><button type="button" onClick={() => onUpdateReservationStatus?.(reservation.id, 'seated')} className="rounded-lg bg-emerald-100 px-2 py-1 font-bold text-emerald-800">Llegó</button><button type="button" onClick={() => onUpdateReservationStatus?.(reservation.id, 'cancelled')} className="rounded-lg bg-rose-100 px-2 py-1 font-bold text-rose-800">Cancelar</button></div></div>)}</div>
+            </div>
+            <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs sm:p-6 lg:col-span-2">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4"><div><h3 className="font-black text-[#103b39]">Asistencia del personal</h3><p className="text-xs text-slate-500">Control de ingreso y salida del equipo de esta sede.</p></div><span className="text-xs font-black text-emerald-700">{presentStaffIds.size} en turno</span></div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{visibleStaff.map((member) => { const isPresent = presentStaffIds.has(member.id); return <div key={member.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 p-3 text-xs"><div><strong className="block text-slate-800">{member.name}</strong><span className="text-slate-500">{member.role}</span></div><button type="button" onClick={() => onToggleAttendance?.(member)} className={`rounded-lg px-2.5 py-1.5 font-black ${isPresent ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>{isPresent ? 'Marcar salida' : 'Marcar ingreso'}</button></div>; })}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 4: Stock Rápido & Carta */}
         {activeTab === 'stock' && (
           <div className="mt-6 rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-slate-100">

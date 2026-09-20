@@ -2,7 +2,7 @@ import { signInWithCustomToken, signInWithEmailAndPassword, signOut } from 'fire
 import { auth } from './firebase';
 import { firestoreDb } from './firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { AdminUser, AppRole } from '../types';
+import { AdminUser, AppRole, PaymentDetails } from '../types';
 
 const ADMIN_ROLES: AppRole[] = ['admin_global', 'admin_general', 'admin_sede'];
 
@@ -151,10 +151,10 @@ export async function recordCompletedSale(
   tenantId: string,
   branchId: string,
   tableId: string,
-  tipAmount = 0
+  payment: PaymentDetails
 ): Promise<void> {
   if (!auth?.currentUser) throw new Error('La sesión no está activa.');
-  if (!Number.isFinite(tipAmount) || tipAmount < 0) {
+  if (!Number.isFinite(payment.tipAmount) || payment.tipAmount < 0) {
     throw new Error('La propina ingresada no es válida.');
   }
   const token = await auth.currentUser.getIdToken();
@@ -163,10 +163,47 @@ export async function recordCompletedSale(
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     // El servidor obtiene el consumo desde la mesa; el cliente solo informa la
     // propina opcional para que nunca pueda alterar el importe de una venta.
-    body: JSON.stringify({ tenantId, branchId, tableId, tipAmount })
+    body: JSON.stringify({ tenantId, branchId, tableId, tipAmount: payment.tipAmount, payment })
   });
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
     throw new Error(result.error || 'No fue posible registrar la venta.');
   }
+}
+
+export async function recordInventoryMovement(
+  tenantId: string,
+  branchId: string,
+  inventoryItemId: string,
+  type: 'purchase' | 'waste' | 'adjustment' | 'transfer',
+  quantity: number,
+  reason = ''
+): Promise<void> {
+  if (!auth?.currentUser) throw new Error('La sesión no está activa.');
+  const response = await fetch('/api/inventory/movement', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await auth.currentUser.getIdToken()}` },
+    body: JSON.stringify({ tenantId, branchId, inventoryItemId, type, quantity, reason })
+  });
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    throw new Error(result.error || 'No fue posible registrar el movimiento de inventario.');
+  }
+}
+
+export async function createApprovalRequest(tenantId: string, branchId: string, type: string, reason: string) {
+  if (!auth?.currentUser) throw new Error('La sesión no está activa.');
+  const response = await fetch('/api/approvals', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await auth.currentUser.getIdToken()}` }, body: JSON.stringify({ tenantId, branchId, type, reason }) });
+  if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'No fue posible crear la solicitud.');
+}
+
+export async function decideApproval(id: string, decision: 'approved' | 'rejected', note = '') {
+  if (!auth?.currentUser) throw new Error('La sesión no está activa.');
+  const response = await fetch(`/api/approvals/${id}/decision`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await auth.currentUser.getIdToken()}` }, body: JSON.stringify({ decision, note }) });
+  if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'No fue posible resolver la solicitud.');
+}
+
+export async function recordCashMovement(tenantId: string, branchId: string, shiftId: string | undefined, type: 'income' | 'expense', amount: number, concept: string) {
+  if (!auth?.currentUser) throw new Error('La sesión no está activa.');
+  const response = await fetch('/api/cash/movement', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await auth.currentUser.getIdToken()}` }, body: JSON.stringify({ tenantId, branchId, shiftId, type, amount, concept }) });
+  if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'No fue posible registrar el movimiento de caja.');
 }
