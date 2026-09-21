@@ -269,7 +269,7 @@ export default function App() {
           }
         });
       } catch (err) {
-        console.warn('No se pudo cargar la información pública del restaurante:', err);
+        console.error('No se pudo cargar la información pública del restaurante:', err);
       }
     };
 
@@ -1294,7 +1294,7 @@ export default function App() {
     if (updatedTable) {
       rememberDrinkStates(tableId, updatedTable.drinks || []);
       void persistTableDrinks(activeChainId, activeBranchId, tableId, updatedTable.drinks || []).catch((error) => {
-        console.warn('No se pudo persistir el despacho de bebidas:', error);
+        console.error('No se pudo persistir el despacho de bebidas:', error);
       });
     }
   };
@@ -1368,7 +1368,7 @@ export default function App() {
     tablesToPersist.forEach((table) => {
       rememberDrinkStates(table.id, table.drinks || []);
       void persistTableDrinks(activeChainId, activeBranchId, table.id, table.drinks || []).catch((error) => {
-        console.warn('No se pudo persistir el despacho de bebidas:', error);
+        console.error('No se pudo persistir el despacho de bebidas:', error);
       });
     });
   };
@@ -2124,13 +2124,13 @@ export default function App() {
         const resGen = await provisionAdminIdentity(genAdmin);
         if (resGen?.activationLink) links.push({ email: genAdmin.email || '', activationLink: resGen.activationLink });
       } catch (err) {
-        console.warn('No se pudo provisionar admin general automáticamente:', err);
+        console.error('No se pudo provisionar admin general automáticamente:', err);
       }
       try {
         const resSede = await provisionAdminIdentity(sedeAdmin);
         if (resSede?.activationLink) links.push({ email: sedeAdmin.email || '', activationLink: resSede.activationLink });
       } catch (err) {
-        console.warn('No se pudo provisionar admin de sede automáticamente:', err);
+        console.error('No se pudo provisionar admin de sede automáticamente:', err);
       }
     }
     return links;
@@ -2172,7 +2172,7 @@ export default function App() {
       setAdmins((prev) => [safeManager, ...prev]);
       if (auth?.currentUser && safeManager.email) {
         provisionAdminIdentity(safeManager).catch((err) =>
-          console.warn('No se pudo provisionar admin de sede en Auth:', err)
+          console.error('No se pudo provisionar admin de sede en Auth:', err)
         );
       }
     }
@@ -2473,7 +2473,7 @@ export default function App() {
           branchId: branchIds[0] || targetAdmin.branchId
         });
       } catch (err) {
-        console.warn('No se pudo sincronizar sedes con Firebase Auth:', err);
+        console.error('No se pudo sincronizar sedes con Firebase Auth:', err);
       }
     }
   };

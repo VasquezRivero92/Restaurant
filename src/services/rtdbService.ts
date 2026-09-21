@@ -38,7 +38,7 @@ export async function initRTDBSeedIfEmpty(): Promise<boolean> {
 
 const noop = () => {};
 const handleSnapshotError = (resource: string, fallback?: () => void) => (err: Error) => {
-  console.warn(`[Firestore:${resource}] Error de permisos o lectura:`, err.message);
+  console.error(`[Firestore:${resource}] Error de permisos o lectura:`, err);
   if (fallback) fallback();
 };
 
@@ -382,7 +382,7 @@ async function syncCollectionDifferential<T extends { id: string | number }>(
       if (knownIds) knownIds.delete(delId);
     }
   } catch (err) {
-    console.warn(`[RTDB/Firestore Sync Warning] No se pudo guardar cambios en '${collPath}':`, err);
+    console.error(`[RTDB/Firestore Sync Error] No se pudo guardar cambios en '${collPath}':`, err);
   }
 }
 
@@ -431,7 +431,7 @@ export const syncSaleRecordToFirestore = async (sale: SaleRecord) => {
     const docRef = doc(firestoreDb, `restaurants/${sale.tenantId}/branches/${sale.branchId}/sales`, sale.id);
     await setDoc(docRef, clean(sale), { merge: true });
   } catch (err) {
-    console.warn('[RTDB/Firestore Sync Warning] No se pudo guardar la venta en Firestore:', err);
+    console.error('[RTDB/Firestore Sync Error] No se pudo guardar la venta en Firestore:', err);
   }
 };
 

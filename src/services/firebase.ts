@@ -44,7 +44,7 @@ if (isFirebaseConfigured) {
     }
     firebaseAuth = getAuth(app);
   } catch (error) {
-    console.warn('Firebase no pudo inicializarse:', error);
+    console.error('Firebase no pudo inicializarse:', error);
   }
 } else {
   console.info('Firebase no está configurado. Completa las variables VITE_FIREBASE_* del entorno.');
