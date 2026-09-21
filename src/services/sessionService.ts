@@ -55,3 +55,41 @@ export function clearSession(): void {
     console.warn('Error clearing session from localStorage:', error);
   }
 }
+
+export function savePersistedData<T>(key: string, data: T): void {
+  try {
+    localStorage.setItem(`ordena_cache_${key}`, JSON.stringify(data));
+  } catch (err) {
+    console.warn(`Error persisting ${key} to localStorage:`, err);
+  }
+}
+
+export function loadPersistedData<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(`ordena_cache_${key}`);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    if (parsed !== null && parsed !== undefined) {
+      return parsed as T;
+    }
+    return fallback;
+  } catch (err) {
+    console.warn(`Error loading ${key} from localStorage:`, err);
+    return fallback;
+  }
+}
+
+export function clearAllPersistedData(): void {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('ordena_cache_')) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch (err) {
+    console.warn('Error clearing persisted cache:', err);
+  }
+}

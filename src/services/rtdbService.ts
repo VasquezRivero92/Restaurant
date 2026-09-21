@@ -1,6 +1,7 @@
 import {
   collection,
   collectionGroup,
+  deleteDoc,
   doc,
   documentId,
   onSnapshot,
@@ -387,7 +388,7 @@ async function syncCollectionDifferential<T extends { id: string | number }>(
 }
 
 export const syncTablesToRTDB = async (items: TableItem[]) => {
-  if (!firestoreDb || !scope.branchId || !scope.tenantId || !Array.isArray(items) || items.length === 0) return;
+  if (!firestoreDb || !scope.branchId || !scope.tenantId || !Array.isArray(items)) return;
   const collPath = `restaurants/${scope.tenantId}/branches/${scope.branchId}/tables`;
   await syncCollectionDifferential(collPath, items, (table) => ({
     ...table,
@@ -409,7 +410,7 @@ export const syncKDSTicketsToRTDB = async (items: KDSTicket[]) => {
 export const syncBranchMenusToRTDB = async (menus: Record<string, MenuItem[]>) => {
   if (!firestoreDb || !scope.tenantId) return;
   for (const [branchId, items] of Object.entries(menus)) {
-    if (!items || items.length === 0) continue;
+    if (!items || !Array.isArray(items)) continue;
     const collPath = `restaurants/${scope.tenantId}/branches/${branchId}/menu`;
     await syncCollectionDifferential(collPath, items);
   }
@@ -446,13 +447,31 @@ export const syncAttendanceToFirestore = async (items: AttendanceRecord[]) => {
 };
 
 export const syncMasterCartasToRTDB = async (items: MasterCarta[]) => {
-  if (!items || items.length === 0) return;
+  if (!items || !Array.isArray(items)) return;
   const collPath = scope.tenantId ? `restaurants/${scope.tenantId}/masterCartas` : 'masterCartas';
   await syncCollectionDifferential(collPath, items);
 };
 
 export const syncChainsToRTDB = async (items: ChainBrand[]) => {
-  if (!firestoreDb || !Array.isArray(items) || items.length === 0) return;
+  if (!firestoreDb || !Array.isArray(items)) return;
+
+  // Detectar y eliminar cadenas removidas
+  const knownChains = knownCollectionIds.get('restaurants');
+  const currentChainIds = new Set(items.map((c) => c.id));
+  if (knownChains) {
+    for (const oldChainId of knownChains) {
+      if (!currentChainIds.has(oldChainId)) {
+        try {
+          await deleteDoc(doc(firestoreDb, 'restaurants', oldChainId));
+          knownChains.delete(oldChainId);
+          syncedCache.delete(getDocKey('restaurants', oldChainId));
+        } catch (e) {
+          console.warn(`[Firestore] Error al eliminar restaurante '${oldChainId}':`, e);
+        }
+      }
+    }
+  }
+
   for (const chain of items) {
     const { locations, ...chainMeta } = chain;
     const restPayload = clean({
@@ -479,11 +498,11 @@ export const syncChainsToRTDB = async (items: ChainBrand[]) => {
 };
 
 export const syncAdminsToRTDB = async (items: AdminUser[]) => {
-  if (!firestoreDb || !items || items.length === 0) return;
+  if (!firestoreDb || !items || !Array.isArray(items)) return;
   const isGlobalUser = !scope.tenantId;
   const itemsToSync = isGlobalUser
     ? items
-    : items.filter((a) => (a.tenantId || a.brandId) === scope.tenantId && a.roleKey !== 'admin_global');
+    : items.filter((a) => (a.tenantId || a.brandId) === scope.tenantId || a.roleKey === 'admin_global');
 
   if (itemsToSync.length === 0) return;
 
@@ -495,16 +514,138 @@ export const syncAdminsToRTDB = async (items: AdminUser[]) => {
 };
 
 export async function syncStaffToRTDB(items: StaffMember[]) {
-  if (!auth?.currentUser || !Array.isArray(items) || items.length === 0 || !scope.tenantId) return;
-  const token = await auth.currentUser.getIdToken();
-  const response = await fetch('/api/staff/sync', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ tenantId: scope.tenantId, staff: items })
-  });
-  if (!response.ok) throw new Error('No fue posible guardar el personal.');
+  if (!Array.isArray(items)) return;
+  const tenantId = scope.tenantId;
+  if (!tenantId) return;
+
+  // 1. Sincronizar vía endpoint seguro del servidor si hay usuario autenticado
+  let serverSuccess = false;
+  if (auth?.currentUser) {
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const response = await fetch('/api/staff/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ tenantId, staff: items })
+      });
+      if (response.ok) {
+        serverSuccess = true;
+      }
+    } catch (err) {
+      console.warn('[Staff Sync] Servidor no respondió, utilizando fallback directo a Firestore:', err);
+    }
+  }
+
+  // 2. Fallback directo a Firestore si el endpoint falló o no estaba autenticado
+  if (!serverSuccess && firestoreDb) {
+    try {
+      await syncCollectionDifferential('users', items.map((s) => ({
+        ...s,
+        tenantId: s.tenantId || tenantId
+      })));
+    } catch (err) {
+      console.error('[Firestore] Error al sincronizar personal directamente:', err);
+    }
+  }
+}
+
+/**
+ * Operaciones directas e inmediatas de eliminación en Firestore
+ */
+export async function deleteChainFromFirestore(chainId: string): Promise<void> {
+  if (!firestoreDb || !chainId) return;
+  try {
+    await deleteDoc(doc(firestoreDb, 'restaurants', chainId));
+    knownCollectionIds.get('restaurants')?.delete(chainId);
+    syncedCache.delete(getDocKey('restaurants', chainId));
+  } catch (err) {
+    console.error(`[Firestore] Error al eliminar restaurante '${chainId}':`, err);
+  }
+}
+
+export async function deleteLocationFromFirestore(chainId: string, locationId: string): Promise<void> {
+  if (!firestoreDb || !chainId || !locationId) return;
+  try {
+    await deleteDoc(doc(firestoreDb, `restaurants/${chainId}/branches`, locationId));
+    const branchColl = `restaurants/${chainId}/branches`;
+    knownCollectionIds.get(branchColl)?.delete(locationId);
+    syncedCache.delete(getDocKey(branchColl, locationId));
+  } catch (err) {
+    console.error(`[Firestore] Error al eliminar sede '${locationId}':`, err);
+  }
+}
+
+export async function deleteMenuItemFromFirestore(tenantId: string, branchId: string, itemId: number | string): Promise<void> {
+  if (!firestoreDb || !tenantId || !branchId || itemId === undefined) return;
+  try {
+    const collPath = `restaurants/${tenantId}/branches/${branchId}/menu`;
+    await deleteDoc(doc(firestoreDb, collPath, String(itemId)));
+    knownCollectionIds.get(collPath)?.delete(String(itemId));
+    syncedCache.delete(getDocKey(collPath, String(itemId)));
+  } catch (err) {
+    console.error(`[Firestore] Error al eliminar plato '${itemId}':`, err);
+  }
+}
+
+export async function deleteStaffFromFirestore(staffId: string): Promise<void> {
+  if (!firestoreDb || !staffId) return;
+  try {
+    await deleteDoc(doc(firestoreDb, 'users', String(staffId)));
+    knownCollectionIds.get('users')?.delete(String(staffId));
+    syncedCache.delete(getDocKey('users', String(staffId)));
+  } catch (err) {
+    console.error(`[Firestore] Error al eliminar usuario de personal '${staffId}':`, err);
+  }
+}
+
+export async function deleteAdminFromFirestore(adminId: string): Promise<void> {
+  if (!firestoreDb || !adminId) return;
+  try {
+    await deleteDoc(doc(firestoreDb, 'users', String(adminId)));
+    knownCollectionIds.get('users')?.delete(String(adminId));
+    syncedCache.delete(getDocKey('users', String(adminId)));
+  } catch (err) {
+    console.error(`[Firestore] Error al eliminar administrador '${adminId}':`, err);
+  }
+}
+
+export async function deleteTableFromFirestore(tenantId: string, branchId: string, tableId: string): Promise<void> {
+  if (!firestoreDb || !tenantId || !branchId || !tableId) return;
+  try {
+    const collPath = `restaurants/${tenantId}/branches/${branchId}/tables`;
+    await deleteDoc(doc(firestoreDb, collPath, String(tableId)));
+    knownCollectionIds.get(collPath)?.delete(String(tableId));
+    syncedCache.delete(getDocKey(collPath, String(tableId)));
+  } catch (err) {
+    console.error(`[Firestore] Error al eliminar mesa '${tableId}':`, err);
+  }
+}
+
+export async function deleteOrderFromFirestore(tenantId: string, branchId: string, orderId: string): Promise<void> {
+  if (!firestoreDb || !tenantId || !branchId || !orderId) return;
+  try {
+    const collPath = `restaurants/${tenantId}/branches/${branchId}/orders`;
+    await deleteDoc(doc(firestoreDb, collPath, String(orderId)));
+    knownCollectionIds.get(collPath)?.delete(String(orderId));
+    syncedCache.delete(getDocKey(collPath, String(orderId)));
+  } catch (err) {
+    console.error(`[Firestore] Error al eliminar comanda '${orderId}':`, err);
+  }
+}
+
+export async function deleteMasterCartaFromFirestore(tenantId: string, cartaId: string): Promise<void> {
+  if (!firestoreDb || !cartaId) return;
+  try {
+    const collPath = tenantId ? `restaurants/${tenantId}/masterCartas` : 'masterCartas';
+    await deleteDoc(doc(firestoreDb, collPath, String(cartaId)));
+    knownCollectionIds.get(collPath)?.delete(String(cartaId));
+    syncedCache.delete(getDocKey(collPath, String(cartaId)));
+  } catch (err) {
+    console.error(`[Firestore] Error al eliminar carta maestra '${cartaId}':`, err);
+  }
 }
 
 export async function resetAllDataInRTDB() {
   return false;
 }
+

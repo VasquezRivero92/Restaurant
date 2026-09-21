@@ -22,9 +22,12 @@ interface ErrorBoundaryState {
 }
 
 class RootErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public props: ErrorBoundaryProps;
+  public state: ErrorBoundaryState = { hasError: false, error: null };
+
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.props = props;
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {

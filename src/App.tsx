@@ -85,9 +85,17 @@ import {
   syncCashShiftsToFirestore,
   syncReservationsToFirestore,
   syncAttendanceToFirestore,
-  resetAllDataInRTDB
+  resetAllDataInRTDB,
+  deleteChainFromFirestore,
+  deleteLocationFromFirestore,
+  deleteMenuItemFromFirestore,
+  deleteStaffFromFirestore,
+  deleteAdminFromFirestore,
+  deleteTableFromFirestore,
+  deleteOrderFromFirestore,
+  deleteMasterCartaFromFirestore
 } from './services/rtdbService';
-import { loadSession, saveSession, clearSession } from './services/sessionService';
+import { loadSession, saveSession, clearSession, loadPersistedData, savePersistedData, clearAllPersistedData } from './services/sessionService';
 import { closeAdminSession, ensureTableReadyForPayment, fetchTableDrinks, persistTableDrinks, provisionAdminIdentity, recordCashMovement, recordCompletedSale, recordInventoryMovement } from './services/authService';
 import { auth } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -113,8 +121,8 @@ export default function App() {
     }
     return 'pin-lock';
   });
-  const [tables, setTables] = useState<TableItem[]>(() =>
-    isDemoMode
+  const [tables, setTables] = useState<TableItem[]>(() => {
+    const defaultTables = isDemoMode
       ? INITIAL_TABLES
       : INITIAL_TABLES.map((t) => ({
           ...t,
@@ -130,14 +138,19 @@ export default function App() {
           dishes: [],
           drinks: [],
           canceledItems: []
-        }))
-  );
+        }));
+    return loadPersistedData('tables', defaultTables);
+  });
   
   // Master Cartas SaaS Catalog
-  const [masterCartas, setMasterCartas] = useState<MasterCarta[]>(INITIAL_MASTER_CARTAS);
+  const [masterCartas, setMasterCartas] = useState<MasterCarta[]>(() =>
+    loadPersistedData('masterCartas', INITIAL_MASTER_CARTAS)
+  );
 
   // Chains & Branches
-  const [chains, setChains] = useState<ChainBrand[]>(INITIAL_CHAINS);
+  const [chains, setChains] = useState<ChainBrand[]>(() =>
+    loadPersistedData('chains', INITIAL_CHAINS)
+  );
 
   // Independent Menu per Branch: Record<branchId, MenuItem[]>
   const [branchMenus, setBranchMenus] = useState<Record<string, MenuItem[]>>(() => {
@@ -149,23 +162,27 @@ export default function App() {
         initialBranchMap[loc.id] = JSON.parse(JSON.stringify(baseDishes));
       });
     });
-    return initialBranchMap;
+    return loadPersistedData('branchMenus', initialBranchMap);
   });
 
   // A new order must always start empty. Preloading products here makes it
   // possible to send a chargeable order without the waiter selecting anything.
   const [cart, setCart] = useState<{ [cartKey: string]: CartItem }>({});
-  const [kdsTickets, setKdsTickets] = useState<KDSTicket[]>(() => (isDemoMode ? INITIAL_KDS_TICKETS : []));
-  const [sales, setSales] = useState<SaleRecord[]>([]);
+  const [kdsTickets, setKdsTickets] = useState<KDSTicket[]>(() =>
+    loadPersistedData('kdsTickets', isDemoMode ? INITIAL_KDS_TICKETS : [])
+  );
+  const [sales, setSales] = useState<SaleRecord[]>(() => loadPersistedData('sales', []));
   const [tenantSales, setTenantSales] = useState<SaleRecord[]>([]);
-  const [inventory, setInventory] = useState<InventoryItem[]>(INITIAL_INVENTORY);
-  const [cashShifts, setCashShifts] = useState<CashShift[]>([]);
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>(() =>
+    loadPersistedData('inventory', INITIAL_INVENTORY)
+  );
+  const [cashShifts, setCashShifts] = useState<CashShift[]>(() => loadPersistedData('cashShifts', []));
+  const [reservations, setReservations] = useState<Reservation[]>(() => loadPersistedData('reservations', []));
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => loadPersistedData('attendance', []));
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [qrOrders, setQrOrders] = useState<QrCustomerOrder[]>([]);
-  const [admins, setAdmins] = useState<AdminUser[]>(INITIAL_ADMINS);
-  const [staffMembers, setStaffMembers] = useState<StaffMember[]>(INITIAL_STAFF);
+  const [admins, setAdmins] = useState<AdminUser[]>(() => loadPersistedData('admins', INITIAL_ADMINS));
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>(() => loadPersistedData('staffMembers', INITIAL_STAFF));
   const [selectedTableId, setSelectedTableId] = useState<string>(() => initialSession?.selectedTableId || 'mesa-05');
   const [isDrinksTrayOpen, setIsDrinksTrayOpen] = useState(false);
   const [isRoleSwitcherOpen, setIsRoleSwitcherOpen] = useState(false);
@@ -447,73 +464,77 @@ export default function App() {
       if (cloudTables && cloudTables.length > 0) {
         isRemoteTables.current = true;
         setTables((prevTables) => {
+          let updatedTables: TableItem[];
           if (!prevTables || prevTables.length === 0) {
-            return cloudTables.map((table) => ({
+            updatedTables = cloudTables.map((table) => ({
               ...table,
               drinks: (table.drinks || []).map((drink) => ({
                 ...drink,
                 ...(servedDrinkStatesRef.current[table.id]?.[drink.id] || {})
               }))
             }));
-          }
-          return cloudTables.map((cTable) => {
-            const persistedDrinkStates = servedDrinkStatesRef.current[cTable.id] || {};
-            const persistedCloudTable = {
-              ...cTable,
-              drinks: (cTable.drinks || []).map((drink) => ({
-                ...drink,
-                ...(persistedDrinkStates[drink.id] || {})
-              }))
-            };
-            const lTable = prevTables.find((lt) => lt.id === cTable.id);
-            if (!lTable) return persistedCloudTable;
+          } else {
+            updatedTables = cloudTables.map((cTable) => {
+              const persistedDrinkStates = servedDrinkStatesRef.current[cTable.id] || {};
+              const persistedCloudTable = {
+                ...cTable,
+                drinks: (cTable.drinks || []).map((drink) => ({
+                  ...drink,
+                  ...(persistedDrinkStates[drink.id] || {})
+                }))
+              };
+              const lTable = prevTables.find((lt) => lt.id === cTable.id);
+              if (!lTable) return persistedCloudTable;
 
-            // Merge drinks: once marked served locally, keep it served unless explicitly cleared
-            const mergedDrinks = (persistedCloudTable.drinks || []).map((cDrink) => {
-              const lDrink = lTable.drinks?.find(
-                (ld) => ld.id === cDrink.id || ld.name.toLowerCase().trim() === cDrink.name.toLowerCase().trim()
+              // Merge drinks: once marked served locally, keep it served unless explicitly cleared
+              const mergedDrinks = (persistedCloudTable.drinks || []).map((cDrink) => {
+                const lDrink = lTable.drinks?.find(
+                  (ld) => ld.id === cDrink.id || ld.name.toLowerCase().trim() === cDrink.name.toLowerCase().trim()
+                );
+                if (!lDrink) return cDrink;
+                const isServed = Boolean(cDrink.served || lDrink.served);
+                return {
+                  ...cDrink,
+                  served: isServed,
+                  servedAt: isServed ? (cDrink.servedAt || lDrink.servedAt) : undefined
+                };
+              });
+
+              // Keep any local drinks that haven't synced to Firestore yet
+              const cDrinkNames = new Set(mergedDrinks.map((d) => d.name.toLowerCase().trim()));
+              const localOnlyDrinks = (lTable.drinks || []).filter(
+                (ld) => !cDrinkNames.has(ld.name.toLowerCase().trim())
               );
-              if (!lDrink) return cDrink;
-              const isServed = Boolean(cDrink.served || lDrink.served);
+
+              // Merge dishes: keep served status if served locally
+              const mergedDishes = (cTable.dishes || []).map((cD) => {
+                const lD = lTable.dishes?.find((ld) => ld.id === cD.id || ld.name === cD.name);
+                if (!lD) return cD;
+                const isServed = cD.status === 'served' || lD.status === 'served';
+                const isReady = cD.status === 'ready' || lD.status === 'ready';
+                return {
+                  ...cD,
+                  status: isServed ? ('served' as const) : isReady ? ('ready' as const) : cD.status
+                };
+              });
+
+              const effectiveStatus =
+                lTable.status === 'eating' && (cTable.status === 'ready' || cTable.status === 'cooking')
+                  ? 'eating'
+                  : lTable.status === 'free' && cTable.status !== 'free'
+                  ? 'free'
+                  : cTable.status;
+
               return {
-                ...cDrink,
-                served: isServed,
-                servedAt: isServed ? (cDrink.servedAt || lDrink.servedAt) : undefined
+                ...persistedCloudTable,
+                status: effectiveStatus,
+                drinks: [...mergedDrinks, ...localOnlyDrinks],
+                dishes: mergedDishes.length > 0 ? mergedDishes : cTable.dishes
               };
             });
-
-            // Keep any local drinks that haven't synced to Firestore yet
-            const cDrinkNames = new Set(mergedDrinks.map((d) => d.name.toLowerCase().trim()));
-            const localOnlyDrinks = (lTable.drinks || []).filter(
-              (ld) => !cDrinkNames.has(ld.name.toLowerCase().trim())
-            );
-
-            // Merge dishes: keep served status if served locally
-            const mergedDishes = (cTable.dishes || []).map((cD) => {
-              const lD = lTable.dishes?.find((ld) => ld.id === cD.id || ld.name === cD.name);
-              if (!lD) return cD;
-              const isServed = cD.status === 'served' || lD.status === 'served';
-              const isReady = cD.status === 'ready' || lD.status === 'ready';
-              return {
-                ...cD,
-                status: isServed ? ('served' as const) : isReady ? ('ready' as const) : cD.status
-              };
-            });
-
-            const effectiveStatus =
-              lTable.status === 'eating' && (cTable.status === 'ready' || cTable.status === 'cooking')
-                ? 'eating'
-                : lTable.status === 'free' && cTable.status !== 'free'
-                ? 'free'
-                : cTable.status;
-
-            return {
-              ...persistedCloudTable,
-              status: effectiveStatus,
-              drinks: [...mergedDrinks, ...localOnlyDrinks],
-              dishes: mergedDishes.length > 0 ? mergedDishes : cTable.dishes
-            };
-          });
+          }
+          savePersistedData('tables', updatedTables);
+          return updatedTables;
         });
         setIsCloudConnected(true);
       }
@@ -541,7 +562,11 @@ export default function App() {
             };
           });
         });
-        setBranchMenus(normalized);
+        setBranchMenus((prev) => {
+          const updated = { ...prev, ...normalized };
+          savePersistedData('branchMenus', updated);
+          return updated;
+        });
         setIsCloudConnected(true);
       }
     });
@@ -550,47 +575,53 @@ export default function App() {
       if (cloudTickets) {
         isRemoteTickets.current = true;
         setKdsTickets((prevTickets) => {
-          if (!prevTickets || prevTickets.length === 0) return cloudTickets;
-          return cloudTickets.map((cTicket) => {
-            const localTicket = prevTickets.find((lt) => lt.id === cTicket.id);
-            if (!localTicket) return cTicket;
+          let updatedTickets: KDSTicket[];
+          if (!prevTickets || prevTickets.length === 0) {
+            updatedTickets = cloudTickets;
+          } else {
+            updatedTickets = cloudTickets.map((cTicket) => {
+              const localTicket = prevTickets.find((lt) => lt.id === cTicket.id);
+              if (!localTicket) return cTicket;
 
-            const mergedItems = cTicket.items.map((cItem, idx) => {
-              const lItem =
-                localTicket.items[idx] ||
-                localTicket.items.find((li) => li.id === cItem.id || li.name === cItem.name);
-              if (!lItem) return cItem;
-              const isReady = Boolean(cItem.isReady || lItem.isReady);
-              const isServed = Boolean(cItem.isServed || lItem.isServed);
+              const mergedItems = cTicket.items.map((cItem, idx) => {
+                const lItem =
+                  localTicket.items[idx] ||
+                  localTicket.items.find((li) => li.id === cItem.id || li.name === cItem.name);
+                if (!lItem) return cItem;
+                const isReady = Boolean(cItem.isReady || lItem.isReady);
+                const isServed = Boolean(cItem.isServed || lItem.isServed);
+                return {
+                  ...cItem,
+                  isReady,
+                  isServed,
+                  status: isServed
+                    ? ('served' as const)
+                    : isReady
+                    ? ('ready' as const)
+                    : cItem.status,
+                  readyAt: cItem.readyAt || lItem.readyAt,
+                  servedAt: cItem.servedAt || lItem.servedAt
+                };
+              });
+
+              const allReady = mergedItems.every((i) => i.isReady);
+              const allServed = mergedItems.every((i) => i.isServed);
+
               return {
-                ...cItem,
-                isReady,
-                isServed,
-                status: isServed
+                ...cTicket,
+                items: mergedItems,
+                status: allServed
                   ? ('served' as const)
-                  : isReady
+                  : allReady
                   ? ('ready' as const)
-                  : cItem.status,
-                readyAt: cItem.readyAt || lItem.readyAt,
-                servedAt: cItem.servedAt || lItem.servedAt
+                  : localTicket.status === 'ready'
+                  ? ('ready' as const)
+                  : cTicket.status
               };
             });
-
-            const allReady = mergedItems.every((i) => i.isReady);
-            const allServed = mergedItems.every((i) => i.isServed);
-
-            return {
-              ...cTicket,
-              items: mergedItems,
-              status: allServed
-                ? ('served' as const)
-                : allReady
-                ? ('ready' as const)
-                : localTicket.status === 'ready'
-                ? ('ready' as const)
-                : cTicket.status
-            };
-          });
+          }
+          savePersistedData('kdsTickets', updatedTickets);
+          return updatedTickets;
         });
         setIsCloudConnected(true);
       }
@@ -603,20 +634,26 @@ export default function App() {
     }) : () => {};
 
     const unsubInventory = subscribeToInventory((cloudInventory) => {
-      if (cloudInventory.length > 0) setInventory(cloudInventory);
+      if (cloudInventory.length > 0) {
+        setInventory(cloudInventory);
+        savePersistedData('inventory', cloudInventory);
+      }
       setIsCloudConnected(true);
     });
 
     const unsubCashShifts = subscribeToCashShifts((cloudShifts) => {
       setCashShifts(cloudShifts);
+      savePersistedData('cashShifts', cloudShifts);
       setIsCloudConnected(true);
     });
     const unsubReservations = subscribeToReservations((cloudReservations) => {
       setReservations(cloudReservations);
+      savePersistedData('reservations', cloudReservations);
       setIsCloudConnected(true);
     });
     const unsubAttendance = subscribeToAttendance((cloudAttendance) => {
       setAttendance(cloudAttendance);
+      savePersistedData('attendance', cloudAttendance);
       setIsCloudConnected(true);
     });
     const unsubApprovals = subscribeToApprovals((cloudApprovals) => { setApprovals(cloudApprovals); });
@@ -647,6 +684,7 @@ export default function App() {
       if (cloudChains && cloudChains.length > 0) {
         isRemoteChains.current = true;
         setChains(cloudChains);
+        savePersistedData('chains', cloudChains);
         setIsCloudConnected(true);
       }
     });
@@ -655,6 +693,7 @@ export default function App() {
       if (cloudCartas && cloudCartas.length > 0) {
         isRemoteCartas.current = true;
         setMasterCartas(cloudCartas);
+        savePersistedData('masterCartas', cloudCartas);
         setIsCloudConnected(true);
       }
     });
@@ -663,6 +702,7 @@ export default function App() {
       if (cloudStaff && cloudStaff.length > 0) {
         isRemoteStaff.current = true;
         setStaffMembers(cloudStaff);
+        savePersistedData('staffMembers', cloudStaff);
         setIsCloudConnected(true);
       }
     });
@@ -671,6 +711,7 @@ export default function App() {
       if (cloudAdmins && cloudAdmins.length > 0) {
         isRemoteAdmins.current = true;
         setAdmins(cloudAdmins);
+        savePersistedData('admins', cloudAdmins);
         setIsCloudConnected(true);
       }
     });
@@ -684,12 +725,18 @@ export default function App() {
   }, [activeChainId, canUseCloudData]);
 
   // Sincronización diferencial con debounce y protección contra bucles
-  const isInitialMount = React.useRef(true);
+  const tablesMountRef = React.useRef(true);
+  const ticketsMountRef = React.useRef(true);
+  const menusMountRef = React.useRef(true);
+  const cartasMountRef = React.useRef(true);
+  const chainsMountRef = React.useRef(true);
+  const staffMountRef = React.useRef(true);
+  const adminsMountRef = React.useRef(true);
 
   React.useEffect(() => {
     if (!canUseCloudData) return;
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
+    if (tablesMountRef.current) {
+      tablesMountRef.current = false;
       return;
     }
     if (isRemoteTables.current) {
@@ -704,7 +751,10 @@ export default function App() {
 
   React.useEffect(() => {
     if (!canUseCloudData) return;
-    if (isInitialMount.current) return;
+    if (ticketsMountRef.current) {
+      ticketsMountRef.current = false;
+      return;
+    }
     if (isRemoteTickets.current) {
       isRemoteTickets.current = false;
       return;
@@ -717,7 +767,10 @@ export default function App() {
 
   React.useEffect(() => {
     if (!canUseCloudData) return;
-    if (isInitialMount.current) return;
+    if (menusMountRef.current) {
+      menusMountRef.current = false;
+      return;
+    }
     if (isRemoteMenus.current) {
       isRemoteMenus.current = false;
       return;
@@ -730,7 +783,10 @@ export default function App() {
 
   React.useEffect(() => {
     if (!canUseCloudData) return;
-    if (isInitialMount.current) return;
+    if (cartasMountRef.current) {
+      cartasMountRef.current = false;
+      return;
+    }
     if (isRemoteCartas.current) {
       isRemoteCartas.current = false;
       return;
@@ -743,7 +799,10 @@ export default function App() {
 
   React.useEffect(() => {
     if (!canUseCloudData) return;
-    if (isInitialMount.current) return;
+    if (chainsMountRef.current) {
+      chainsMountRef.current = false;
+      return;
+    }
     if (isRemoteChains.current) {
       isRemoteChains.current = false;
       return;
@@ -756,7 +815,10 @@ export default function App() {
 
   React.useEffect(() => {
     if (!canUseCloudData) return;
-    if (isInitialMount.current) return;
+    if (staffMountRef.current) {
+      staffMountRef.current = false;
+      return;
+    }
     if (isRemoteStaff.current) {
       isRemoteStaff.current = false;
       return;
@@ -769,7 +831,10 @@ export default function App() {
 
   React.useEffect(() => {
     if (!canUseCloudData) return;
-    if (isInitialMount.current) return;
+    if (adminsMountRef.current) {
+      adminsMountRef.current = false;
+      return;
+    }
     if (isRemoteAdmins.current) {
       isRemoteAdmins.current = false;
       return;
@@ -908,18 +973,20 @@ export default function App() {
           statusLabel: 'Cuenta Pedida'
         };
       });
+      savePersistedData('tables', updatedTablesList);
       return updatedTablesList;
     });
     setSelectedTableId(tableId);
     if (updatedTablesList.length > 0) {
-      syncTablesToRTDB(updatedTablesList);
+      void syncTablesToRTDB(updatedTablesList);
     }
   };
 
   const handleOpenTable = (tableId: string) => {
     const currentWaiter = staffUser.name || 'Carlos Mendoza';
-    setTables((prev) =>
-      prev.map((t) => {
+    let updatedTablesList: TableItem[] = [];
+    setTables((prev) => {
+      updatedTablesList = prev.map((t) => {
         if (t.id !== tableId) return t;
         const isUnassigned = !t.waiter || t.waiter.trim() === '' || t.waiter === 'Sin asignar';
         return {
@@ -927,10 +994,15 @@ export default function App() {
           status: 'cooking',
           waiter: isUnassigned ? currentWaiter : t.waiter
         };
-      })
-    );
+      });
+      savePersistedData('tables', updatedTablesList);
+      return updatedTablesList;
+    });
     setSelectedTableId(tableId);
     setCurrentScreen('tomar-pedido');
+    if (updatedTablesList.length > 0) {
+      void syncTablesToRTDB(updatedTablesList);
+    }
   };
 
   const handleMarkDelivered = (tableId: string) => {
@@ -948,6 +1020,7 @@ export default function App() {
           dishes: t.dishes?.map((d) => ({ ...d, status: 'served' as const }))
         };
       });
+      savePersistedData('tables', updatedTablesList);
       return updatedTablesList;
     });
 
@@ -968,6 +1041,7 @@ export default function App() {
           items: updatedItems
         };
       });
+      savePersistedData('kdsTickets', updatedTicketsList);
       return updatedTicketsList;
     });
 
@@ -1042,7 +1116,11 @@ export default function App() {
 
     // En modo demo no existe backend transaccional; en producción esta vista
     // optimista usa el mismo ID confirmado por el servidor.
-    setSales((prev) => [saleRecord, ...prev]);
+    setSales((prev) => {
+      const updated = [saleRecord, ...prev];
+      savePersistedData('sales', updated);
+      return updated;
+    });
     setTenantSales((prev) => [saleRecord, ...prev]);
 
     // Reflejar localmente la liberación ya confirmada por el servidor.
@@ -1063,6 +1141,7 @@ export default function App() {
             }
           : t
       );
+      savePersistedData('tables', updatedTablesList);
       return updatedTablesList;
     });
 
@@ -1087,6 +1166,7 @@ export default function App() {
           items: updatedItems
         };
       });
+      savePersistedData('kdsTickets', updatedTicketsList);
       return updatedTicketsList;
     });
 
@@ -1102,7 +1182,8 @@ export default function App() {
       const updated = previous.map((item) => item.id === itemId
         ? { ...item, currentStock: Math.max(0, Number((item.currentStock + adjustment).toFixed(2))), updatedAt: Date.now() }
         : item);
-      if (isDemoMode) syncInventoryToFirestore(updated).catch((error) => console.error('No se pudo actualizar el inventario:', error));
+      savePersistedData('inventory', updated);
+      syncInventoryToFirestore(updated).catch((error) => console.error('No se pudo actualizar el inventario:', error));
       return updated;
     });
   };
@@ -1116,6 +1197,7 @@ export default function App() {
     };
     const updated = [shift, ...cashShifts];
     setCashShifts(updated);
+    savePersistedData('cashShifts', updated);
     syncCashShiftsToFirestore(updated).catch((error) => console.error('No se pudo abrir el turno:', error));
   };
 
@@ -1131,6 +1213,7 @@ export default function App() {
       difference: countedAmount - (shift.openingAmount + collectedCash), closedAt: Date.now(), closedBy: staffUser.name || 'Administrador'
     } : shift);
     setCashShifts(updated);
+    savePersistedData('cashShifts', updated);
     syncCashShiftsToFirestore(updated).catch((error) => console.error('No se pudo cerrar el turno:', error));
   };
 
@@ -1169,20 +1252,27 @@ export default function App() {
     let updatedTablesList: TableItem[] = [];
     setTables((prev) => {
       updatedTablesList = prev.map((t) => (t.id === tableId ? { ...t, waiter: newWaiterName } : t));
+      savePersistedData('tables', updatedTablesList);
       return updatedTablesList;
     });
     if (updatedTablesList.length > 0) {
-      syncTablesToRTDB(updatedTablesList);
+      void syncTablesToRTDB(updatedTablesList);
     }
     if (targetTable) {
       const tableLabel = `Mesa ${targetTable.number}`;
-      setKdsTickets((prev) =>
-        prev.map((tk) =>
+      let updatedTicketsList: KDSTicket[] = [];
+      setKdsTickets((prev) => {
+        updatedTicketsList = prev.map((tk) =>
           tk.table === tableLabel || tk.table === targetTable.number || tk.table === targetTable.id
             ? { ...tk, waiter: newWaiterName }
             : tk
-        )
-      );
+        );
+        savePersistedData('kdsTickets', updatedTicketsList);
+        return updatedTicketsList;
+      });
+      if (updatedTicketsList.length > 0) {
+        void syncKDSTicketsToRTDB(updatedTicketsList);
+      }
     }
   };
 
@@ -1285,6 +1375,7 @@ export default function App() {
         return t;
     });
     setTables(updatedTablesList);
+    savePersistedData('tables', updatedTablesList);
 
     let updatedTicketsList = kdsTickets;
     if (affectedDrinkName) {
@@ -1314,6 +1405,7 @@ export default function App() {
           };
       });
       setKdsTickets(updatedTicketsList);
+      savePersistedData('kdsTickets', updatedTicketsList);
     }
 
     // Persist the computed state, rather than waiting for React state updates.
@@ -1355,6 +1447,7 @@ export default function App() {
         };
     });
     setTables(updatedTablesList);
+    savePersistedData('tables', updatedTablesList);
 
     // Also mark all drink items in kdsTickets as served
     const targetTableNumbers = new Set(
@@ -1389,6 +1482,7 @@ export default function App() {
         };
     });
     setKdsTickets(updatedTicketsList);
+    savePersistedData('kdsTickets', updatedTicketsList);
 
     // Persist the computed state, rather than waiting for React state updates.
     void syncTablesToRTDB(updatedTablesList);
@@ -1460,6 +1554,7 @@ export default function App() {
     });
 
     // Kitchen KDS receives ONLY food items, never drinks!
+    let updatedTicketsList: KDSTicket[] = [];
     if (foodItems.length > 0) {
       const highestOrder = kdsTickets.reduce((max, t) => Math.max(max, t.arrivalOrder || 0), 0);
       const newTicket: KDSTicket = {
@@ -1478,13 +1573,18 @@ export default function App() {
             ? `${newDrinkOrders.reduce((a, b) => a + b.qty, 0)} bebidas a cargo del mozo (servir en salón)`
             : undefined
       };
-      // Append to the end: FIFO queue where first arrivals are at the top and newest below
-      setKdsTickets((prev) => [...prev, newTicket]);
+      setKdsTickets((prev) => {
+        updatedTicketsList = [...prev, newTicket];
+        savePersistedData('kdsTickets', updatedTicketsList);
+        return updatedTicketsList;
+      });
+      void syncKDSTicketsToRTDB(updatedTicketsList);
     }
 
     // Update table status, total, and append drinks and dishes
-    setTables((prev) =>
-      prev.map((t) => {
+    let updatedTablesList: TableItem[] = [];
+    setTables((prev) => {
+      updatedTablesList = prev.map((t) => {
         if (t.id === selectedTableId) {
           const isCleanOrder = t.status === 'free' || !t.dishes || t.dishes.length === 0;
           const existingDrinks = isCleanOrder ? [] : (t.drinks || []);
@@ -1516,8 +1616,14 @@ export default function App() {
           };
         }
         return t;
-      })
-    );
+      });
+      savePersistedData('tables', updatedTablesList);
+      return updatedTablesList;
+    });
+
+    if (updatedTablesList.length > 0) {
+      void syncTablesToRTDB(updatedTablesList);
+    }
 
     // Clear cart
     setCart({});
@@ -1528,8 +1634,9 @@ export default function App() {
     ticketId: string,
     newStatus: 'pending' | 'cooking' | 'ready' | 'served'
   ) => {
-    setKdsTickets((prev) =>
-      prev.map((t) => {
+    let updatedTicketsList: KDSTicket[] = [];
+    setKdsTickets((prev) => {
+      updatedTicketsList = prev.map((t) => {
         if (t.id !== ticketId) return t;
         if (newStatus === 'ready') {
           return {
@@ -1546,15 +1653,18 @@ export default function App() {
           };
         }
         return { ...t, status: newStatus };
-      })
-    );
+      });
+      savePersistedData('kdsTickets', updatedTicketsList);
+      return updatedTicketsList;
+    });
 
+    let updatedTablesList: TableItem[] = [];
     // If ticket marked ready, update matching table
     if (newStatus === 'ready') {
       const ticket = kdsTickets.find((t) => t.id === ticketId);
       if (ticket) {
-        setTables((prev) =>
-          prev.map((tbl) =>
+        setTables((prev) => {
+          updatedTablesList = prev.map((tbl) =>
             ticket.table.includes(tbl.number)
               ? {
                   ...tbl,
@@ -1562,8 +1672,10 @@ export default function App() {
                   dishes: tbl.dishes?.map((d) => ({ ...d, status: 'ready' as const }))
                 }
               : tbl
-          )
-        );
+          );
+          savePersistedData('tables', updatedTablesList);
+          return updatedTablesList;
+        });
       }
     }
 
@@ -1571,8 +1683,8 @@ export default function App() {
     if (newStatus === 'served') {
       const ticket = kdsTickets.find((t) => t.id === ticketId);
       if (ticket) {
-        setTables((prev) =>
-          prev.map((tbl) =>
+        setTables((prev) => {
+          updatedTablesList = prev.map((tbl) =>
             ticket.table.includes(tbl.number)
               ? {
                   ...tbl,
@@ -1581,10 +1693,15 @@ export default function App() {
                   dishes: tbl.dishes?.map((d) => ({ ...d, status: 'served' as const }))
                 }
               : tbl
-          )
-        );
+          );
+          savePersistedData('tables', updatedTablesList);
+          return updatedTablesList;
+        });
       }
     }
+
+    if (updatedTicketsList.length > 0) void syncKDSTicketsToRTDB(updatedTicketsList);
+    if (updatedTablesList.length > 0) void syncTablesToRTDB(updatedTablesList);
   };
 
   // 1. Kitchen cook marks individual dish as ready
@@ -1633,11 +1750,15 @@ export default function App() {
             dishes: updatedDishes
           };
         });
+        savePersistedData('tables', updatedTablesList);
         return updatedTablesList;
       });
     }
 
-    if (updatedTicketsList.length > 0) syncKDSTicketsToRTDB(updatedTicketsList);
+    if (updatedTicketsList.length > 0) {
+      savePersistedData('kdsTickets', updatedTicketsList);
+      syncKDSTicketsToRTDB(updatedTicketsList);
+    }
     if (updatedTablesList.length > 0) syncTablesToRTDB(updatedTablesList);
   };
 
@@ -1670,6 +1791,7 @@ export default function App() {
           status: isAllServedAndReady ? 'served' : t.status
         };
       });
+      savePersistedData('kdsTickets', updatedTicketsList);
       return updatedTicketsList;
     });
 
@@ -1694,6 +1816,7 @@ export default function App() {
             dishes: updatedDishes
           };
         });
+        savePersistedData('tables', updatedTablesList);
         return updatedTablesList;
       });
     }
@@ -1708,6 +1831,8 @@ export default function App() {
     let removedItemPrice = 0;
     let removedItemQty = 1;
     let removedItemName = '';
+    let updatedTicketsList: KDSTicket[] = [];
+    let ticketWasDeleted = false;
 
     setKdsTickets((prev) => {
       const target = prev.find((t) => t.id === ticketId);
@@ -1724,13 +1849,16 @@ export default function App() {
 
       // If all dishes were removed from this comanda, remove the ticket completely
       if (updatedItems.length === 0) {
-        return prev.filter((t) => t.id !== ticketId);
+        ticketWasDeleted = true;
+        updatedTicketsList = prev.filter((t) => t.id !== ticketId);
+        savePersistedData('kdsTickets', updatedTicketsList);
+        return updatedTicketsList;
       }
 
       // If all remaining items are already prepared and served, ticket disappears
       const allRemainingCompleted = updatedItems.every((i) => i.isReady && i.isServed);
 
-      return prev.map((t) => {
+      updatedTicketsList = prev.map((t) => {
         if (t.id !== ticketId) return t;
         return {
           ...t,
@@ -1738,12 +1866,22 @@ export default function App() {
           status: allRemainingCompleted ? 'served' : t.status
         };
       });
+      savePersistedData('kdsTickets', updatedTicketsList);
+      return updatedTicketsList;
     });
+
+    if (ticketWasDeleted && activeChainId && activeBranchId) {
+      void deleteOrderFromFirestore(activeChainId, activeBranchId, ticketId);
+    }
+    if (updatedTicketsList.length > 0) {
+      void syncKDSTicketsToRTDB(updatedTicketsList);
+    }
 
     // Update table: deduct price and remove dish
     if (ticketTable) {
-      setTables((prev) =>
-        prev.map((tbl) => {
+      let updatedTablesList: TableItem[] = [];
+      setTables((prev) => {
+        updatedTablesList = prev.map((tbl) => {
           if (!ticketTable.includes(tbl.number)) return tbl;
           const updatedDishes = (tbl.dishes || []).filter((d, dIdx) => {
             if (dIdx === itemIndex) return false;
@@ -1761,8 +1899,13 @@ export default function App() {
                 ? 'free'
                 : tbl.status
           };
-        })
-      );
+        });
+        savePersistedData('tables', updatedTablesList);
+        return updatedTablesList;
+      });
+      if (updatedTablesList.length > 0) {
+        void syncTablesToRTDB(updatedTablesList);
+      }
     }
   };
 
@@ -1771,9 +1914,10 @@ export default function App() {
     let removedDishName = '';
     let removedDishId: string | undefined = undefined;
     let tableNumber = '';
+    let updatedTablesList: TableItem[] = [];
 
-    setTables((prev) =>
-      prev.map((tbl) => {
+    setTables((prev) => {
+      updatedTablesList = prev.map((tbl) => {
         if (tbl.id !== tableId) return tbl;
         tableNumber = tbl.number;
         const targetDish = tbl.dishes?.[dishIndex];
@@ -1815,13 +1959,20 @@ export default function App() {
               ? 'eating'
               : tbl.status
         };
-      })
-    );
+      });
+      savePersistedData('tables', updatedTablesList);
+      return updatedTablesList;
+    });
+
+    if (updatedTablesList.length > 0) {
+      void syncTablesToRTDB(updatedTablesList);
+    }
 
     // Sync with KDS ticket in kitchen so cook does not prepare an eliminated dish
     if (tableNumber) {
-      setKdsTickets((prev) =>
-        prev
+      let updatedTicketsList: KDSTicket[] = [];
+      setKdsTickets((prev) => {
+        updatedTicketsList = prev
           .map((ticket) => {
             if (!ticket.table.includes(tableNumber)) return ticket;
             let removedOne = false;
@@ -1850,8 +2001,13 @@ export default function App() {
                   : ticket.status
             };
           })
-          .filter((t) => t.items.length > 0)
-      );
+          .filter((t) => t.items.length > 0);
+        savePersistedData('kdsTickets', updatedTicketsList);
+        return updatedTicketsList;
+      });
+      if (updatedTicketsList.length > 0) {
+        void syncKDSTicketsToRTDB(updatedTicketsList);
+      }
     }
   };
 
@@ -1888,6 +2044,7 @@ export default function App() {
           canceledItems: [...(tbl.canceledItems || []), cancelRecord]
         };
       });
+      savePersistedData('tables', updatedTablesList);
       return updatedTablesList;
     });
 
@@ -1921,6 +2078,7 @@ export default function App() {
           }))
         };
       });
+      savePersistedData('kdsTickets', updatedTicketsList);
       return updatedTicketsList;
     });
 
@@ -1935,12 +2093,13 @@ export default function App() {
             dishes: tbl.dishes?.map((d) => ({ ...d, status: 'ready' as const }))
           };
         });
+        savePersistedData('tables', updatedTablesList);
         return updatedTablesList;
       });
     }
 
-    if (updatedTicketsList.length > 0) syncKDSTicketsToRTDB(updatedTicketsList);
-    if (updatedTablesList.length > 0) syncTablesToRTDB(updatedTablesList);
+    if (updatedTicketsList.length > 0) void syncKDSTicketsToRTDB(updatedTicketsList);
+    if (updatedTablesList.length > 0) void syncTablesToRTDB(updatedTablesList);
   };
 
   // 5. Mark all dishes in a ticket served (card disappears immediately)
@@ -1964,6 +2123,7 @@ export default function App() {
           }))
         };
       });
+      savePersistedData('kdsTickets', updatedTicketsList);
       return updatedTicketsList;
     });
 
@@ -1979,12 +2139,13 @@ export default function App() {
             dishes: tbl.dishes?.map((d) => ({ ...d, status: 'served' as const }))
           };
         });
+        savePersistedData('tables', updatedTablesList);
         return updatedTablesList;
       });
     }
 
-    if (updatedTicketsList.length > 0) syncKDSTicketsToRTDB(updatedTicketsList);
-    if (updatedTablesList.length > 0) syncTablesToRTDB(updatedTablesList);
+    if (updatedTicketsList.length > 0) void syncKDSTicketsToRTDB(updatedTicketsList);
+    if (updatedTablesList.length > 0) void syncTablesToRTDB(updatedTablesList);
   };
 
   // Active branch menu: isolated per branch location
@@ -1992,49 +2153,66 @@ export default function App() {
 
   // Availability toggle per branch
   const handleToggleItemAvailability = (itemId: number) => {
+    let updatedMenus: Record<string, MenuItem[]> = {};
     setBranchMenus((prev) => {
       const currentList = prev[activeBranchId] || INITIAL_MENU_ITEMS;
       const updatedList = currentList.map((item) =>
         item.id === itemId ? { ...item, available: !item.available } : item
       );
-      return {
+      updatedMenus = {
         ...prev,
         [activeBranchId]: updatedList
       };
+      savePersistedData('branchMenus', updatedMenus);
+      return updatedMenus;
     });
+    void syncBranchMenusToRTDB(updatedMenus);
   };
 
   // Branch dish handlers: Add, Update, Delete, Restore, Reset
   const handleAddMenuItem = (newItem: MenuItem) => {
+    let updatedMenus: Record<string, MenuItem[]> = {};
     setBranchMenus((prev) => {
       const currentList = prev[activeBranchId] || INITIAL_MENU_ITEMS;
-      return {
+      updatedMenus = {
         ...prev,
         [activeBranchId]: [newItem, ...currentList]
       };
+      savePersistedData('branchMenus', updatedMenus);
+      return updatedMenus;
     });
+    void syncBranchMenusToRTDB(updatedMenus);
   };
 
   const handleUpdateMenuItem = (updatedItem: MenuItem) => {
+    let updatedMenus: Record<string, MenuItem[]> = {};
     setBranchMenus((prev) => {
       const currentList = prev[activeBranchId] || INITIAL_MENU_ITEMS;
-      return {
+      updatedMenus = {
         ...prev,
         [activeBranchId]: currentList.map((item) =>
           item.id === updatedItem.id ? updatedItem : item
         )
       };
+      savePersistedData('branchMenus', updatedMenus);
+      return updatedMenus;
     });
+    void syncBranchMenusToRTDB(updatedMenus);
   };
 
   const handleDeleteDishFromBranch = (itemId: number) => {
+    let updatedMenus: Record<string, MenuItem[]> = {};
     setBranchMenus((prev) => {
       const currentList = prev[activeBranchId] || INITIAL_MENU_ITEMS;
-      return {
+      updatedMenus = {
         ...prev,
         [activeBranchId]: currentList.filter((item) => item.id !== itemId)
       };
+      savePersistedData('branchMenus', updatedMenus);
+      return updatedMenus;
     });
+    void deleteMenuItemFromFirestore(activeChainId, activeBranchId, itemId);
+    void syncBranchMenusToRTDB(updatedMenus);
   };
 
   const handleRestoreDishInBranch = (itemId: number) => {
@@ -2044,14 +2222,20 @@ export default function App() {
     const dishToRestore = assignedCarta?.dishes.find((d) => d.id === itemId);
 
     if (dishToRestore) {
+      let updatedMenus: Record<string, MenuItem[]> = {};
       setBranchMenus((prev) => {
         const currentList = prev[activeBranchId] || INITIAL_MENU_ITEMS;
         if (currentList.some((d) => d.id === itemId)) return prev;
-        return {
+        updatedMenus = {
           ...prev,
           [activeBranchId]: [...currentList, { ...dishToRestore, available: true }]
         };
+        savePersistedData('branchMenus', updatedMenus);
+        return updatedMenus;
       });
+      if (Object.keys(updatedMenus).length > 0) {
+        void syncBranchMenusToRTDB(updatedMenus);
+      }
     }
   };
 
@@ -2060,27 +2244,43 @@ export default function App() {
     const assignedCarta = masterCartas.find((c) => c.id === chain?.assignedCartaId) ||
       masterCartas.find((c) => c.id === 'carta-la-barra');
     if (assignedCarta) {
-      setBranchMenus((prev) => ({
-        ...prev,
-        [activeBranchId]: JSON.parse(JSON.stringify(assignedCarta.dishes))
-      }));
+      let updatedMenus: Record<string, MenuItem[]> = {};
+      setBranchMenus((prev) => {
+        updatedMenus = {
+          ...prev,
+          [activeBranchId]: JSON.parse(JSON.stringify(assignedCarta.dishes))
+        };
+        savePersistedData('branchMenus', updatedMenus);
+        return updatedMenus;
+      });
+      void syncBranchMenusToRTDB(updatedMenus);
     }
   };
 
   // SaaS Master Cartas handlers
   const handleAddMasterCarta = (newCarta: MasterCarta) => {
-    setMasterCartas((prev) => [newCarta, ...prev]);
+    let updatedCartas: MasterCarta[] = [];
+    setMasterCartas((prev) => {
+      updatedCartas = [newCarta, ...prev];
+      savePersistedData('masterCartas', updatedCartas);
+      return updatedCartas;
+    });
+    void syncMasterCartasToRTDB(updatedCartas);
   };
 
   const handleAssignCartaToChain = (chainId: string, cartaId: string) => {
     // 1. Update chain assignedCartaId
-    setChains((prev) =>
-      prev.map((c) => (c.id === chainId ? { ...c, assignedCartaId: cartaId } : c))
-    );
+    let updatedChains: ChainBrand[] = [];
+    setChains((prev) => {
+      updatedChains = prev.map((c) => (c.id === chainId ? { ...c, assignedCartaId: cartaId } : c));
+      savePersistedData('chains', updatedChains);
+      return updatedChains;
+    });
 
     // 2. Update master cartas assignment list
-    setMasterCartas((prev) =>
-      prev.map((carta) => {
+    let updatedCartas: MasterCarta[] = [];
+    setMasterCartas((prev) => {
+      updatedCartas = prev.map((carta) => {
         const currentAssigned = carta.assignedChainIds || [];
         if (carta.id === cartaId) {
           return {
@@ -2093,37 +2293,53 @@ export default function App() {
             assignedChainIds: currentAssigned.filter((id) => id !== chainId)
           };
         }
-      })
-    );
+      });
+      savePersistedData('masterCartas', updatedCartas);
+      return updatedCartas;
+    });
 
     // 3. Propagate dishes to ALL branches of this restaurant chain
     const targetCarta = masterCartas.find((c) => c.id === cartaId);
     const targetChain = chains.find((c) => c.id === chainId);
     if (targetCarta && targetChain) {
+      let updatedMenus: Record<string, MenuItem[]> = {};
       setBranchMenus((prev) => {
-        const updated = { ...prev };
+        updatedMenus = { ...prev };
         targetChain.locations.forEach((loc) => {
-          updated[loc.id] = JSON.parse(JSON.stringify(targetCarta.dishes));
+          updatedMenus[loc.id] = JSON.parse(JSON.stringify(targetCarta.dishes));
         });
-        return updated;
+        savePersistedData('branchMenus', updatedMenus);
+        return updatedMenus;
       });
+      void syncBranchMenusToRTDB(updatedMenus);
     }
+    void syncChainsToRTDB(updatedChains);
+    void syncMasterCartasToRTDB(updatedCartas);
   };
 
   // SaaS brand addition (Administrador Global)
   const handleAddChain = async (newChain: ChainBrand): Promise<Array<{ email: string; activationLink: string }>> => {
-    setChains((prev) => [newChain, ...prev]);
+    let updatedChains: ChainBrand[] = [];
+    setChains((prev) => {
+      updatedChains = [newChain, ...prev.filter((c) => c.id !== newChain.id)];
+      savePersistedData('chains', updatedChains);
+      return updatedChains;
+    });
+    void syncChainsToRTDB(updatedChains);
 
     // Initialize branch menus for new locations
     const assignedCarta = masterCartas.find((c) => c.id === newChain.assignedCartaId) || masterCartas[0];
     const baseDishes = assignedCarta ? [...assignedCarta.dishes] : [...INITIAL_MENU_ITEMS];
+    let updatedMenus: Record<string, MenuItem[]> = {};
     setBranchMenus((prev) => {
-      const updated = { ...prev };
+      updatedMenus = { ...prev };
       newChain.locations.forEach((loc) => {
-        updated[loc.id] = JSON.parse(JSON.stringify(baseDishes));
+        updatedMenus[loc.id] = JSON.parse(JSON.stringify(baseDishes));
       });
-      return updated;
+      savePersistedData('branchMenus', updatedMenus);
+      return updatedMenus;
     });
+    void syncBranchMenusToRTDB(updatedMenus);
 
     // Automatically register the General Admin in the multi-tier directory
     const genAdmin: AdminUser = {
@@ -2160,7 +2376,13 @@ export default function App() {
       active: true
     };
 
-    setAdmins((prev) => [genAdmin, sedeAdmin, ...prev]);
+    let updatedAdmins: AdminUser[] = [];
+    setAdmins((prev) => {
+      updatedAdmins = [genAdmin, sedeAdmin, ...prev];
+      savePersistedData('admins', updatedAdmins);
+      return updatedAdmins;
+    });
+    void syncAdminsToRTDB(updatedAdmins);
 
     const links: Array<{ email: string; activationLink: string }> = [];
     if (auth?.currentUser) {
@@ -2186,26 +2408,36 @@ export default function App() {
     newLocation: BranchLocation,
     managerAdmin?: AdminUser
   ) => {
-    setChains((prev) =>
-      prev.map((c) =>
+    let updatedChains: ChainBrand[] = [];
+    setChains((prev) => {
+      updatedChains = prev.map((c) =>
         c.id === chainId
           ? {
               ...c,
               locationsCount: c.locations.length + 1,
-              locations: [...c.locations, newLocation]
+              locations: [...c.locations.filter((l) => l.id !== newLocation.id), newLocation]
             }
           : c
-      )
-    );
+      );
+      savePersistedData('chains', updatedChains);
+      return updatedChains;
+    });
+    void syncChainsToRTDB(updatedChains);
 
     // Initialize branch menu for this new location
     const chain = chains.find((c) => c.id === chainId);
     const assignedCarta = masterCartas.find((c) => c.id === chain?.assignedCartaId) || masterCartas[0];
     const baseDishes = assignedCarta ? [...assignedCarta.dishes] : [...INITIAL_MENU_ITEMS];
-    setBranchMenus((prev) => ({
-      ...prev,
-      [newLocation.id]: JSON.parse(JSON.stringify(baseDishes))
-    }));
+    let updatedMenus: Record<string, MenuItem[]> = {};
+    setBranchMenus((prev) => {
+      updatedMenus = {
+        ...prev,
+        [newLocation.id]: JSON.parse(JSON.stringify(baseDishes))
+      };
+      savePersistedData('branchMenus', updatedMenus);
+      return updatedMenus;
+    });
+    void syncBranchMenusToRTDB(updatedMenus);
 
     if (managerAdmin) {
       const safeManager: AdminUser = {
@@ -2213,21 +2445,26 @@ export default function App() {
         tenantId: managerAdmin.tenantId || chainId,
         brandId: managerAdmin.brandId || chainId
       };
+      let updatedAdmins: AdminUser[] = [];
       setAdmins((prev) => {
         const existingIdx = prev.findIndex((a) => a.id === safeManager.id);
         if (existingIdx >= 0) {
-          const updated = [...prev];
-          updated[existingIdx] = {
-            ...updated[existingIdx],
+          updatedAdmins = [...prev];
+          updatedAdmins[existingIdx] = {
+            ...updatedAdmins[existingIdx],
             ...safeManager,
             assignedBranchIds: Array.from(
-              new Set([...(updated[existingIdx].assignedBranchIds || []), ...safeManager.assignedBranchIds])
+              new Set([...(updatedAdmins[existingIdx].assignedBranchIds || []), ...safeManager.assignedBranchIds])
             )
           };
-          return updated;
+        } else {
+          updatedAdmins = [safeManager, ...prev];
         }
-        return [safeManager, ...prev];
+        savePersistedData('admins', updatedAdmins);
+        return updatedAdmins;
       });
+      void syncAdminsToRTDB(updatedAdmins);
+
       if (auth?.currentUser && safeManager.email) {
         provisionAdminIdentity(safeManager).catch((err) =>
           console.error('No se pudo provisionar admin de sede en Auth:', err)
@@ -2238,8 +2475,9 @@ export default function App() {
 
   // Toggle active/paused state on a branch
   const handleToggleLocation = (chainId: string, locationId: string) => {
-    setChains((prev) =>
-      prev.map((c) =>
+    let updatedChains: ChainBrand[] = [];
+    setChains((prev) => {
+      updatedChains = prev.map((c) =>
         c.id === chainId
           ? {
               ...c,
@@ -2248,8 +2486,11 @@ export default function App() {
               )
             }
           : c
-      )
-    );
+      );
+      savePersistedData('chains', updatedChains);
+      return updatedChains;
+    });
+    void syncChainsToRTDB(updatedChains);
   };
 
   // Update an existing branch/sede location (Global Admin or General Admin)
@@ -2258,8 +2499,9 @@ export default function App() {
     updatedLocation: BranchLocation,
     managerAdmin?: AdminUser
   ) => {
-    setChains((prev) =>
-      prev.map((c) =>
+    let updatedChains: ChainBrand[] = [];
+    setChains((prev) => {
+      updatedChains = prev.map((c) =>
         c.id === chainId
           ? {
               ...c,
@@ -2268,11 +2510,15 @@ export default function App() {
               )
             }
           : c
-      )
-    );
+      );
+      savePersistedData('chains', updatedChains);
+      return updatedChains;
+    });
+    void syncChainsToRTDB(updatedChains);
 
     // If active branch is this one and table count changed, adjust tables if necessary
     if (activeBranchId === updatedLocation.id) {
+      let updatedTablesList: TableItem[] = [];
       setTables((prev) => {
         if (prev.length < updatedLocation.tables) {
           const addedCount = updatedLocation.tables - prev.length;
@@ -2289,14 +2535,20 @@ export default function App() {
               branchId: updatedLocation.id
             };
           });
-          return [...prev, ...newTables];
+          updatedTablesList = [...prev, ...newTables];
+          savePersistedData('tables', updatedTablesList);
+          return updatedTablesList;
         }
         return prev;
       });
+      if (updatedTablesList.length > 0) {
+        void syncTablesToRTDB(updatedTablesList);
+      }
     }
 
     // Synchronize or update Admin User for this sede in admins directory
     if (updatedLocation.managerName || updatedLocation.managerEmail || managerAdmin) {
+      let updatedAdmins: AdminUser[] = [];
       setAdmins((prev) => {
         let updated = [...prev];
         if (managerAdmin) {
@@ -2330,7 +2582,9 @@ export default function App() {
           } else {
             updated.unshift(managerAdmin);
           }
-          return updated;
+          updatedAdmins = updated;
+          savePersistedData('admins', updatedAdmins);
+          return updatedAdmins;
         }
 
         const existingIdx = updated.findIndex(
@@ -2355,17 +2609,22 @@ export default function App() {
               .substring(0, 2)
               .toUpperCase()
           };
-          return updated;
         }
-        return updated;
+        updatedAdmins = updated;
+        savePersistedData('admins', updatedAdmins);
+        return updatedAdmins;
       });
+      if (updatedAdmins.length > 0) {
+        void syncAdminsToRTDB(updatedAdmins);
+      }
     }
   };
 
   // Delete a branch/location from chain
   const handleDeleteLocation = (chainId: string, locationId: string) => {
-    setChains((prev) =>
-      prev.map((c) =>
+    let updatedChains: ChainBrand[] = [];
+    setChains((prev) => {
+      updatedChains = prev.map((c) =>
         c.id === chainId
           ? {
               ...c,
@@ -2373,17 +2632,35 @@ export default function App() {
               locations: c.locations.filter((loc) => loc.id !== locationId)
             }
           : c
-      )
-    );
+      );
+      savePersistedData('chains', updatedChains);
+      return updatedChains;
+    });
+    void deleteLocationFromFirestore(chainId, locationId);
+    void syncChainsToRTDB(updatedChains);
+
+    setBranchMenus((prev) => {
+      const updated = { ...prev };
+      delete updated[locationId];
+      savePersistedData('branchMenus', updated);
+      return updated;
+    });
   };
 
   // Update chain brand details (e.g. logo, name, branding, and designated general admin)
   const handleUpdateChain = (updatedChain: ChainBrand) => {
-    setChains((prev) => prev.map((c) => (c.id === updatedChain.id ? updatedChain : c)));
+    let updatedChains: ChainBrand[] = [];
+    setChains((prev) => {
+      updatedChains = prev.map((c) => (c.id === updatedChain.id ? updatedChain : c));
+      savePersistedData('chains', updatedChains);
+      return updatedChains;
+    });
+    void syncChainsToRTDB(updatedChains);
 
     // Actualizar en cascada la Carta Maestra asignada para que su nombre refleje el nuevo restaurante
-    setMasterCartas((prev) =>
-      prev.map((carta) => {
+    let updatedCartas: MasterCarta[] = [];
+    setMasterCartas((prev) => {
+      updatedCartas = prev.map((carta) => {
         const isAssigned =
           carta.id === updatedChain.assignedCartaId ||
           (Array.isArray(carta.assignedChainIds) && carta.assignedChainIds.includes(updatedChain.id));
@@ -2394,10 +2671,14 @@ export default function App() {
           };
         }
         return carta;
-      })
-    );
+      });
+      savePersistedData('masterCartas', updatedCartas);
+      return updatedCartas;
+    });
+    void syncMasterCartasToRTDB(updatedCartas);
 
     // Synchronize or assign the General Admin and update all admins of this brand
+    let updatedAdmins: AdminUser[] = [];
     setAdmins((prev) => {
       const updated = prev.map((admin) => {
         if (admin.brandId === updatedChain.id) {
@@ -2452,17 +2733,34 @@ export default function App() {
             .toUpperCase(),
           active: true
         };
-        return [newGenAdmin, ...updated];
+        updatedAdmins = [newGenAdmin, ...updated];
+      } else {
+        updatedAdmins = updated;
       }
-
-      return updated;
+      savePersistedData('admins', updatedAdmins);
+      return updatedAdmins;
     });
+    void syncAdminsToRTDB(updatedAdmins);
   };
 
   // Delete chain and its associated branch/admin data
   const handleDeleteChain = (chainId: string) => {
-    setChains((prev) => prev.filter((c) => c.id !== chainId));
-    setAdmins((prev) => prev.filter((a) => a.brandId !== chainId));
+    let updatedChains: ChainBrand[] = [];
+    setChains((prev) => {
+      updatedChains = prev.filter((c) => c.id !== chainId);
+      savePersistedData('chains', updatedChains);
+      return updatedChains;
+    });
+    void deleteChainFromFirestore(chainId);
+    void syncChainsToRTDB(updatedChains);
+
+    let updatedAdmins: AdminUser[] = [];
+    setAdmins((prev) => {
+      updatedAdmins = prev.filter((a) => a.brandId !== chainId);
+      savePersistedData('admins', updatedAdmins);
+      return updatedAdmins;
+    });
+    void syncAdminsToRTDB(updatedAdmins);
   };
 
   // Switch active chain and branch context
@@ -2532,23 +2830,41 @@ export default function App() {
 
   // Staff management handlers (Multi-Sede)
   const handleAddStaff = (newStaff: StaffMember) => {
-    setStaffMembers((prev) => [newStaff, ...prev]);
+    let updated: StaffMember[] = [];
+    setStaffMembers((prev) => {
+      updated = [newStaff, ...prev.filter((s) => s.id !== newStaff.id)];
+      savePersistedData('staffMembers', updated);
+      return updated;
+    });
+    void syncStaffToRTDB(updated);
   };
 
   const handleUpdateStaff = (updatedStaff: StaffMember) => {
-    setStaffMembers((prev) =>
-      prev.map((s) => (s.id === updatedStaff.id ? updatedStaff : s))
-    );
+    let updated: StaffMember[] = [];
+    setStaffMembers((prev) => {
+      updated = prev.map((s) => (s.id === updatedStaff.id ? updatedStaff : s));
+      savePersistedData('staffMembers', updated);
+      return updated;
+    });
+    void syncStaffToRTDB(updated);
   };
 
   const handleDeleteStaff = (staffId: string) => {
-    setStaffMembers((prev) => prev.filter((s) => s.id !== staffId));
+    let updated: StaffMember[] = [];
+    setStaffMembers((prev) => {
+      updated = prev.filter((s) => s.id !== staffId);
+      savePersistedData('staffMembers', updated);
+      return updated;
+    });
+    void deleteStaffFromFirestore(staffId);
+    void syncStaffToRTDB(updated);
   };
 
   // Admin branch assignment handler (Sede Admin managing multiple sedes)
   const handleUpdateAdminBranches = async (adminId: string, branchIds: string[]) => {
-    setAdmins((prev) =>
-      prev.map((adm) =>
+    let updatedAdmins: AdminUser[] = [];
+    setAdmins((prev) => {
+      updatedAdmins = prev.map((adm) =>
         adm.id === adminId
           ? {
               ...adm,
@@ -2556,8 +2872,11 @@ export default function App() {
               branchId: branchIds[0] || adm.branchId
             }
           : adm
-      )
-    );
+      );
+      savePersistedData('admins', updatedAdmins);
+      return updatedAdmins;
+    });
+    void syncAdminsToRTDB(updatedAdmins);
 
     const targetAdmin = admins.find((a) => a.id === adminId);
     if (targetAdmin && targetAdmin.email && auth?.currentUser) {
@@ -2575,20 +2894,29 @@ export default function App() {
 
   // Update Admin user (e.g. PIN update)
   const handleUpdateAdmin = (updatedAdmin: AdminUser) => {
-    setAdmins((prev) =>
-      prev.map((adm) => (adm.id === updatedAdmin.id ? updatedAdmin : adm))
-    );
+    let updatedAdmins: AdminUser[] = [];
+    setAdmins((prev) => {
+      updatedAdmins = prev.map((adm) => (adm.id === updatedAdmin.id ? updatedAdmin : adm));
+      savePersistedData('admins', updatedAdmins);
+      return updatedAdmins;
+    });
+    void syncAdminsToRTDB(updatedAdmins);
   };
 
   // Add new Admin user (General or Sede) and provision Auth credentials if email present
   const handleAddAdmin = async (newAdmin: AdminUser): Promise<{ activationLink?: string } | void> => {
+    let updatedAdmins: AdminUser[] = [];
     setAdmins((prev) => {
       const exists = prev.some((a) => a.id === newAdmin.id || (a.email && a.email.toLowerCase() === (newAdmin.email || '').toLowerCase()));
       if (exists) {
-        return prev.map((a) => (a.id === newAdmin.id || (a.email && a.email.toLowerCase() === (newAdmin.email || '').toLowerCase()) ? { ...a, ...newAdmin } : a));
+        updatedAdmins = prev.map((a) => (a.id === newAdmin.id || (a.email && a.email.toLowerCase() === (newAdmin.email || '').toLowerCase()) ? { ...a, ...newAdmin } : a));
+      } else {
+        updatedAdmins = [newAdmin, ...prev];
       }
-      return [newAdmin, ...prev];
+      savePersistedData('admins', updatedAdmins);
+      return updatedAdmins;
     });
+    void syncAdminsToRTDB(updatedAdmins);
 
     if (newAdmin.email && auth?.currentUser) {
       try {
@@ -2603,6 +2931,7 @@ export default function App() {
   // Reset demo data
   const handleResetData = () => {
     resetAllDataInRTDB().catch((e) => console.error('Error resetting RTDB:', e));
+    clearAllPersistedData();
     setTables(INITIAL_TABLES);
     setMasterCartas(INITIAL_MASTER_CARTAS);
     setChains(INITIAL_CHAINS);

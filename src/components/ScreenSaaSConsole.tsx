@@ -652,7 +652,6 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       const generatedLinks = await onAddChain(newChain);
       setShowModalNewChain(false);
       setActivationLinks(generatedLinks);
-      setShowModalActivationLinks(true);
       setChainForm({
         name: '',
         slug: '',
