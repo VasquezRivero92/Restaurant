@@ -33,7 +33,8 @@ if (isFirebaseConfigured) {
         firestore = initializeFirestore(app, {
           localCache: persistentLocalCache({
             tabManager: persistentMultipleTabManager()
-          })
+          }),
+          experimentalForceLongPolling: true
         });
       } catch {
         firestore = getFirestore(app);
