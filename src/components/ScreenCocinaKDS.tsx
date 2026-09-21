@@ -304,7 +304,7 @@ export const ScreenCocinaKDS: React.FC<ScreenCocinaKDSProps> = ({
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-extrabold text-xs sm:text-sm">
                 {isKitchen
-                  ? 'Perfil Cocinero: Chef Mario Quispe (Acceso a Fogones & Preparación)'
+                  ? `Perfil Cocinero: ${currentUserName || 'Cocinero'} (Acceso a Fogones & Preparación)`
                   : isWaiter
                   ? `Perfil Mozo: ${currentUserName} (Recojo y Servicio en Mesa)`
                   : `Perfil: ${currentUserName} (Control Total Cocina)`}

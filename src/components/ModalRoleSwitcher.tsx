@@ -14,6 +14,7 @@ interface ModalRoleSwitcherProps {
   staffMembers?: StaffMember[];
   activeBranchName?: string;
   activeChainName?: string;
+  currentUserName?: string;
 }
 
 export const ModalRoleSwitcher: React.FC<ModalRoleSwitcherProps> = ({
@@ -28,15 +29,17 @@ export const ModalRoleSwitcher: React.FC<ModalRoleSwitcherProps> = ({
   admins = [],
   staffMembers = [],
   activeBranchName = '',
-  activeChainName = ''
+  activeChainName = '',
+  currentUserName = ''
 }) => {
   if (!isOpen) return null;
 
-  const waiterName = staffMembers.find((s) => s.roleKey === 'mesero')?.name || 'Mozo de Salón';
-  const chefName = staffMembers.find((s) => s.roleKey === 'cocina')?.name || 'Chef de Cocina';
-  const sedeAdminName = admins.find((a) => a.roleKey === 'admin_sede')?.name || 'Administrador de Sede';
-  const genAdminName = admins.find((a) => a.roleKey === 'admin_general')?.name || 'Administrador General';
-  const globalAdminName = admins.find((a) => a.roleKey === 'admin_global')?.name || 'Administrador Global';
+  const userDisplayName = currentUserName?.trim() || '';
+  const waiterName = userDisplayName || staffMembers.find((s) => s.roleKey === 'mesero')?.name || 'Mozo de Salón';
+  const chefName = userDisplayName || staffMembers.find((s) => s.roleKey === 'cocina')?.name || 'Chef de Cocina';
+  const sedeAdminName = userDisplayName || admins.find((a) => a.roleKey === 'admin_sede')?.name || 'Administrador de Sede';
+  const genAdminName = userDisplayName || admins.find((a) => a.roleKey === 'admin_general')?.name || 'Administrador General';
+  const globalAdminName = userDisplayName || admins.find((a) => a.roleKey === 'admin_global')?.name || 'Administrador Global';
 
   const rolesList: {
     key: AppRole;

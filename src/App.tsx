@@ -765,38 +765,49 @@ export default function App() {
   // Role switching handler with synchronized user profile and destination screen
   const handleSwitchRole = (role: AppRole) => {
     setCurrentRole(role);
+    const activeName = adminProfile?.name || staffUser.name;
+
+    // Preserve the user's current identity/name without taking another person's name
+    setStaffUser((prev) => ({
+      name: activeName || prev.name || 'Administrador',
+      role: ['mesero', 'cajero'].includes(role) ? 'mesero' : 'admin'
+    }));
+
+    // Update adminProfile to match the new roleKey and role label while strictly keeping user's identity
+    const roleLabel =
+      role === 'admin_global' ? 'Administrador Global' :
+      role === 'admin_general' ? 'Administrador General' :
+      role === 'admin_sede' ? 'Administrador de Sede' :
+      role === 'cocina' ? 'Chef de Cocina' :
+      role === 'cajero' ? 'Cajero' : 'Mozo de Salón';
+
+    setAdminProfile((prev) => {
+      if (prev) {
+        return {
+          ...prev,
+          roleKey: role,
+          role: roleLabel
+        };
+      }
+      return {
+        id: `adm-${Date.now()}`,
+        name: activeName || 'Administrador',
+        role: roleLabel,
+        roleKey: role,
+        assignedBranchIds: activeBranchId ? [activeBranchId] : [],
+        active: true
+      };
+    });
+
     if (role === 'cocina') {
-      const chef = staffMembers.find((s) => s.roleKey === 'cocina');
-      setStaffUser({ name: chef?.name || 'Chef Mario Quispe', role: 'admin' });
       setCurrentScreen('cocina-kds');
     } else if (role === 'mesero') {
-      const waiter = staffMembers.find((s) => s.roleKey === 'mesero');
-      setStaffUser({ name: waiter?.name || 'Carlos Mendoza', role: 'mesero' });
       setCurrentScreen('mesas');
     } else if (role === 'cajero') {
-      const cashier = staffMembers.find((s) => s.roleKey === 'cajero');
-      setStaffUser({ name: cashier?.name || 'Cajero de Turno', role: 'mesero' });
       setCurrentScreen('cuenta-cobro');
-    } else if (role === 'admin_sede') {
-      const sedeAdmin = admins.find((a) => a.roleKey === 'admin_sede');
-      setStaffUser({
-        name: adminProfile?.roleKey === 'admin_sede' ? adminProfile.name : (sedeAdmin?.name || adminProfile?.name || 'Roberto Morales'),
-        role: 'admin'
-      });
-      setCurrentScreen('dashboard-admin');
-    } else if (role === 'admin_general') {
-      const genAdmin = admins.find((a) => a.roleKey === 'admin_general');
-      setStaffUser({
-        name: adminProfile?.roleKey === 'admin_general' ? adminProfile.name : (genAdmin?.name || adminProfile?.name || 'Mariana Alva'),
-        role: 'admin'
-      });
+    } else if (role === 'admin_sede' || role === 'admin_general') {
       setCurrentScreen('dashboard-admin');
     } else if (role === 'admin_global') {
-      const globalAdmin = admins.find((a) => a.roleKey === 'admin_global');
-      setStaffUser({
-        name: adminProfile?.roleKey === 'admin_global' ? adminProfile.name : (globalAdmin?.name || adminProfile?.name || 'José Manuel Vasquez Rivero'),
-        role: 'admin'
-      });
       setCurrentScreen('saas-console');
     }
   };
@@ -2444,7 +2455,7 @@ export default function App() {
     });
 
     if (['admin_sede', 'admin_general', 'admin_global'].includes(role)) {
-      const foundAdmin = admins.find((a) => a.name.toLowerCase() === name.toLowerCase() || a.roleKey === role);
+      const foundAdmin = admins.find((a) => a.name.trim().toLowerCase() === name.trim().toLowerCase());
       setAdminProfile(foundAdmin || {
         id: `adm-${Date.now()}`,
         name,
@@ -2639,8 +2650,12 @@ export default function App() {
         role: currentRole === 'admin_general' ? 'Administrador General' : currentRole === 'admin_global' ? 'Administrador Global' : 'Administrador de Sede'
       }
     : undefined)
-    || admins.find((admin) => admin.name.toLowerCase() === staffUser.name.toLowerCase()) 
-    || admins.find((admin) => admin.roleKey === currentRole)
+    || (staffUser.name ? admins.find((admin) => admin.name.trim().toLowerCase() === staffUser.name.trim().toLowerCase()) : undefined)
+    || (adminProfile ? {
+        ...adminProfile,
+        roleKey: currentRole,
+        role: currentRole === 'admin_general' ? 'Administrador General' : currentRole === 'admin_global' ? 'Administrador Global' : 'Administrador de Sede'
+      } : undefined)
     || (['admin_sede', 'admin_general', 'admin_global'].includes(currentRole) ? {
         id: 'adm-current',
         name: staffUser.name || 'Administrador',
@@ -2957,6 +2972,7 @@ export default function App() {
           staffMembers={staffMembers}
           activeBranchName={currentBranch?.name}
           activeChainName={currentChain?.name}
+          currentUserName={adminProfile?.name || staffUser.name}
         />
       )}
       </>)}
