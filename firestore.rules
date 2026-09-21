@@ -5,15 +5,15 @@ service cloud.firestore {
     function isGlobal() { return signedIn() && request.auth.token.platformAdmin == true; }
     function tokenTenant() { return request.auth.token.tenantId; }
     function hasTenant(restaurantId) { return signedIn() && (isGlobal() || tokenTenant() == restaurantId); }
-    function hasRole(roles) { return signedIn() && request.auth.token.role in roles; }
+    function hasRole(roles) { return signedIn() && (isGlobal() || request.auth.token.role in roles); }
     function canUseBranch(restaurantId, branchId) {
       return isGlobal() || (hasTenant(restaurantId) && request.auth.token.branchIds != null && branchId in request.auth.token.branchIds);
     }
     function isTenantAdmin(restaurantId) {
-      return hasTenant(restaurantId) && hasRole(['admin_general', 'admin_sede']);
+      return isGlobal() || (hasTenant(restaurantId) && hasRole(['admin_general', 'admin_sede']));
     }
     function isGeneralAdmin(restaurantId) {
-      return hasTenant(restaurantId) && hasRole(['admin_general']);
+      return isGlobal() || (hasTenant(restaurantId) && hasRole(['admin_general']));
     }
 
     // Perfiles y PII: únicamente usuarios autenticados dentro de su propio tenant.
