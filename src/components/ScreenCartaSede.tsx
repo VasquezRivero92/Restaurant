@@ -36,6 +36,7 @@ interface ScreenCartaSedeProps {
   onAddLocation?: (chainId: string, newLocation: BranchLocation, managerAdmin?: AdminUser) => void;
   onUpdateLocation?: (chainId: string, updatedLocation: BranchLocation, managerAdmin?: AdminUser) => void;
   onUpdateChain?: (chain: ChainBrand) => void;
+  onAddAdmin?: (admin: AdminUser) => Promise<{ activationLink?: string } | void> | void;
   currentRole?: AppRole;
   currentAdminName?: string;
   initialTab?: 'carta' | 'sedes' | 'equipo';
@@ -82,6 +83,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   onAddLocation,
   onUpdateLocation,
   onUpdateChain,
+  onAddAdmin,
   currentRole = 'admin_general',
   currentAdminName = 'Roberto Morales',
   initialTab,
@@ -465,9 +467,31 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
 
   const getStaffRoleKey = (role: string): AppRole => {
     const normalized = role.toLowerCase();
+    if (normalized.includes('admin') && (normalized.includes('sede') || normalized.includes('branch'))) return 'admin_sede';
+    if (normalized.includes('admin') && normalized.includes('general')) return 'admin_general';
     if (normalized.includes('cocin')) return 'cocina';
     if (normalized.includes('caj')) return 'cajero';
     return 'mesero';
+  };
+
+  const openAddAdminSedeModal = () => {
+    if (!canManageStaff) {
+      triggerToast('Solo el Administrador General o Global puede registrar administradores.');
+      return;
+    }
+    setEditingStaffId(null);
+    setStaffName('');
+    setStaffRole('Administrador de Sede');
+    setStaffDocType('DNI');
+    setStaffDocNumber('');
+    setStaffEmail('');
+    setStaffPin(Math.floor(100000 + Math.random() * 900000).toString());
+    setStaffPhone('');
+    setStaffTablesZone('Administración de Sede');
+    setStaffShift('Turno Completo');
+    setStaffAssignedBranches([currentBranch?.id || 'loc-miraflores']);
+    setStaffActive(true);
+    setShowStaffModal(true);
   };
 
   const openAddStaffModal = () => {
@@ -556,8 +580,40 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
       return;
     }
 
+    const isSedeAdmin = staffRole === 'Administrador de Sede' || getStaffRoleKey(staffRole) === 'admin_sede';
+    if (isSedeAdmin && (!staffEmail.trim() || !staffEmail.includes('@'))) {
+      triggerToast('El correo electrónico es obligatorio para el Administrador de Sede');
+      return;
+    }
+
     const colors = ['bg-teal-600', 'bg-purple-600', 'bg-amber-600', 'bg-blue-600', 'bg-rose-600', 'bg-emerald-600'];
-    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    const randomColor = isSedeAdmin ? 'bg-amber-600' : colors[Math.floor(Math.random() * colors.length)];
+
+    if (isSedeAdmin) {
+      const adminId = editingStaffId && editingStaffId.startsWith('adm-') ? editingStaffId : `adm-sede-${Date.now()}`;
+      const newAdmin: AdminUser = {
+        id: adminId,
+        name: staffName.trim(),
+        email: staffEmail.trim().toLowerCase(),
+        phone: staffPhone.trim() || undefined,
+        docType: staffDocType,
+        docNumber: staffDocNumber.trim() || undefined,
+        role: 'Administrador de Sede',
+        roleKey: 'admin_sede',
+        brand: currentChain?.name || '',
+        tenantId: currentChain?.id || 'la-barra',
+        brandId: currentChain?.id || 'la-barra',
+        branchName: currentChain?.locations.find((l) => staffAssignedBranches.includes(l.id))?.name || '',
+        branchId: staffAssignedBranches[0] || '',
+        assignedBranchIds: staffAssignedBranches,
+        initials: staffName.trim().split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() || 'AS',
+        pin: staffPin.trim(),
+        active: staffActive
+      };
+      if (onAddAdmin) {
+        onAddAdmin(newAdmin);
+      }
+    }
 
     if (editingStaffId) {
       // Update existing
@@ -569,9 +625,9 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
         pin: staffPin.trim(),
         docType: staffDocType,
         docNumber: staffDocNumber.trim() || undefined,
-        email: staffEmail.trim() || undefined,
+        email: staffEmail.trim().toLowerCase() || undefined,
         phone: staffPhone.trim() || undefined,
-        tablesZone: staffTablesZone.trim(),
+        tablesZone: staffTablesZone.trim() || (isSedeAdmin ? 'Administración de Sede' : 'Mesas 1 a 6'),
         shift: staffShift,
         assignedBranchIds: staffAssignedBranches,
         tenantId: currentChain?.id || 'la-barra',
@@ -580,7 +636,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
         avatarColor: randomColor
       };
       if (onUpdateStaff) onUpdateStaff(updatedMember);
-      triggerToast(`Colaborador "${updatedMember.name}" actualizado con ${staffAssignedBranches.length} sede(s)`);
+      triggerToast(isSedeAdmin ? `Administrador de Sede "${updatedMember.name}" actualizado con éxito` : `Colaborador "${updatedMember.name}" actualizado con ${staffAssignedBranches.length} sede(s)`);
     } else {
       // Add new
       const newMember: StaffMember = {
@@ -591,9 +647,9 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
         pin: staffPin.trim(),
         docType: staffDocType,
         docNumber: staffDocNumber.trim() || undefined,
-        email: staffEmail.trim() || undefined,
+        email: staffEmail.trim().toLowerCase() || undefined,
         phone: staffPhone.trim() || undefined,
-        tablesZone: staffTablesZone.trim(),
+        tablesZone: staffTablesZone.trim() || (isSedeAdmin ? 'Administración de Sede' : 'Mesas 1 a 6'),
         shift: staffShift,
         assignedBranchIds: staffAssignedBranches,
         tenantId: currentChain?.id || 'la-barra',
@@ -602,7 +658,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
         avatarColor: randomColor
       };
       if (onAddStaff) onAddStaff(newMember);
-      triggerToast(`¡Colaborador "${newMember.name}" registrado en ${staffAssignedBranches.length} sede(s)!`);
+      triggerToast(isSedeAdmin ? `¡Administrador de Sede "${newMember.name}" registrado en ${staffAssignedBranches.length} sede(s)!` : `¡Colaborador "${newMember.name}" registrado en ${staffAssignedBranches.length} sede(s)!`);
     }
 
     setShowStaffModal(false);
@@ -1502,22 +1558,36 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
             <div>
               <h3 className="font-extrabold text-base sm:text-lg text-primary">
-                Personal de Salón, Barra y Caja
+                Personal y Administradores de Sede
               </h3>
               <p className="text-xs text-on-surface-variant mt-0.5">
-                Como administrador de sede, puedes registrar personal y asignarlo a una o más sedes a tu cargo con su mismo PIN.
+                Como Administrador General, puedes registrar Administradores de Sede y colaboradores operativos con su PIN y sedes asignadas.
               </p>
             </div>
 
-            {/* Button: + Agregar Personal */}
-            <button
-              onClick={openAddStaffModal}
-              disabled={!canManageStaff}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all cursor-pointer shrink-0 min-h-[44px]"
-            >
-              <span className="material-symbols-outlined text-[20px]">person_add</span>
-              <span>+ Agregar Personal</span>
-            </button>
+            {/* Action buttons */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {(currentRole === 'admin_general' || currentRole === 'admin_global') && (
+                <button
+                  type="button"
+                  onClick={openAddAdminSedeModal}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all cursor-pointer shrink-0 min-h-[44px]"
+                >
+                  <span className="material-symbols-outlined text-[20px]">admin_panel_settings</span>
+                  <span>+ Administrador de Sede</span>
+                </button>
+              )}
+              {/* Button: + Agregar Personal */}
+              <button
+                type="button"
+                onClick={openAddStaffModal}
+                disabled={!canManageStaff}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all cursor-pointer shrink-0 min-h-[44px]"
+              >
+                <span className="material-symbols-outlined text-[20px]">person_add</span>
+                <span>+ Agregar Personal</span>
+              </button>
+            </div>
           </div>
 
           {/* Filter & Search for Staff */}
@@ -1588,9 +1658,16 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                           <h4 className="font-extrabold text-sm text-on-surface truncate">
                             {member.name}
                           </h4>
-                          <span className="px-2 py-0.2 rounded-full bg-secondary-container text-on-secondary-container font-extrabold text-[10px]">
-                            {member.role}
-                          </span>
+                          {member.roleKey === 'admin_sede' || member.role === 'Administrador de Sede' ? (
+                            <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-extrabold text-[10px] flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[13px] text-amber-700">admin_panel_settings</span>
+                              ADMINISTRADOR DE SEDE
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.2 rounded-full bg-secondary-container text-on-secondary-container font-extrabold text-[10px]">
+                              {member.role}
+                            </span>
+                          )}
                           {isMultiSede && (
                             <span className="px-2 py-0.2 rounded-full bg-teal-100 text-teal-900 font-extrabold text-[9px] flex items-center gap-0.5">
                               <span className="material-symbols-outlined text-[12px]">hub</span>
@@ -2964,14 +3041,15 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
 
                   <div>
                     <label className="font-bold text-xs text-on-surface block mb-1">
-                      Correo Electrónico *
+                      Correo Electrónico {staffRole === 'Administrador de Sede' ? '*' : '(Opcional)'}
                     </label>
                     <input
                       type="email"
                       value={staffEmail}
                       onChange={(e) => setStaffEmail(e.target.value)}
-                      placeholder="daniel.quispe@restaurante.pe"
+                      placeholder={staffRole === 'Administrador de Sede' ? 'admin.sede@restaurante.pe (Requerido)' : 'daniel.quispe@restaurante.pe'}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[44px]"
+                      required={staffRole === 'Administrador de Sede'}
                     />
                   </div>
                 </div>
@@ -2986,14 +3064,30 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                       onChange={(e) => setStaffRole(e.target.value)}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-bold min-h-[44px]"
                     >
-                      <option value="Mozo Salón">Mozo Salón</option>
-                      <option value="Mozo Principal">Mozo Principal</option>
-                      <option value="Mozo Terraza">Mozo Terraza</option>
-                      <option value="Barman / Bebidas">Barman / Bebidas</option>
-                      <option value="Cajero POS">Cajero POS</option>
-                      <option value="Cocinero">Cocinero</option>
-                      <option value="Jefe de Salón">Jefe de Salón</option>
+                      {(currentRole === 'admin_general' || currentRole === 'admin_global') && (
+                        <optgroup label="Administración">
+                          <option value="Administrador de Sede">Administrador de Sede</option>
+                        </optgroup>
+                      )}
+                      <optgroup label="Operaciones y Salón">
+                        <option value="Mozo Salón">Mozo Salón</option>
+                        <option value="Mozo Principal">Mozo Principal</option>
+                        <option value="Mozo Terraza">Mozo Terraza</option>
+                        <option value="Barman / Bebidas">Barman / Bebidas</option>
+                        <option value="Cajero POS">Cajero POS</option>
+                        <option value="Cocinero">Cocinero</option>
+                        <option value="Jefe de Salón">Jefe de Salón</option>
+                      </optgroup>
                     </select>
+
+                    {staffRole === 'Administrador de Sede' && (
+                      <div className="mt-2 p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 text-[11px] flex items-start gap-1.5">
+                        <span className="material-symbols-outlined text-[16px] text-amber-700 shrink-0 mt-0.5">admin_panel_settings</span>
+                        <span>
+                          <strong>Rol Administrador de Sede:</strong> Tendrá acceso con su PIN y correo para supervisar las operaciones, inventario, caja y personal de las sedes asignadas.
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -3403,14 +3497,40 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                       <p className="text-[11px] text-red-700 mt-0.5">
                         Primero registre al personal en la pestaña "Equipo" para poder seleccionarlo como administrador de sede.
                       </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddSedeModal(false);
+                          handleSwitchTab('equipo');
+                          openAddAdminSedeModal();
+                        }}
+                        className="mt-2.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">person_add</span>
+                        <span>+ Registrar Administrador de Sede Ahora</span>
+                      </button>
                     </div>
                   </div>
                 ) : (
                   <>
                     <div>
-                      <label className="font-bold text-[11px] text-on-surface block mb-1">
-                        Seleccionar Colaborador Registrado *
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-bold text-[11px] text-on-surface">
+                          Seleccionar Colaborador Registrado *
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddSedeModal(false);
+                            handleSwitchTab('equipo');
+                            openAddAdminSedeModal();
+                          }}
+                          className="text-[10px] font-bold text-amber-800 hover:underline cursor-pointer flex items-center gap-0.5"
+                        >
+                          <span className="material-symbols-outlined text-[13px]">person_add</span>
+                          <span>+ Registrar Nuevo en Equipo</span>
+                        </button>
+                      </div>
                       <select
                         value={newSedeManagerStaffId}
                         onChange={(e) => {
@@ -3622,14 +3742,40 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                       <p className="text-[11px] text-red-700 mt-0.5">
                         Primero registre al personal en la pestaña "Equipo" para poder seleccionarlo como administrador de sede.
                       </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingSede(null);
+                          handleSwitchTab('equipo');
+                          openAddAdminSedeModal();
+                        }}
+                        className="mt-2.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">person_add</span>
+                        <span>+ Registrar Administrador de Sede Ahora</span>
+                      </button>
                     </div>
                   </div>
                 ) : (
                   <>
                     <div>
-                      <label className="font-bold text-[11px] text-on-surface block mb-1">
-                        Seleccionar Colaborador Registrado *
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="font-bold text-[11px] text-on-surface">
+                          Seleccionar Colaborador Registrado *
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingSede(null);
+                            handleSwitchTab('equipo');
+                            openAddAdminSedeModal();
+                          }}
+                          className="text-[10px] font-bold text-amber-800 hover:underline cursor-pointer flex items-center gap-0.5"
+                        >
+                          <span className="material-symbols-outlined text-[13px]">person_add</span>
+                          <span>+ Registrar Nuevo en Equipo</span>
+                        </button>
+                      </div>
                       <select
                         value={editSedeManagerStaffId}
                         onChange={(e) => {

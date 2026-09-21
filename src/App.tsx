@@ -2580,6 +2580,26 @@ export default function App() {
     );
   };
 
+  // Add new Admin user (General or Sede) and provision Auth credentials if email present
+  const handleAddAdmin = async (newAdmin: AdminUser): Promise<{ activationLink?: string } | void> => {
+    setAdmins((prev) => {
+      const exists = prev.some((a) => a.id === newAdmin.id || (a.email && a.email.toLowerCase() === (newAdmin.email || '').toLowerCase()));
+      if (exists) {
+        return prev.map((a) => (a.id === newAdmin.id || (a.email && a.email.toLowerCase() === (newAdmin.email || '').toLowerCase()) ? { ...a, ...newAdmin } : a));
+      }
+      return [newAdmin, ...prev];
+    });
+
+    if (newAdmin.email && auth?.currentUser) {
+      try {
+        const res = await provisionAdminIdentity(newAdmin);
+        return res;
+      } catch (err) {
+        console.error('Error al provisionar identidad de admin:', err);
+      }
+    }
+  };
+
   // Reset demo data
   const handleResetData = () => {
     resetAllDataInRTDB().catch((e) => console.error('Error resetting RTDB:', e));
@@ -2931,6 +2951,7 @@ export default function App() {
                   onAddLocation={handleAddLocationToChain}
                   onUpdateLocation={handleUpdateLocation}
                   onUpdateChain={handleUpdateChain}
+                  onAddAdmin={handleAddAdmin}
                   currentRole={currentRole}
                   currentAdminName={staffUser.name}
                   initialTab={cartaInitialTab}
@@ -2958,6 +2979,7 @@ export default function App() {
                   onAddMasterCarta={handleAddMasterCarta}
                   onAssignCartaToChain={handleAssignCartaToChain}
                   onUpdateAdmin={handleUpdateAdmin}
+                  onAddAdmin={handleAddAdmin}
                 />
               )}
             </main>

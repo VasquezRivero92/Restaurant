@@ -22,6 +22,7 @@ interface ScreenSaaSConsoleProps {
   onAddMasterCarta?: (newCarta: MasterCarta) => void;
   onAssignCartaToChain?: (chainId: string, cartaId: string) => void;
   onUpdateAdmin?: (admin: AdminUser) => void;
+  onAddAdmin?: (newAdmin: AdminUser) => Promise<{ activationLink?: string } | void> | void;
 }
 
 export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
@@ -42,7 +43,8 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
   onSwitchRole,
   onAddMasterCarta,
   onAssignCartaToChain,
-  onUpdateAdmin
+  onUpdateAdmin,
+  onAddAdmin
 }) => {
   // Modals state
   const [showModalNewChain, setShowModalNewChain] = useState(false);
@@ -53,6 +55,17 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
   const [locationToConfirmDelete, setLocationToConfirmDelete] = useState<{ chainId: string; location: BranchLocation } | null>(null);
   const [selectedChainForLocation, setSelectedChainForLocation] = useState<string>(chains[0]?.id || '');
   
+  // Modal: Registrar Administrador General
+  const [showModalNewGenAdmin, setShowModalNewGenAdmin] = useState(false);
+  const [genAdminChainId, setGenAdminChainId] = useState('');
+  const [genAdminName, setGenAdminName] = useState('');
+  const [genAdminEmail, setGenAdminEmail] = useState('');
+  const [genAdminPhone, setGenAdminPhone] = useState('');
+  const [genAdminDocType, setGenAdminDocType] = useState<'DNI' | 'CE' | 'Pasaporte' | 'RUC'>('DNI');
+  const [genAdminDocNumber, setGenAdminDocNumber] = useState('');
+  const [genAdminPin, setGenAdminPin] = useState('');
+  const [isSavingGenAdmin, setIsSavingGenAdmin] = useState(false);
+
   // Search & filters
   const [searchQuery, setSearchQuery] = useState('');
   const [adminTab, setAdminTab] = useState<'todos' | 'admin_global' | 'admin_general' | 'admin_sede'>('todos');
@@ -500,6 +513,86 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       managerPhone: firstCand?.phone || ''
     }));
     setShowModalNewLocation(true);
+  };
+
+  // Open New General Admin modal
+  const handleOpenNewGenAdminModal = (chainId?: string) => {
+    const targetChainId = chainId || chains[0]?.id || '';
+    setGenAdminChainId(targetChainId);
+    setGenAdminName('');
+    setGenAdminEmail('');
+    setGenAdminPhone('');
+    setGenAdminDocType('DNI');
+    setGenAdminDocNumber('');
+    setGenAdminPin(Math.floor(100000 + Math.random() * 900000).toString());
+    setShowModalNewGenAdmin(true);
+  };
+
+  // Submit New General Admin
+  const handleSaveNewGenAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!genAdminChainId) {
+      showToast('Selecciona el restaurante para el Administrador General');
+      return;
+    }
+    if (!genAdminName.trim()) {
+      showToast('Ingresa el nombre del Administrador General');
+      return;
+    }
+    if (!genAdminEmail.trim() || !genAdminEmail.includes('@')) {
+      showToast('Ingresa un correo electrónico corporativo válido');
+      return;
+    }
+    if (genAdminPin.length !== 6 || !/^\d{6}$/.test(genAdminPin)) {
+      showToast('El PIN debe tener exactamente 6 dígitos numéricos');
+      return;
+    }
+
+    const targetChain = chains.find((c) => c.id === genAdminChainId);
+    if (!targetChain) {
+      showToast('Restaurante no encontrado');
+      return;
+    }
+
+    setIsSavingGenAdmin(true);
+    try {
+      const allBranchIds = targetChain.locations.map((loc) => loc.id);
+      const newGenAdmin: AdminUser = {
+        id: `adm-gen-${Date.now()}`,
+        name: genAdminName.trim(),
+        email: genAdminEmail.trim().toLowerCase(),
+        phone: genAdminPhone.trim(),
+        docType: genAdminDocType,
+        docNumber: genAdminDocNumber.trim(),
+        role: 'Administrador General',
+        roleKey: 'admin_general',
+        brand: targetChain.name,
+        tenantId: targetChain.id,
+        brandId: targetChain.id,
+        assignedBranchIds: allBranchIds,
+        initials: genAdminName.trim().split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() || 'AG',
+        pin: genAdminPin.trim(),
+        active: true
+      };
+
+      if (onAddAdmin) {
+        const res = await onAddAdmin(newGenAdmin);
+        if (res && typeof res === 'object' && res.activationLink) {
+          setActivationLinks((prev) => [
+            { email: newGenAdmin.email || '', activationLink: res.activationLink || '' },
+            ...prev
+          ]);
+        }
+      }
+
+      setShowModalNewGenAdmin(false);
+      showToast(`¡Administrador General "${newGenAdmin.name}" asignado a ${targetChain.name}!`);
+    } catch (err) {
+      console.error('Error creando administrador general:', err);
+      showToast(getErrorMessage(err, 'No se pudo registrar el Administrador General'));
+    } finally {
+      setIsSavingGenAdmin(false);
+    }
   };
 
   // Submit New Restaurant
@@ -1061,6 +1154,15 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                       </button>
 
                       <button
+                        onClick={() => handleOpenNewGenAdminModal(chain.id)}
+                        className="h-10 px-3 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 font-bold text-xs flex items-center gap-1.5 shrink-0 active:scale-95 transition-all cursor-pointer border border-purple-300"
+                        title={`Registrar nuevo Administrador General para ${chain.name}`}
+                      >
+                        <span className="material-symbols-outlined text-[17px] text-purple-700">person_add</span>
+                        <span className="hidden sm:inline">+ Admin Gen</span>
+                      </button>
+
+                      <button
                         onClick={() => handleOpenEditChain(chain)}
                         className="h-10 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs flex items-center gap-1.5 shrink-0 active:scale-95 transition-all cursor-pointer border border-amber-300"
                         title={`Editar información y configuración de ${chain.name}`}
@@ -1385,7 +1487,18 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                   </div>
                   <h3 className="font-extrabold text-sm text-primary">Directorio de Administradores</h3>
                 </div>
-                <span className="text-xs text-on-surface-variant font-bold">{admins.length} usuarios</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-on-surface-variant font-bold">{admins.length} usuarios</span>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenNewGenAdminModal()}
+                    className="px-2 py-1 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-900 font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Registrar nuevo Administrador General"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">person_add</span>
+                    <span>+ Admin Gen</span>
+                  </button>
+                </div>
               </div>
 
               {/* Role filter pills */}
@@ -1651,25 +1764,36 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-surface-container p-1 rounded-xl">
-            {[
-              { key: 'todos', label: 'Todos' },
-              { key: 'admin_global', label: 'Global' },
-              { key: 'admin_general', label: 'Generales' },
-              { key: 'admin_sede', label: 'Sedes' }
-            ].map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setAdminTab(t.key as typeof adminTab)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  adminTab === t.key
-                    ? 'bg-surface-container-lowest text-primary shadow-sm'
-                    : 'text-on-surface-variant hover:text-on-surface'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="flex items-center gap-1.5 bg-surface-container p-1 rounded-xl">
+              {[
+                { key: 'todos', label: 'Todos' },
+                { key: 'admin_global', label: 'Global' },
+                { key: 'admin_general', label: 'Generales' },
+                { key: 'admin_sede', label: 'Sedes' }
+              ].map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => setAdminTab(t.key as typeof adminTab)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    adminTab === t.key
+                      ? 'bg-surface-container-lowest text-primary shadow-sm'
+                      : 'text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleOpenNewGenAdminModal()}
+              className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px]">person_add</span>
+              <span>+ Registrar Administrador General</span>
+            </button>
           </div>
         </div>
 
@@ -2322,6 +2446,213 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                 >
                   <span className="material-symbols-outlined text-[18px]">add_location</span>
                   <span>Aperturar y Desplegar Sede</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 11: REGISTRAR NUEVO ADMINISTRADOR GENERAL (ADMIN GLOBAL) */}
+      {/* ========================================================================= */}
+      {showModalNewGenAdmin && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden border border-outline-variant/40 animate-in zoom-in-95 my-8">
+            <div className="px-6 py-4 bg-purple-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-purple-400/20 flex items-center justify-center text-purple-200">
+                  <span className="material-symbols-outlined text-[24px]">badge</span>
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-white">
+                    Registrar Administrador General
+                  </h3>
+                  <p className="text-xs text-purple-200">
+                    Asigna un Administrador General a un restaurante con control multi-sede
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowModalNewGenAdmin(false)}
+                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center text-white transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNewGenAdmin} className="p-6 flex flex-col gap-4">
+              {/* Selector de Restaurante / Cadena */}
+              <div>
+                <label className="font-bold text-xs text-on-surface block mb-1">
+                  Restaurante / Cadena Destino *
+                </label>
+                <select
+                  value={genAdminChainId}
+                  onChange={(e) => setGenAdminChainId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm font-bold text-on-surface border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
+                  required
+                >
+                  <option value="">-- Seleccionar Restaurante --</option>
+                  {chains.map((chain) => (
+                    <option key={chain.id} value={chain.id}>
+                      {chain.name} ({chain.locations.length} {chain.locations.length === 1 ? 'sede' : 'sedes'}) — Plan {chain.plan}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Documento y Nombre */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="font-bold text-[11px] text-on-surface block mb-1">
+                    Tipo Doc. *
+                  </label>
+                  <select
+                    value={genAdminDocType}
+                    onChange={(e) => setGenAdminDocType(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl bg-surface-container-low text-xs border border-outline-variant/30 focus:outline-none font-bold text-on-surface cursor-pointer"
+                  >
+                    <option value="DNI">DNI (8 dígitos)</option>
+                    <option value="CE">Carnet Extr. (CE)</option>
+                    <option value="Pasaporte">Pasaporte</option>
+                    <option value="RUC">RUC (11 dígitos)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-[11px] text-on-surface block mb-1">
+                    N° Documento *
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={genAdminDocType === 'DNI' ? 8 : genAdminDocType === 'RUC' ? 11 : 15}
+                    value={genAdminDocNumber}
+                    onChange={(e) => setGenAdminDocNumber(e.target.value.replace(genAdminDocType === 'DNI' || genAdminDocType === 'RUC' ? /\D/g : /[^a-zA-Z0-9]/g, ''))}
+                    placeholder={genAdminDocType === 'DNI' ? '41892301' : 'Número'}
+                    className="w-full px-3 py-2 rounded-xl bg-surface-container-low text-xs font-mono font-bold text-on-surface border border-outline-variant/30 focus:outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-[11px] text-on-surface block mb-1">
+                    Nombre Completo *
+                  </label>
+                  <input
+                    type="text"
+                    value={genAdminName}
+                    onChange={(e) => setGenAdminName(e.target.value)}
+                    placeholder="Ej. Roberto Morales Sánchez"
+                    className="w-full px-3 py-2 rounded-xl bg-surface-container-low text-xs font-medium text-on-surface border border-outline-variant/30 focus:outline-none"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Email y Teléfono */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-xs text-on-surface block mb-1">
+                    Correo Electrónico (Login & Activación) *
+                  </label>
+                  <input
+                    type="email"
+                    value={genAdminEmail}
+                    onChange={(e) => setGenAdminEmail(e.target.value)}
+                    placeholder="admin@restaurante.pe"
+                    className="w-full px-3 py-2 rounded-xl bg-surface-container-low text-xs text-on-surface border border-outline-variant/30 focus:outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-xs text-on-surface block mb-1">
+                    Teléfono / WhatsApp
+                  </label>
+                  <input
+                    type="tel"
+                    value={genAdminPhone}
+                    onChange={(e) => setGenAdminPhone(e.target.value.replace(/\D/g, ''))}
+                    placeholder="999888777"
+                    className="w-full px-3 py-2 rounded-xl bg-surface-container-low text-xs font-mono text-on-surface border border-outline-variant/30 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* PIN de Terminal de 6 dígitos */}
+              <div className="bg-purple-500/10 p-4 rounded-xl border border-purple-500/20 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-purple-950 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px] text-purple-700">lock</span>
+                    PIN de Acceso a Terminal (6 dígitos) *
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setGenAdminPin(Math.floor(100000 + Math.random() * 900000).toString())}
+                    className="text-[11px] text-purple-700 font-extrabold hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">autorenew</span>
+                    Generar Nuevo PIN
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  value={genAdminPin}
+                  onChange={(e) => setGenAdminPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="6 dígitos"
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container-lowest text-center text-base font-mono font-extrabold tracking-widest text-purple-900 border border-purple-300 focus:outline-none"
+                  required
+                />
+                <p className="text-[10px] text-purple-800">
+                  Este PIN le permite ingresar a cualquier terminal de las sedes asignadas al restaurante.
+                </p>
+              </div>
+
+              {/* Sedes Asignadas Preview */}
+              {genAdminChainId && (
+                <div className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/20 flex flex-col gap-1.5">
+                  <span className="text-xs font-bold text-primary flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[16px] text-teal-600">domain</span>
+                    Sedes que estarán bajo su administración:
+                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                    {(chains.find((c) => c.id === genAdminChainId)?.locations || []).map((loc) => (
+                      <span key={loc.id} className="px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-teal-900 text-xs font-bold flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-teal-600"></span>
+                        {loc.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Botones de acción */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline-variant/20">
+                <button
+                  type="button"
+                  onClick={() => setShowModalNewGenAdmin(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container cursor-pointer"
+                  disabled={isSavingGenAdmin}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingGenAdmin}
+                  className="px-5 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingGenAdmin ? (
+                    <>
+                      <span className="material-symbols-outlined text-[18px] animate-spin">refresh</span>
+                      <span>Provisionando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[18px]">verified_user</span>
+                      <span>Guardar y Provisionar Administrador General</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
