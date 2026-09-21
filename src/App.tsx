@@ -88,7 +88,7 @@ import {
   resetAllDataInRTDB
 } from './services/rtdbService';
 import { loadSession, saveSession, clearSession } from './services/sessionService';
-import { closeAdminSession, fetchTableDrinks, persistTableDrinks, recordCashMovement, recordCompletedSale, recordInventoryMovement } from './services/authService';
+import { closeAdminSession, ensureTableReadyForPayment, fetchTableDrinks, persistTableDrinks, recordCashMovement, recordCompletedSale, recordInventoryMovement } from './services/authService';
 import { auth } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -1006,6 +1006,7 @@ export default function App() {
     // El servidor ejecuta venta, inventario y liberación de mesa en una única
     // transacción. Si falla, se propaga el error y no se altera el estado local.
     if (!isDemoMode) {
+      await ensureTableReadyForPayment(activeChainId, activeBranchId, tableId);
       saleRecord.id = await recordCompletedSale(activeChainId, activeBranchId, tableId, payment);
     }
 

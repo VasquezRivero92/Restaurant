@@ -401,6 +401,40 @@ app.post('/api/tables/:tableId/drinks', async (req, res) => {
   }
 });
 
+// Confirma en servidor que la mesa entró al flujo de cobro. Es idempotente y
+// evita la carrera entre "Solicitar cuenta" y el botón "Cobrar" del cliente.
+app.post('/api/tables/:tableId/request-bill', async (req, res) => {
+  try {
+    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    const decoded = await getAuth(firebaseAdminApp).verifyIdToken(token);
+    const { tenantId: requestedTenantId, branchId } = req.body || {};
+    const tenantId = decoded.platformAdmin === true ? requestedTenantId : decoded.tenantId;
+    const branchIds = Array.isArray(decoded.branchIds) ? decoded.branchIds : [];
+    const allowedRoles = new Set(['mesero', 'cajero', 'admin_sede', 'admin_general']);
+    if (!tenantId || !branchId || (!decoded.platformAdmin && (!allowedRoles.has(decoded.role) || !branchIds.includes(branchId)))) {
+      return res.status(403).json({ error: 'No tienes permiso para solicitar esta cuenta.' });
+    }
+    const tableRef = firestore.collection('restaurants').doc(tenantId).collection('branches').doc(branchId).collection('tables').doc(req.params.tableId);
+    await firestore.runTransaction(async (transaction) => {
+      const tableSnapshot = await transaction.get(tableRef);
+      if (!tableSnapshot.exists) throw new Error('Mesa no encontrada.');
+      const table = tableSnapshot.data();
+      if (!Number.isFinite(Number(table.total)) || Number(table.total) <= 0) throw new Error('La mesa no tiene consumo pendiente.');
+      if (table.status === 'free') throw new Error('La mesa ya está libre.');
+      if (table.status !== 'bill_requested') {
+        transaction.update(tableRef, { status: 'bill_requested', statusLabel: 'Cuenta Pedida', updatedAt: Date.now() });
+      }
+    });
+    return res.json({ ok: true });
+  } catch (error) {
+    const message = String(error?.message || '');
+    const safeMessages = new Set(['Mesa no encontrada.', 'La mesa no tiene consumo pendiente.', 'La mesa ya está libre.']);
+    return res.status(message.includes('Firebase ID token') ? 401 : 409).json({
+      error: safeMessages.has(message) ? message : 'No fue posible confirmar la solicitud de cuenta.'
+    });
+  }
+});
+
 app.post('/api/sales/complete', async (req, res) => {
   try {
     const authorization = req.headers.authorization || '';
@@ -461,16 +495,28 @@ app.post('/api/sales/complete', async (req, res) => {
           recipeUsage.set(String(ingredient.inventoryItemId), (recipeUsage.get(String(ingredient.inventoryItemId)) || 0) + used);
         }
       }
-      for (const [inventoryItemId, quantity] of recipeUsage) {
-        const inventoryRef = branchRef.collection('inventory').doc(inventoryItemId);
-        const inventorySnapshot = await transaction.get(inventoryRef);
-        if (!inventorySnapshot.exists) continue;
+
+      // Firestore exige que todas las lecturas de una transacción ocurran antes
+      // de la primera escritura. Leemos todo el inventario en paralelo y recién
+      // después aplicamos descuentos y movimientos.
+      const inventoryUsage = Array.from(recipeUsage.entries()).map(([inventoryItemId, quantity]) => ({
+        inventoryItemId,
+        quantity,
+        inventoryRef: branchRef.collection('inventory').doc(inventoryItemId)
+      }));
+      const inventorySnapshots = await Promise.all(
+        inventoryUsage.map(({ inventoryRef }) => transaction.get(inventoryRef))
+      );
+
+      inventoryUsage.forEach(({ inventoryItemId, quantity, inventoryRef }, index) => {
+        const inventorySnapshot = inventorySnapshots[index];
+        if (!inventorySnapshot.exists) return;
         const currentStock = Number(inventorySnapshot.data().currentStock || 0);
         recipeCost += Number(inventorySnapshot.data().unitCost || 0) * quantity;
         transaction.update(inventoryRef, { currentStock: Math.max(0, currentStock - quantity), updatedAt: Date.now() });
         const movementRef = branchRef.collection('inventoryMovements').doc();
         transaction.create(movementRef, { id: movementRef.id, branchId, inventoryItemId, type: 'sale', quantity: -quantity, reason: `Venta mesa ${table.number || tableId}`, createdAt: Date.now(), createdBy: decoded.uid });
-      }
+      });
       const todaySales = Number(branch.todaySales || 0) + amount;
       transaction.update(branchRef, { todaySales, updatedAt: Date.now() });
       transaction.update(tableRef, {
@@ -491,7 +537,21 @@ app.post('/api/sales/complete', async (req, res) => {
     return res.json({ ok: true, paymentId: saleRef.id });
   } catch (error) {
     console.error('Error al registrar venta:', error);
-    return res.status(401).json({ error: 'No se pudo registrar la venta.' });
+    const message = String(error?.message || '');
+    if (message.includes('Firebase ID token') || message.includes('auth/argument-error')) {
+      return res.status(401).json({ error: 'La sesión expiró. Vuelve a ingresar antes de cobrar.' });
+    }
+    const safeMessages = new Set([
+      'Sede no encontrada',
+      'La mesa debe solicitar la cuenta antes de registrar el cobro',
+      'El consumo de la mesa no es válido',
+      'El efectivo recibido no cubre el total de la venta'
+    ]);
+    return res.status(409).json({
+      error: safeMessages.has(message)
+        ? message
+        : 'No se pudo completar la transacción de venta. Intenta nuevamente.'
+    });
   }
 });
 

@@ -170,6 +170,26 @@ export async function fetchTableDrinks(
   return result.tables;
 }
 
+export async function ensureTableReadyForPayment(
+  tenantId: string,
+  branchId: string,
+  tableId: string
+): Promise<void> {
+  if (!auth?.currentUser) throw new Error('La sesión segura expiró. Vuelve a ingresar antes de cobrar.');
+  const response = await fetch(`/api/tables/${encodeURIComponent(tableId)}/request-bill`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${await auth.currentUser.getIdToken()}`
+    },
+    body: JSON.stringify({ tenantId, branchId })
+  });
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    throw new Error(result.error || 'No fue posible confirmar la solicitud de cuenta.');
+  }
+}
+
 export async function recordCompletedSale(
   tenantId: string,
   branchId: string,
