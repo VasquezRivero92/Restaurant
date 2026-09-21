@@ -7,20 +7,56 @@ import { applicationDefault, cert, getApps, initializeApp } from 'firebase-admin
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import bcrypt from 'bcryptjs';
-
-const __filename = fileURLToPath(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 app.disable('x-powered-by');
 const PORT = process.env.PORT || process.env.SERVER_PORT || 10019;
 const keyPath = path.join(__dirname, 'serviceAccountKey.json');
-const credential = fs.existsSync(keyPath)
-  ? cert(JSON.parse(fs.readFileSync(keyPath, 'utf8')))
-  : applicationDefault();
+
+function resolveFirebaseCredential() {
+  if (fs.existsSync(keyPath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
+      console.log('✅ Credenciales de Firebase cargadas desde serviceAccountKey.json');
+      return cert(parsed);
+    } catch (err) {
+      console.error('❌ Error al leer serviceAccountKey.json:', err.message);
+    }
+  }
+
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS && fs.existsSync(process.env.GOOGLE_APPLICATION_CREDENTIALS)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8'));
+      console.log(`✅ Credenciales de Firebase cargadas desde ${process.env.GOOGLE_APPLICATION_CREDENTIALS}`);
+      return cert(parsed);
+    } catch (err) {
+      console.error('❌ Error al leer GOOGLE_APPLICATION_CREDENTIALS:', err.message);
+    }
+  }
+
+  const rawEnvKey = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+  if (rawEnvKey) {
+    try {
+      const decoded = rawEnvKey.trim().startsWith('{')
+        ? rawEnvKey
+        : Buffer.from(rawEnvKey, 'base64').toString('utf8');
+      const parsed = JSON.parse(decoded);
+      console.log('✅ Credenciales de Firebase cargadas desde variable de entorno');
+      return cert(parsed);
+    } catch (err) {
+      console.error('❌ Error al parsear credencial desde variable de entorno:', err.message);
+    }
+  }
+
+  console.warn('⚠️ [Firebase Admin] No se encontró serviceAccountKey.json ni variable FIREBASE_SERVICE_ACCOUNT.');
+  console.warn('⚠️ Se intentará Application Default Credentials (ADC). Si estás en un contenedor o VPS fuera de GCP, fallará si no configuras la clave.');
+  return applicationDefault();
+}
 
 const firebaseAdminApp = getApps().length ? getApps()[0] : initializeApp({
-  credential,
+  credential: resolveFirebaseCredential(),
   projectId: process.env.FIREBASE_PROJECT_ID || 'restaurant-4e0ee'
 });
 const firestore = getFirestore(firebaseAdminApp);

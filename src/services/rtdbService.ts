@@ -37,6 +37,11 @@ export async function initRTDBSeedIfEmpty(): Promise<boolean> {
 }
 
 const noop = () => {};
+const handleSnapshotError = (resource: string, fallback?: () => void) => (err: Error) => {
+  console.warn(`[Firestore:${resource}] Error de permisos o lectura:`, err.message);
+  if (fallback) fallback();
+};
+
 /**
  * Suscripción optimizada a Restaurantes (Chains).
  * Utiliza las ubicaciones ya embebidas en el documento principal,
@@ -70,9 +75,7 @@ export function subscribeToChains(callback: (items: ChainBrand[]) => void) {
 
     knownCollectionIds.set(collPath, currentIds);
     callback(chainsWithBranches);
-  }, (err) => {
-    console.warn('[Firestore] No se pudieron suscribir cadenas (modo público o sin sesión):', err.message);
-  });
+  }, handleSnapshotError('chains', () => callback([])));
 }
 
 /**
@@ -96,7 +99,7 @@ export function subscribeToTables(callback: (items: TableItem[]) => void) {
 
     knownCollectionIds.set(collPath, currentIds);
     callback(tables);
-  });
+  }, handleSnapshotError('tables', () => callback([])));
 }
 
 /**
@@ -168,7 +171,7 @@ export function subscribeToKDSTickets(callback: (items: KDSTicket[]) => void) {
 
     knownCollectionIds.set(collPath, currentIds);
     callback(orders);
-  });
+  }, handleSnapshotError('kdsTickets', () => callback([])));
 }
 
 /** Pedidos iniciados por clientes desde el QR. No llegan a cocina hasta que un mozo los confirme. */
@@ -177,7 +180,7 @@ export function subscribeToQrCustomerOrders(callback: (items: QrCustomerOrder[])
   const collPath = `restaurants/${scope.tenantId}/branches/${scope.branchId}/customerOrders`;
   return onSnapshot(collection(firestoreDb, collPath), (snapshot) => {
     callback(fromDocs<QrCustomerOrder>(snapshot).sort((a, b) => b.createdAt - a.createdAt));
-  });
+  }, handleSnapshotError('customerOrders', () => callback([])));
 }
 
 /** Ventas cerradas de la sede activa para reportes administrativos. */
@@ -187,7 +190,7 @@ export function subscribeToSales(callback: (items: SaleRecord[]) => void) {
   return onSnapshot(collection(firestoreDb, collPath), (snapshot) => {
     const sales = fromDocs<SaleRecord>(snapshot).sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
     callback(sales);
-  });
+  }, handleSnapshotError('sales', () => callback([])));
 }
 
 /** Consolidado del tenant para reportes de administrador general/global. */
@@ -195,36 +198,36 @@ export function subscribeToTenantSales(callback: (items: SaleRecord[]) => void) 
   if (!firestoreDb || !scope.tenantId) { callback([]); return noop; }
   return onSnapshot(query(collectionGroup(firestoreDb, 'sales'), where('tenantId', '==', scope.tenantId)), (snapshot) => {
     callback(fromDocs<SaleRecord>(snapshot).sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0)));
-  });
+  }, handleSnapshotError('tenantSales', () => callback([])));
 }
 
 export function subscribeToInventory(callback: (items: InventoryItem[]) => void) {
   if (!firestoreDb || !scope.branchId || !scope.tenantId) { callback([]); return noop; }
   const collPath = `restaurants/${scope.tenantId}/branches/${scope.branchId}/inventory`;
-  return onSnapshot(collection(firestoreDb, collPath), (snapshot) => callback(fromDocs<InventoryItem>(snapshot)));
+  return onSnapshot(collection(firestoreDb, collPath), (snapshot) => callback(fromDocs<InventoryItem>(snapshot)), handleSnapshotError('inventory', () => callback([])));
 }
 
 export function subscribeToCashShifts(callback: (items: CashShift[]) => void) {
   if (!firestoreDb || !scope.branchId || !scope.tenantId) { callback([]); return noop; }
   const collPath = `restaurants/${scope.tenantId}/branches/${scope.branchId}/cashShifts`;
-  return onSnapshot(collection(firestoreDb, collPath), (snapshot) => callback(fromDocs<CashShift>(snapshot).sort((a, b) => b.openedAt - a.openedAt)));
+  return onSnapshot(collection(firestoreDb, collPath), (snapshot) => callback(fromDocs<CashShift>(snapshot).sort((a, b) => b.openedAt - a.openedAt)), handleSnapshotError('cashShifts', () => callback([])));
 }
 
 export function subscribeToReservations(callback: (items: Reservation[]) => void) {
   if (!firestoreDb || !scope.branchId || !scope.tenantId) { callback([]); return noop; }
   const collPath = `restaurants/${scope.tenantId}/branches/${scope.branchId}/reservations`;
-  return onSnapshot(collection(firestoreDb, collPath), (snapshot) => callback(fromDocs<Reservation>(snapshot).sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))));
+  return onSnapshot(collection(firestoreDb, collPath), (snapshot) => callback(fromDocs<Reservation>(snapshot).sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))), handleSnapshotError('reservations', () => callback([])));
 }
 
 export function subscribeToAttendance(callback: (items: AttendanceRecord[]) => void) {
   if (!firestoreDb || !scope.branchId || !scope.tenantId) { callback([]); return noop; }
   const collPath = `restaurants/${scope.tenantId}/branches/${scope.branchId}/attendance`;
-  return onSnapshot(collection(firestoreDb, collPath), (snapshot) => callback(fromDocs<AttendanceRecord>(snapshot).sort((a, b) => b.checkInAt - a.checkInAt)));
+  return onSnapshot(collection(firestoreDb, collPath), (snapshot) => callback(fromDocs<AttendanceRecord>(snapshot).sort((a, b) => b.checkInAt - a.checkInAt)), handleSnapshotError('attendance', () => callback([])));
 }
 
 export function subscribeToApprovals(callback: (items: ApprovalRequest[]) => void) {
   if (!firestoreDb || !scope.tenantId) { callback([]); return noop; }
-  return onSnapshot(collection(firestoreDb, `restaurants/${scope.tenantId}/approvals`), (snapshot) => callback(fromDocs<ApprovalRequest>(snapshot).sort((a, b) => b.requestedAt - a.requestedAt)));
+  return onSnapshot(collection(firestoreDb, `restaurants/${scope.tenantId}/approvals`), (snapshot) => callback(fromDocs<ApprovalRequest>(snapshot).sort((a, b) => b.requestedAt - a.requestedAt)), handleSnapshotError('approvals', () => callback([])));
 }
 
 /**
@@ -250,7 +253,7 @@ export function subscribeToBranchMenus(callback: (items: Record<string, MenuItem
 
     knownCollectionIds.set(collPath, currentIds);
     callback({ [branchId]: dishes });
-  });
+  }, handleSnapshotError('branchMenus', () => callback({})));
 }
 
 /**
@@ -269,7 +272,7 @@ export function subscribeToStaff(callback: (items: StaffMember[]) => void) {
       syncedCache.set(getDocKey(collPath, String(member.id)), JSON.stringify(clean(member)));
     }
     callback(all.filter((u) => ['mesero', 'cocina', 'cajero'].includes(u.roleKey)).map((m) => ({ ...m, pin: '' })));
-  });
+  }, handleSnapshotError('staff', () => callback([])));
 }
 
 /**
@@ -289,7 +292,7 @@ export function subscribeToAdmins(callback: (items: AdminUser[]) => void) {
       syncedCache.set(getDocKey(collPath, String(admin.id)), JSON.stringify(clean(admin)));
     }
     callback(all.filter((u) => ['admin_global', 'admin_general', 'admin_sede'].includes(u.roleKey)));
-  });
+  }, handleSnapshotError('admins', () => callback([])));
 }
 
 /**
@@ -308,7 +311,7 @@ export function subscribeToMasterCartas(callback: (items: MasterCarta[]) => void
       syncedCache.set(getDocKey(collPath, carta.id), JSON.stringify(clean(carta)));
     }
     callback(cartas);
-  });
+  }, handleSnapshotError('masterCartas', () => callback([])));
 }
 
 /**

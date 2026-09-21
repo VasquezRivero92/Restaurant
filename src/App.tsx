@@ -578,10 +578,11 @@ export default function App() {
       }
     });
 
-    const unsubSales = subscribeToSales((cloudSales) => {
+    const isTenantAdmin = ['admin_general', 'admin_sede', 'admin_global'].includes(currentRole);
+    const unsubSales = isTenantAdmin ? subscribeToSales((cloudSales) => {
       setSales(cloudSales);
       setIsCloudConnected(true);
-    });
+    }) : () => {};
 
     const unsubInventory = subscribeToInventory((cloudInventory) => {
       if (cloudInventory.length > 0) setInventory(cloudInventory);
@@ -615,7 +616,7 @@ export default function App() {
       unsubApprovals();
       unsubQrOrders();
     };
-  }, [activeChainId, activeBranchId, canUseCloudData]);
+  }, [activeChainId, activeBranchId, canUseCloudData, currentRole]);
 
   // 2. Suscripción a datos organizacionales (Restaurantes, Cartas Maestras, Personal, Admins)
   // No se suscribe si el usuario solo está visitando la landing pública sin tenant

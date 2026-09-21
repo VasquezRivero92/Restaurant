@@ -113,5 +113,16 @@ service cloud.firestore {
         allow write: if false;
       }
     }
+
+    // Consultas de grupo de colecciones (collectionGroup) para consolidado de ventas y cartas maestras
+    match /{path=**}/sales/{saleId} {
+      allow read: if signedIn() && (isGlobal() || (hasRole(['admin_general', 'admin_sede']) && resource.data.tenantId == tokenTenant()));
+      allow write: if false;
+    }
+
+    match /{path=**}/masterCartas/{cartaId} {
+      allow read: if signedIn() && (isGlobal() || resource.data.tenantId == tokenTenant());
+      allow write: if isGlobal() || (hasRole(['admin_general']) && resource.data.tenantId == tokenTenant());
+    }
   }
 }
