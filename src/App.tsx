@@ -2169,7 +2169,21 @@ export default function App() {
         tenantId: managerAdmin.tenantId || chainId,
         brandId: managerAdmin.brandId || chainId
       };
-      setAdmins((prev) => [safeManager, ...prev]);
+      setAdmins((prev) => {
+        const existingIdx = prev.findIndex((a) => a.id === safeManager.id);
+        if (existingIdx >= 0) {
+          const updated = [...prev];
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            ...safeManager,
+            assignedBranchIds: Array.from(
+              new Set([...(updated[existingIdx].assignedBranchIds || []), ...safeManager.assignedBranchIds])
+            )
+          };
+          return updated;
+        }
+        return [safeManager, ...prev];
+      });
       if (auth?.currentUser && safeManager.email) {
         provisionAdminIdentity(safeManager).catch((err) =>
           console.error('No se pudo provisionar admin de sede en Auth:', err)
@@ -2238,16 +2252,50 @@ export default function App() {
     }
 
     // Synchronize or update Admin User for this sede in admins directory
-    if (updatedLocation.managerName || updatedLocation.managerEmail) {
+    if (updatedLocation.managerName || updatedLocation.managerEmail || managerAdmin) {
       setAdmins((prev) => {
-        const existingIdx = prev.findIndex(
+        let updated = [...prev];
+        if (managerAdmin) {
+          const targetAdminId = managerAdmin.id;
+          // Unassign previous admin of this branch if it was a different admin
+          updated = updated.map((a) => {
+            if (
+              a.id !== targetAdminId &&
+              (a.assignedBranchIds?.includes(updatedLocation.id) || a.branchId === updatedLocation.id)
+            ) {
+              return {
+                ...a,
+                branchId: a.branchId === updatedLocation.id ? '' : a.branchId,
+                assignedBranchIds: (a.assignedBranchIds || []).filter((bid) => bid !== updatedLocation.id)
+              };
+            }
+            return a;
+          });
+
+          const existingIdx = updated.findIndex((a) => a.id === targetAdminId);
+          if (existingIdx >= 0) {
+            updated[existingIdx] = {
+              ...updated[existingIdx],
+              ...managerAdmin,
+              branchName: updatedLocation.name,
+              branchId: updatedLocation.id,
+              assignedBranchIds: Array.from(
+                new Set([...(updated[existingIdx].assignedBranchIds || []), updatedLocation.id])
+              )
+            };
+          } else {
+            updated.unshift(managerAdmin);
+          }
+          return updated;
+        }
+
+        const existingIdx = updated.findIndex(
           (a) =>
-            a.brandId === chainId &&
+            (a.brandId === chainId || a.tenantId === chainId) &&
             a.roleKey === 'admin_sede' &&
             (a.assignedBranchIds?.includes(updatedLocation.id) || a.branchId === updatedLocation.id)
         );
         if (existingIdx >= 0) {
-          const updated = [...prev];
           updated[existingIdx] = {
             ...updated[existingIdx],
             name: updatedLocation.managerName || updated[existingIdx].name,
@@ -2256,13 +2304,16 @@ export default function App() {
             docType: updatedLocation.managerDocType || updated[existingIdx].docType,
             docNumber: updatedLocation.managerDocNumber || updated[existingIdx].docNumber,
             branchName: updatedLocation.name,
-            initials: (updatedLocation.managerName || 'AS').split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase()
+            initials: (updatedLocation.managerName || 'AS')
+              .split(' ')
+              .map((n) => n[0])
+              .join('')
+              .substring(0, 2)
+              .toUpperCase()
           };
           return updated;
-        } else if (managerAdmin) {
-          return [managerAdmin, ...prev];
         }
-        return prev;
+        return updated;
       });
     }
   };
@@ -2842,6 +2893,7 @@ export default function App() {
                 <ScreenSaaSConsole
                   chains={chains}
                   admins={admins}
+                  staff={staffMembers}
                   masterCartas={masterCartas}
                   onAddChain={handleAddChain}
                   onUpdateChain={handleUpdateChain}

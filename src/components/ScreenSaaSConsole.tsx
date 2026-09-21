@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { ChainBrand, AdminUser, ScreenType, BranchLocation, AppRole, MasterCarta, MenuItem } from '../types';
+import { ChainBrand, AdminUser, ScreenType, BranchLocation, AppRole, MasterCarta, MenuItem, StaffMember, AppUser } from '../types';
 import { DEFAULT_DISH_PLACEHOLDER_IMAGE } from '../data/mockData';
 import { getErrorMessage } from '../utils/errorHandler';
 
 interface ScreenSaaSConsoleProps {
   chains: ChainBrand[];
   admins: AdminUser[];
+  staff?: StaffMember[];
   masterCartas?: MasterCarta[];
   onAddChain: (newChain: ChainBrand) => Promise<Array<{ email: string; activationLink: string }>>;
   onUpdateChain?: (chain: ChainBrand) => void;
@@ -26,6 +27,7 @@ interface ScreenSaaSConsoleProps {
 export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
   chains,
   admins,
+  staff = [],
   masterCartas = [],
   onAddChain,
   onUpdateChain,
@@ -224,6 +226,36 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
     adminPhone: ''
   });
 
+  // Helper to obtain all registered personnel (staff and admins) for a specific chain
+  const getRegisteredCandidates = (chainId: string) => {
+    const targetChain = chains.find((c) => c.id === chainId);
+    const branchIds = targetChain ? targetChain.locations.map((l) => l.id) : [];
+
+    const chainAdmins = (admins || []).filter(
+      (a) =>
+        a.roleKey !== 'admin_global' &&
+        (a.tenantId === chainId ||
+          a.brandId === chainId ||
+          (a.branchId && branchIds.includes(a.branchId)) ||
+          (a.assignedBranchIds && a.assignedBranchIds.some((bid) => branchIds.includes(bid))))
+    );
+    const chainStaff = (staff || []).filter(
+      (s) =>
+        s.tenantId === chainId ||
+        s.brandId === chainId ||
+        (s.branchId && branchIds.includes(s.branchId)) ||
+        (s.assignedBranchIds && s.assignedBranchIds.some((bid) => branchIds.includes(bid)))
+    );
+
+    const map = new Map<string, AppUser>();
+    [...chainAdmins, ...chainStaff].forEach((p) => {
+      if (p && p.name && !map.has(p.id)) {
+        map.set(p.id, p);
+      }
+    });
+    return Array.from(map.values());
+  };
+
   // Form state: New Branch / Sede
   const [locationForm, setLocationForm] = useState({
     chainId: chains[0]?.id || '',
@@ -233,6 +265,7 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
     city: 'Lima',
     phone: '',
     tables: 14,
+    managerStaffId: '',
     managerName: '',
     managerDocType: 'DNI' as 'DNI' | 'CE' | 'Pasaporte',
     managerDocNumber: '',
@@ -249,6 +282,7 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
     phone: '',
     tables: 14,
     active: true,
+    managerStaffId: '',
     managerName: '',
     managerDocType: 'DNI' as 'DNI' | 'CE' | 'Pasaporte',
     managerDocNumber: '',
@@ -263,11 +297,21 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
 
   // Open Edit Location Modal
   const handleOpenEditLocation = (chainId: string, loc: BranchLocation) => {
+    const candidates = getRegisteredCandidates(chainId);
     const assignedAdmin = admins.find(
       (a) =>
         a.roleKey === 'admin_sede' &&
         (a.assignedBranchIds?.includes(loc.id) || a.branchId === loc.id || a.name === loc.managerName)
     );
+
+    const matched = candidates.find(
+      (c) =>
+        (assignedAdmin && c.id === assignedAdmin.id) ||
+        c.name.toLowerCase() === (loc.managerName || '').toLowerCase() ||
+        (c.assignedBranchIds && c.assignedBranchIds.includes(loc.id)) ||
+        c.branchId === loc.id
+    );
+    const selected = matched || candidates[0];
 
     setEditingLocation({ chainId, location: loc });
     setEditLocationForm({
@@ -278,11 +322,12 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       phone: loc.phone || assignedAdmin?.phone || '',
       tables: loc.tables || 12,
       active: loc.active !== false,
-      managerName: loc.managerName || assignedAdmin?.name || '',
-      managerDocType: loc.managerDocType || (assignedAdmin?.docType as any) || 'DNI',
-      managerDocNumber: loc.managerDocNumber || assignedAdmin?.docNumber || '',
-      managerEmail: loc.managerEmail || assignedAdmin?.email || '',
-      managerPhone: loc.managerPhone || assignedAdmin?.phone || ''
+      managerStaffId: selected?.id || '',
+      managerName: selected?.name || loc.managerName || '',
+      managerDocType: (selected?.docType as any) || loc.managerDocType || 'DNI',
+      managerDocNumber: selected?.docNumber || loc.managerDocNumber || '',
+      managerEmail: selected?.email || loc.managerEmail || '',
+      managerPhone: selected?.phone || loc.managerPhone || ''
     });
   };
 
@@ -296,24 +341,53 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       return;
     }
 
+    const candidates = getRegisteredCandidates(editingLocation.chainId);
+    const selectedPerson = candidates.find((c) => c.id === editLocationForm.managerStaffId);
+
+    if (!selectedPerson && candidates.length > 0) {
+      showToast('Solo se puede asignar como administrador de sede a un personal ya registrado');
+      return;
+    }
+
+    const managerName = selectedPerson ? selectedPerson.name : (editLocationForm.managerName.trim() || editingLocation.location.managerName);
+    const managerDocType = (selectedPerson?.docType as any) || editLocationForm.managerDocType;
+    const managerDocNumber = selectedPerson?.docNumber || editLocationForm.managerDocNumber.trim() || undefined;
+    const managerEmail = selectedPerson?.email || editLocationForm.managerEmail.trim() || undefined;
+    const managerPhone = editLocationForm.managerPhone.trim() || selectedPerson?.phone || undefined;
+
     const updatedLocation: BranchLocation = {
       ...editingLocation.location,
       name: editLocationForm.name.trim(),
       address: editLocationForm.address.trim() || 'Av. Principal 100',
       district: editLocationForm.district.trim() || 'San Isidro',
       city: editLocationForm.city.trim() || 'Lima',
-      phone: editLocationForm.phone.trim() || editLocationForm.managerPhone.trim() || '+51 1 445-0000',
+      phone: editLocationForm.phone.trim() || managerPhone || '+51 1 445-0000',
       tables: Math.max(1, Number(editLocationForm.tables) || 12),
       active: editLocationForm.active,
-      managerName: editLocationForm.managerName.trim() || editingLocation.location.managerName,
-      managerDocType: editLocationForm.managerDocType,
-      managerDocNumber: editLocationForm.managerDocNumber.trim() || undefined,
-      managerEmail: editLocationForm.managerEmail.trim() || undefined,
-      managerPhone: editLocationForm.managerPhone.trim() || undefined
+      managerName: managerName,
+      managerDocType: managerDocType,
+      managerDocNumber: managerDocNumber,
+      managerEmail: managerEmail,
+      managerPhone: managerPhone
     };
 
+    const managerAdmin: AdminUser | undefined = selectedPerson
+      ? {
+          ...selectedPerson,
+          role: 'Administrador de Sede',
+          roleKey: 'admin_sede',
+          brand: chains.find((c) => c.id === editingLocation.chainId)?.name || '',
+          tenantId: editingLocation.chainId,
+          brandId: editingLocation.chainId,
+          branchName: updatedLocation.name,
+          branchId: updatedLocation.id,
+          assignedBranchIds: Array.from(new Set([...(selectedPerson.assignedBranchIds || []), updatedLocation.id])),
+          active: true
+        }
+      : undefined;
+
     if (onUpdateLocation) {
-      onUpdateLocation(editingLocation.chainId, updatedLocation);
+      onUpdateLocation(editingLocation.chainId, updatedLocation, managerAdmin);
     }
     setEditingLocation(null);
     showToast(`¡Sede "${updatedLocation.name}" actualizada con éxito!`);
@@ -407,6 +481,9 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
   // Open Add Sede modal pre-selecting a specific restaurant
   const handleOpenAddLocation = (chainId?: string) => {
     const targetId = chainId || chains[0]?.id || '';
+    const candidates = getRegisteredCandidates(targetId);
+    const firstCand = candidates[0];
+
     setSelectedChainForLocation(targetId);
     setLocationForm((prev) => ({
       ...prev,
@@ -415,11 +492,12 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       address: '',
       phone: '',
       tables: 14,
-      managerName: '',
-      managerDocType: 'DNI',
-      managerDocNumber: '',
-      managerEmail: '',
-      managerPhone: ''
+      managerStaffId: firstCand?.id || '',
+      managerName: firstCand?.name || '',
+      managerDocType: (firstCand?.docType as any) || 'DNI',
+      managerDocNumber: firstCand?.docNumber || '',
+      managerEmail: firstCand?.email || '',
+      managerPhone: firstCand?.phone || ''
     }));
     setShowModalNewLocation(true);
   };
@@ -460,46 +538,49 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
 
     const newChain: ChainBrand = {
       id: newChainId,
-      slug: computedSlug,
+      slug: computedSlug || `resto-${Date.now()}`,
       name: chainForm.name.trim(),
       legalName: chainForm.legalName.trim() || `${chainForm.name.trim()} S.A.C.`,
-      ruc: chainForm.ruc.trim() || '20' + Math.floor(100000000 + Math.random() * 900000000),
+      ruc: chainForm.ruc.trim(),
       plan: chainForm.plan,
       status: 'Activa',
       logoUrl: chainForm.logoUrl.trim() || undefined,
       adminName: genAdminName,
       adminDocType: chainForm.adminDocType,
       adminDocNumber: chainForm.adminDocNumber.trim() || undefined,
-      adminEmail: chainForm.adminEmail.trim() || 'admin@cadena.pe',
-      adminPhone: chainForm.adminPhone.trim() || '+51 987 654 321',
+      adminEmail: chainForm.adminEmail.trim() || 'admin@restaurante.pe',
+      adminPhone: chainForm.adminPhone.trim() || '+51 999 000 111',
       locationsCount: 1,
-      locations: [initialLocation]
+      locations: [initialLocation],
+      assignedCartaId: 'carta-la-barra'
     };
 
     try {
-      const links = await onAddChain(newChain);
-      setActivationLinks(links);
+      const generatedLinks = await onAddChain(newChain);
       setShowModalNewChain(false);
+      setActivationLinks(generatedLinks);
+      setShowModalActivationLinks(true);
       setChainForm({
-      name: '',
-      slug: '',
-      legalName: '',
-      ruc: '',
-      plan: 'Enterprise',
-      logoUrl: '',
-      adminName: '',
-      adminDocType: 'DNI',
-      adminDocNumber: '',
-      adminEmail: '',
-      adminPhone: '',
-      initialLocName: 'Sede Central',
-      initialLocAddress: '',
-      initialLocDistrict: 'Miraflores',
-      initialLocTables: 16,
-      initialLocManager: '',
-      initialLocDocType: 'DNI',
-      initialLocDocNumber: '',
-      initialLocEmail: ''
+        name: '',
+        slug: '',
+        legalName: '',
+        ruc: '',
+        plan: 'Pro',
+        status: 'Activa',
+        logoUrl: '',
+        adminName: '',
+        adminDocType: 'DNI',
+        adminDocNumber: '',
+        adminEmail: '',
+        adminPhone: '',
+        initialLocName: '',
+        initialLocAddress: '',
+        initialLocDistrict: 'Miraflores',
+        initialLocTables: 16,
+        initialLocManager: '',
+        initialLocDocType: 'DNI',
+        initialLocDocNumber: '',
+        initialLocEmail: ''
       });
       showToast(`¡Restaurante "${newChain.name}" registrado. Comparte los enlaces de activación mostrados.`);
     } catch (error) {
@@ -521,8 +602,18 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       return;
     }
 
+    const candidates = getRegisteredCandidates(targetChain.id);
+    const selectedPerson = candidates.find((c) => c.id === locationForm.managerStaffId);
+
+    if (!selectedPerson) {
+      showToast('Solo se puede asignar como administrador de sede a un personal ya registrado');
+      return;
+    }
+
     const newLocId = `loc-${Date.now()}`;
-    const managerName = locationForm.managerName.trim() || 'Admin Asignado';
+    const managerName = selectedPerson.name;
+    const managerPhone = locationForm.managerPhone.trim() || selectedPerson.phone || '+51 990 000 000';
+    const managerEmail = locationForm.managerEmail.trim() || selectedPerson.email || `${managerName.toLowerCase().replace(/\s+/g, '.')}@${targetChain.name.toLowerCase().replace(/\s+/g, '')}.pe`;
 
     const newLocation: BranchLocation = {
       id: newLocId,
@@ -530,20 +621,19 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       address: locationForm.address.trim() || 'Av. Comercial 500',
       district: locationForm.district.trim() || 'San Isidro',
       city: locationForm.city.trim() || 'Lima',
-      phone: locationForm.phone.trim() || '+51 1 220-4400',
+      phone: locationForm.phone.trim() || managerPhone,
       tables: Number(locationForm.tables) || 14,
       todaySales: 0,
       active: true,
       managerName: managerName,
-      managerEmail: locationForm.managerEmail.trim() || `${managerName.toLowerCase().replace(/\s+/g, '.')}@${targetChain.name.toLowerCase().replace(/\s+/g, '')}.pe`,
-      managerPhone: locationForm.managerPhone.trim() || '+51 990 000 000'
+      managerDocType: (selectedPerson.docType as any) || 'DNI',
+      managerDocNumber: selectedPerson.docNumber || '',
+      managerEmail: managerEmail,
+      managerPhone: managerPhone
     };
 
     const newManagerAdmin: AdminUser = {
-      id: `adm-${Date.now()}`,
-      name: managerName,
-      email: newLocation.managerEmail || 'admin.sede@restaurante.pe',
-      phone: newLocation.managerPhone,
+      ...selectedPerson,
       role: 'Administrador de Sede',
       roleKey: 'admin_sede',
       brand: targetChain.name,
@@ -551,8 +641,8 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       brandId: targetChain.id,
       branchName: newLocation.name,
       branchId: newLocId,
-      assignedBranchIds: [newLocId],
-      initials: managerName.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() || 'AS',
+      assignedBranchIds: Array.from(new Set([...(selectedPerson.assignedBranchIds || []), newLocId])),
+      initials: (managerName || 'AS').split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() || 'AS',
       active: true
     };
 
@@ -2028,7 +2118,21 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                 </label>
                 <select
                   value={locationForm.chainId}
-                  onChange={(e) => setLocationForm({ ...locationForm, chainId: e.target.value })}
+                  onChange={(e) => {
+                    const newChainId = e.target.value;
+                    const cands = getRegisteredCandidates(newChainId);
+                    const firstCand = cands[0];
+                    setLocationForm({
+                      ...locationForm,
+                      chainId: newChainId,
+                      managerStaffId: firstCand?.id || '',
+                      managerName: firstCand?.name || '',
+                      managerDocType: (firstCand?.docType as any) || 'DNI',
+                      managerDocNumber: firstCand?.docNumber || '',
+                      managerEmail: firstCand?.email || '',
+                      managerPhone: firstCand?.phone || ''
+                    });
+                  }}
                   className="w-full px-3 py-2.5 rounded-xl bg-surface-container-low text-xs sm:text-sm text-on-surface border border-outline-variant/30 focus:outline-none focus:bg-surface-container font-extrabold cursor-pointer"
                   required
                 >
@@ -2101,85 +2205,107 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
               </div>
 
               {/* Assigned Sede Manager (Administrador de Sede) */}
-              <div className="bg-amber-500/10 p-4 rounded-xl border border-amber-500/30 flex flex-col gap-2.5">
-                <span className="font-extrabold text-xs text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[18px] text-amber-700">badge</span>
-                  Administrador de Sede Designado (Gerente Local de la Sede)
-                </span>
-                <p className="text-[11px] text-amber-900/80">
-                  Esta persona tendrá acceso exclusivo para gestionar la carta del día, platos agotados, mesas y equipo de mozos de esta sede específica.
-                </p>
+              {(() => {
+                const candidates = getRegisteredCandidates(locationForm.chainId);
+                const selectedCand = candidates.find((c) => c.id === locationForm.managerStaffId);
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div>
-                    <label className="font-bold text-[11px] text-on-surface block mb-0.5">
-                      Tipo Documento *
-                    </label>
-                    <select
-                      value={locationForm.managerDocType}
-                      onChange={(e) => setLocationForm({ ...locationForm, managerDocType: e.target.value as any })}
-                      className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none font-bold"
-                    >
-                      <option value="DNI">DNI (8 dígitos)</option>
-                      <option value="CE">Carnet Extr. (CE)</option>
-                      <option value="Pasaporte">Pasaporte</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="font-bold text-[11px] text-on-surface block mb-0.5">
-                      N° de Documento *
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={locationForm.managerDocType === 'DNI' ? 8 : 15}
-                      value={locationForm.managerDocNumber}
-                      onChange={(e) => setLocationForm({ ...locationForm, managerDocNumber: e.target.value.replace(locationForm.managerDocType === 'DNI' ? /\D/g : /[^a-zA-Z0-9]/g, '') })}
-                      placeholder={locationForm.managerDocType === 'DNI' ? '48201945' : 'Número'}
-                      className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none font-mono font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-[11px] text-on-surface block mb-0.5">
-                      Nombre Completo *
-                    </label>
-                    <input
-                      type="text"
-                      value={locationForm.managerName}
-                      onChange={(e) => setLocationForm({ ...locationForm, managerName: e.target.value })}
-                      placeholder="Fernando Castro Poma"
-                      className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none font-medium"
-                      required
-                    />
-                  </div>
-                </div>
+                return (
+                  <div className="bg-amber-500/10 p-4 rounded-xl border border-amber-500/30 flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-xs text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[18px] text-amber-700">badge</span>
+                        Administrador de Sede Designado
+                      </span>
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-900 border border-amber-500/30">
+                        Solo Personal Registrado
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-900/80">
+                      Solo se puede designar como administrador de sede a un colaborador previamente registrado en esta marca.
+                    </p>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="font-bold text-[11px] text-on-surface block mb-0.5">
-                      Email Corporativo
-                    </label>
-                    <input
-                      type="email"
-                      value={locationForm.managerEmail}
-                      onChange={(e) => setLocationForm({ ...locationForm, managerEmail: e.target.value })}
-                      placeholder="fernando.c@restaurante.pe"
-                      className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none"
-                    />
+                    {candidates.length === 0 ? (
+                      <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-800 flex items-start gap-2">
+                        <span className="material-symbols-outlined text-red-600 text-[18px] shrink-0 mt-0.5">warning</span>
+                        <div>
+                          <p className="font-bold">No hay personal registrado en este restaurante.</p>
+                          <p className="text-[11px] text-red-700 mt-0.5">
+                            Primero registre al colaborador en el módulo de personal/equipo de la marca para poder seleccionarlo como administrador de sede.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="font-bold text-[11px] text-on-surface block mb-1">
+                            Seleccionar Colaborador Registrado *
+                          </label>
+                          <select
+                            value={locationForm.managerStaffId}
+                            onChange={(e) => {
+                              const candId = e.target.value;
+                              const cand = candidates.find((c) => c.id === candId);
+                              setLocationForm({
+                                ...locationForm,
+                                managerStaffId: candId,
+                                managerName: cand ? cand.name : '',
+                                managerDocType: (cand?.docType as any) || 'DNI',
+                                managerDocNumber: cand?.docNumber || '',
+                                managerEmail: cand?.email || '',
+                                managerPhone: cand?.phone || ''
+                              });
+                            }}
+                            className="w-full px-3 py-2 rounded-lg bg-surface-container-lowest text-xs sm:text-sm border border-outline-variant/30 focus:outline-none font-bold text-on-surface cursor-pointer"
+                            required
+                          >
+                            <option value="">-- Seleccionar personal registrado --</option>
+                            {candidates.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name} — {c.role || c.roleKey} ({c.docNumber ? `${c.docType || 'DNI'}: ${c.docNumber}` : (c.email || c.phone || 'Registrado')})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {selectedCand && (
+                          <div className="p-3 bg-surface-container-lowest/80 rounded-xl border border-amber-500/20 flex flex-col gap-2 mt-1">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="w-8 h-8 rounded-full bg-amber-600 text-white font-black text-xs flex items-center justify-center shadow-xs">
+                                  {(selectedCand.name || 'A').charAt(0).toUpperCase()}
+                                </span>
+                                <div>
+                                  <span className="font-bold text-xs text-on-surface block">{selectedCand.name}</span>
+                                  <span className="text-[10px] text-amber-800 font-semibold">{selectedCand.role || selectedCand.roleKey}</span>
+                                </div>
+                              </div>
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                                <span className="material-symbols-outlined text-[12px]">verified</span>
+                                Personal Verificado
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-outline-variant/20 text-[11px]">
+                              <div>
+                                <span className="text-on-surface-variant block text-[10px]">Documento:</span>
+                                <span className="font-mono font-bold text-on-surface">{selectedCand.docType || 'DNI'}: {selectedCand.docNumber || 'Sin doc'}</span>
+                              </div>
+                              <div>
+                                <span className="text-on-surface-variant block text-[10px]">Email Corporativo:</span>
+                                <span className="font-medium text-on-surface truncate block" title={selectedCand.email || ''}>{selectedCand.email || 'Sin correo'}</span>
+                              </div>
+                              <div>
+                                <span className="text-on-surface-variant block text-[10px]">Teléfono:</span>
+                                <span className="font-medium text-on-surface">{selectedCand.phone || 'Sin teléfono'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
-                  <div>
-                    <label className="font-bold text-[11px] text-on-surface block mb-0.5">
-                      Teléfono / WhatsApp de la Sede
-                    </label>
-                    <input
-                      type="tel"
-                      value={locationForm.managerPhone}
-                      onChange={(e) => setLocationForm({ ...locationForm, managerPhone: e.target.value })}
-                      placeholder="+51 978 123 456"
-                      className="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs border border-outline-variant/30 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Modal Actions */}
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-outline-variant/20">
@@ -3070,85 +3196,107 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
               </div>
 
               {/* Sede Manager Info */}
-              <div className="bg-amber-500/10 p-4 rounded-xl border border-amber-500/30 flex flex-col gap-2.5">
-                <span className="font-extrabold text-xs text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[18px] text-amber-700">badge</span>
-                  Administrador de Sede Designado (Gerente Local)
-                </span>
-                <p className="text-[11px] text-amber-900/80">
-                  Responsable de supervisar la carta, mesas y personal de esta sede física.
-                </p>
+              {(() => {
+                const candidates = editingLocation ? getRegisteredCandidates(editingLocation.chainId) : [];
+                const selectedCand = candidates.find((c) => c.id === editLocationForm.managerStaffId);
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div>
-                    <label className="font-bold text-[11px] text-slate-800 block mb-0.5">
-                      Tipo Doc. *
-                    </label>
-                    <select
-                      value={editLocationForm.managerDocType}
-                      onChange={(e) => setEditLocationForm({ ...editLocationForm, managerDocType: e.target.value as any })}
-                      className="w-full px-3 py-1.5 rounded-lg bg-white text-xs border border-slate-300 focus:outline-none font-bold"
-                    >
-                      <option value="DNI">DNI (8 dígitos)</option>
-                      <option value="CE">Carnet Extr. (CE)</option>
-                      <option value="Pasaporte">Pasaporte</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="font-bold text-[11px] text-slate-800 block mb-0.5">
-                      N° de Documento *
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={editLocationForm.managerDocType === 'DNI' ? 8 : 15}
-                      value={editLocationForm.managerDocNumber}
-                      onChange={(e) => setEditLocationForm({ ...editLocationForm, managerDocNumber: e.target.value.replace(editLocationForm.managerDocType === 'DNI' ? /\D/g : /[^a-zA-Z0-9]/g, '') })}
-                      placeholder={editLocationForm.managerDocType === 'DNI' ? '48201945' : 'Número'}
-                      className="w-full px-3 py-1.5 rounded-lg bg-white text-xs border border-slate-300 focus:outline-none font-mono font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-bold text-[11px] text-slate-800 block mb-0.5">
-                      Nombre Completo *
-                    </label>
-                    <input
-                      type="text"
-                      value={editLocationForm.managerName}
-                      onChange={(e) => setEditLocationForm({ ...editLocationForm, managerName: e.target.value })}
-                      placeholder="ej. Fernando Castro"
-                      className="w-full px-3 py-1.5 rounded-lg bg-white text-xs border border-slate-300 focus:outline-none font-medium"
-                      required
-                    />
-                  </div>
-                </div>
+                return (
+                  <div className="bg-amber-500/10 p-4 rounded-xl border border-amber-500/30 flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-xs text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[18px] text-amber-700">badge</span>
+                        Administrador de Sede Designado
+                      </span>
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-900 border border-amber-500/30">
+                        Solo Personal Registrado
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-900/80">
+                      Solo se puede designar como administrador de sede a un colaborador previamente registrado en esta marca.
+                    </p>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="font-bold text-[11px] text-slate-800 block mb-0.5">
-                      Email Corporativo
-                    </label>
-                    <input
-                      type="email"
-                      value={editLocationForm.managerEmail}
-                      onChange={(e) => setEditLocationForm({ ...editLocationForm, managerEmail: e.target.value })}
-                      placeholder="fernando@restaurante.pe"
-                      className="w-full px-3 py-1.5 rounded-lg bg-white text-xs border border-slate-300 focus:outline-none"
-                    />
+                    {candidates.length === 0 ? (
+                      <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-800 flex items-start gap-2">
+                        <span className="material-symbols-outlined text-red-600 text-[18px] shrink-0 mt-0.5">warning</span>
+                        <div>
+                          <p className="font-bold">No hay personal registrado en este restaurante.</p>
+                          <p className="text-[11px] text-red-700 mt-0.5">
+                            Primero registre al personal en el módulo de colaboradores para poder seleccionarlo.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="font-bold text-[11px] text-slate-800 block mb-1">
+                            Seleccionar Colaborador Registrado *
+                          </label>
+                          <select
+                            value={editLocationForm.managerStaffId}
+                            onChange={(e) => {
+                              const candId = e.target.value;
+                              const cand = candidates.find((c) => c.id === candId);
+                              setEditLocationForm({
+                                ...editLocationForm,
+                                managerStaffId: candId,
+                                managerName: cand ? cand.name : '',
+                                managerDocType: (cand?.docType as any) || 'DNI',
+                                managerDocNumber: cand?.docNumber || '',
+                                managerEmail: cand?.email || '',
+                                managerPhone: cand?.phone || ''
+                              });
+                            }}
+                            className="w-full px-3 py-2 rounded-lg bg-white text-xs sm:text-sm border border-slate-300 focus:outline-none font-bold text-slate-900 cursor-pointer"
+                            required
+                          >
+                            <option value="">-- Seleccionar personal registrado --</option>
+                            {candidates.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name} — {c.role || c.roleKey} ({c.docNumber ? `${c.docType || 'DNI'}: ${c.docNumber}` : (c.email || c.phone || 'Registrado')})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {selectedCand && (
+                          <div className="p-3 bg-white/90 rounded-xl border border-amber-500/20 flex flex-col gap-2 mt-1 shadow-xs">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="w-8 h-8 rounded-full bg-amber-600 text-white font-black text-xs flex items-center justify-center shadow-xs">
+                                  {(selectedCand.name || 'A').charAt(0).toUpperCase()}
+                                </span>
+                                <div>
+                                  <span className="font-bold text-xs text-slate-900 block">{selectedCand.name}</span>
+                                  <span className="text-[10px] text-amber-800 font-semibold">{selectedCand.role || selectedCand.roleKey}</span>
+                                </div>
+                              </div>
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                                <span className="material-symbols-outlined text-[12px]">verified</span>
+                                Personal Verificado
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-200 text-[11px]">
+                              <div>
+                                <span className="text-slate-500 block text-[10px]">Documento:</span>
+                                <span className="font-mono font-bold text-slate-800">{selectedCand.docType || 'DNI'}: {selectedCand.docNumber || 'Sin doc'}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-500 block text-[10px]">Email Corporativo:</span>
+                                <span className="font-medium text-slate-800 truncate block" title={selectedCand.email || ''}>{selectedCand.email || 'Sin correo'}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-500 block text-[10px]">Teléfono:</span>
+                                <span className="font-medium text-slate-800">{selectedCand.phone || 'Sin teléfono'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
-                  <div>
-                    <label className="font-bold text-[11px] text-slate-800 block mb-0.5">
-                      WhatsApp / Móvil
-                    </label>
-                    <input
-                      type="tel"
-                      value={editLocationForm.managerPhone}
-                      onChange={(e) => setEditLocationForm({ ...editLocationForm, managerPhone: e.target.value })}
-                      placeholder="+51 978 123 456"
-                      className="w-full px-3 py-1.5 rounded-lg bg-white text-xs border border-slate-300 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Modal Actions */}
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
