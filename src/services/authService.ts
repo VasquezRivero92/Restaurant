@@ -146,10 +146,24 @@ export async function persistTableDrinks(
 ): Promise<void> {
   if (!auth?.currentUser) throw new Error('La sesión del operador no está activa.');
   const token = await auth.currentUser.getIdToken();
+  const safeDrinks = drinks.map((d) => {
+    const item: DrinkOrder = {
+      id: d.id,
+      name: d.name,
+      size: d.size || '',
+      qty: d.qty,
+      price: d.price,
+      served: Boolean(d.served)
+    };
+    if (d.served && d.servedAt) {
+      item.servedAt = d.servedAt;
+    }
+    return item;
+  });
   const response = await fetch(`/api/tables/${encodeURIComponent(tableId)}/drinks`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ tenantId, branchId, drinks })
+    body: JSON.stringify({ tenantId, branchId, drinks: safeDrinks })
   });
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));

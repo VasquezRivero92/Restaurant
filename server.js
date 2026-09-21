@@ -60,6 +60,7 @@ const firebaseAdminApp = getApps().length ? getApps()[0] : initializeApp({
   projectId: process.env.FIREBASE_PROJECT_ID || 'restaurant-4e0ee'
 });
 const firestore = getFirestore(firebaseAdminApp);
+firestore.settings({ ignoreUndefinedProperties: true });
 const failedPinAttempts = new Map();
 const publicOrderAttempts = new Map();
 
@@ -431,11 +432,20 @@ app.post('/api/tables/:tableId/drinks', async (req, res) => {
     await firestore.runTransaction(async (transaction) => {
       const tableSnapshot = await transaction.get(tableRef);
       if (!tableSnapshot.exists) throw new Error('Mesa no encontrada.');
-      const safeDrinks = drinks.map((drink) => ({
-        id: String(drink.id || ''), name: String(drink.name || '').slice(0, 160),
-        size: String(drink.size || '').slice(0, 80), qty: Number(drink.qty || 1), price: Number(drink.price || 0),
-        served: drink.served === true, servedAt: drink.served === true ? String(drink.servedAt || '') : undefined
-      })).filter((drink) => drink.id && drink.name && Number.isFinite(drink.qty) && drink.qty > 0 && Number.isFinite(drink.price) && drink.price >= 0);
+      const safeDrinks = drinks.map((drink) => {
+        const item = {
+          id: String(drink.id || ''),
+          name: String(drink.name || '').slice(0, 160),
+          size: String(drink.size || '').slice(0, 80),
+          qty: Number(drink.qty || 1),
+          price: Number(drink.price || 0),
+          served: drink.served === true
+        };
+        if (drink.served === true && drink.servedAt) {
+          item.servedAt = String(drink.servedAt);
+        }
+        return item;
+      }).filter((drink) => drink.id && drink.name && Number.isFinite(drink.qty) && drink.qty > 0 && Number.isFinite(drink.price) && drink.price >= 0);
       transaction.update(tableRef, { drinks: safeDrinks, updatedAt: Date.now() });
     });
     return res.json({ ok: true });
