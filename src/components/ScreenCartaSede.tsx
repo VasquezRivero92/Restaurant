@@ -429,7 +429,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
   const [staffActive, setStaffActive] = useState(true);
 
   // Solo la administración de la marca puede crear, editar o eliminar personal.
-  const canManagePin = currentRole === 'admin_global' || currentRole === 'admin_general';
+  const canManagePin = currentRole === 'admin_global' || currentRole === 'admin_general' || currentRole === 'admin_sede';
   const canManageStaff = canManagePin;
 
   const getStaffRoleKey = (role: string): AppRole => {
@@ -543,6 +543,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
         tablesZone: staffTablesZone.trim(),
         shift: staffShift,
         assignedBranchIds: staffAssignedBranches,
+        tenantId: currentChain?.id || 'la-barra',
         brandId: currentChain?.id || 'la-barra',
         active: staffActive,
         avatarColor: randomColor
@@ -564,6 +565,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
         tablesZone: staffTablesZone.trim(),
         shift: staffShift,
         assignedBranchIds: staffAssignedBranches,
+        tenantId: currentChain?.id || 'la-barra',
         brandId: currentChain?.id || 'la-barra',
         active: staffActive,
         avatarColor: randomColor
@@ -730,6 +732,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
         role: 'Administrador de Sede',
         roleKey: 'admin_sede',
         brand: currentChain.name,
+        tenantId: currentChain.id,
         brandId: currentChain.id,
         branchName: newLocation.name,
         branchId: newLocId,

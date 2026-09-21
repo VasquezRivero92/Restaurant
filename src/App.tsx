@@ -88,7 +88,7 @@ import {
   resetAllDataInRTDB
 } from './services/rtdbService';
 import { loadSession, saveSession, clearSession } from './services/sessionService';
-import { closeAdminSession, ensureTableReadyForPayment, fetchTableDrinks, persistTableDrinks, recordCashMovement, recordCompletedSale, recordInventoryMovement } from './services/authService';
+import { closeAdminSession, ensureTableReadyForPayment, fetchTableDrinks, persistTableDrinks, provisionAdminIdentity, recordCashMovement, recordCompletedSale, recordInventoryMovement } from './services/authService';
 import { auth } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -2067,7 +2067,7 @@ export default function App() {
   };
 
   // SaaS brand addition (Administrador Global)
-  const handleAddChain = (newChain: ChainBrand) => {
+  const handleAddChain = async (newChain: ChainBrand): Promise<Array<{ email: string; activationLink: string }>> => {
     setChains((prev) => [newChain, ...prev]);
 
     // Initialize branch menus for new locations
@@ -2090,6 +2090,7 @@ export default function App() {
       role: 'Administrador General',
       roleKey: 'admin_general',
       brand: newChain.name,
+      tenantId: newChain.id,
       brandId: newChain.id,
       assignedBranchIds: newChain.locations.map((loc) => loc.id),
       initials: newChain.adminName.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase() || 'AG',
@@ -2106,6 +2107,7 @@ export default function App() {
       role: 'Administrador de Sede',
       roleKey: 'admin_sede',
       brand: newChain.name,
+      tenantId: newChain.id,
       brandId: newChain.id,
       branchName: initialLoc?.name || 'Sede Principal',
       branchId: initialLoc?.id || '',
@@ -2115,6 +2117,23 @@ export default function App() {
     };
 
     setAdmins((prev) => [genAdmin, sedeAdmin, ...prev]);
+
+    const links: Array<{ email: string; activationLink: string }> = [];
+    if (auth?.currentUser) {
+      try {
+        const resGen = await provisionAdminIdentity(genAdmin);
+        if (resGen?.activationLink) links.push({ email: genAdmin.email || '', activationLink: resGen.activationLink });
+      } catch (err) {
+        console.warn('No se pudo provisionar admin general automáticamente:', err);
+      }
+      try {
+        const resSede = await provisionAdminIdentity(sedeAdmin);
+        if (resSede?.activationLink) links.push({ email: sedeAdmin.email || '', activationLink: resSede.activationLink });
+      } catch (err) {
+        console.warn('No se pudo provisionar admin de sede automáticamente:', err);
+      }
+    }
+    return links;
   };
 
   // Add a new branch/sede to a specific restaurant (Global Admin or General Admin)
@@ -2145,7 +2164,17 @@ export default function App() {
     }));
 
     if (managerAdmin) {
-      setAdmins((prev) => [managerAdmin, ...prev]);
+      const safeManager: AdminUser = {
+        ...managerAdmin,
+        tenantId: managerAdmin.tenantId || chainId,
+        brandId: managerAdmin.brandId || chainId
+      };
+      setAdmins((prev) => [safeManager, ...prev]);
+      if (auth?.currentUser && safeManager.email) {
+        provisionAdminIdentity(safeManager).catch((err) =>
+          console.warn('No se pudo provisionar admin de sede en Auth:', err)
+        );
+      }
     }
   };
 
@@ -2422,7 +2451,7 @@ export default function App() {
   };
 
   // Admin branch assignment handler (Sede Admin managing multiple sedes)
-  const handleUpdateAdminBranches = (adminId: string, branchIds: string[]) => {
+  const handleUpdateAdminBranches = async (adminId: string, branchIds: string[]) => {
     setAdmins((prev) =>
       prev.map((adm) =>
         adm.id === adminId
@@ -2434,6 +2463,19 @@ export default function App() {
           : adm
       )
     );
+
+    const targetAdmin = admins.find((a) => a.id === adminId);
+    if (targetAdmin && targetAdmin.email && auth?.currentUser) {
+      try {
+        await provisionAdminIdentity({
+          ...targetAdmin,
+          assignedBranchIds: branchIds,
+          branchId: branchIds[0] || targetAdmin.branchId
+        });
+      } catch (err) {
+        console.warn('No se pudo sincronizar sedes con Firebase Auth:', err);
+      }
+    }
   };
 
   // Update Admin user (e.g. PIN update)

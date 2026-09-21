@@ -275,7 +275,8 @@ app.post('/api/staff/sync', async (req, res) => {
     const decoded = await getAuth(firebaseAdminApp).verifyIdToken(idToken);
     const { tenantId, staff } = req.body || {};
     const isGlobal = decoded.platformAdmin === true;
-    if (!tenantId || !Array.isArray(staff) || (!isGlobal && (decoded.role !== 'admin_general' || decoded.tenantId !== tenantId))) {
+    const isTenantAdmin = !isGlobal && (decoded.tenantId === tenantId) && ['admin_general', 'admin_sede'].includes(decoded.role);
+    if (!tenantId || !Array.isArray(staff) || (!isGlobal && !isTenantAdmin)) {
       return res.status(403).json({ error: 'No tienes permiso para gestionar este personal.' });
     }
 
@@ -328,15 +329,21 @@ app.post('/api/admins/provision', async (req, res) => {
   try {
     const authorization = req.headers.authorization || '';
     const decoded = await getAuth(firebaseAdminApp).verifyIdToken(authorization.startsWith('Bearer ') ? authorization.slice(7) : '');
-    if (decoded.platformAdmin !== true) return res.status(403).json({ error: 'Solo el Administrador Global puede provisionar accesos.' });
+    const isGlobal = decoded.platformAdmin === true;
+    const isGeneral = decoded.role === 'admin_general';
 
     const { admin } = req.body || {};
     const allowedRoles = new Set(['admin_general', 'admin_sede']);
     const tenantId = admin?.brandId || admin?.tenantId;
     const email = String(admin?.email || '').trim().toLowerCase();
     const assignedBranchIds = Array.isArray(admin?.assignedBranchIds) ? admin.assignedBranchIds.filter((id) => typeof id === 'string' && id.length > 0) : [];
+
     if (!tenantId || !email || !allowedRoles.has(admin?.roleKey) || assignedBranchIds.length === 0) {
       return res.status(400).json({ error: 'Datos de administrador incompletos o inválidos.' });
+    }
+
+    if (!isGlobal && (!isGeneral || decoded.tenantId !== tenantId || admin?.roleKey !== 'admin_sede')) {
+      return res.status(403).json({ error: 'Solo el Administrador Global o General puede gestionar este acceso.' });
     }
 
     let authUser;
@@ -367,6 +374,7 @@ app.post('/api/admins/provision', async (req, res) => {
       phone: admin.phone || '',
       role: admin.role || (admin.roleKey === 'admin_general' ? 'Administrador General' : 'Administrador de Sede'),
       roleKey: admin.roleKey,
+      tenantId,
       brand: admin.brand || '',
       brandId: tenantId,
       branchName: admin.branchName || '',

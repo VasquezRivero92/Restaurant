@@ -119,7 +119,7 @@ export const ScreenAdminDashboard: React.FC<ScreenAdminDashboardProps> = ({
   // Sede-scoped data
   const visibleTables = tables.filter((table) => !table.branchId || table.branchId === activeBranch?.id);
   const visibleTickets = tickets.filter((ticket) => !ticket.branchId || ticket.branchId === activeBranch?.id);
-  const visibleStaff = staffMembers.filter((s) => !s.branchIds || s.branchIds.length === 0 || s.branchIds.includes(activeBranch?.id));
+  const visibleStaff = staffMembers.filter((s) => !s.assignedBranchIds || s.assignedBranchIds.length === 0 || s.assignedBranchIds.includes(activeBranch?.id) || s.branchId === activeBranch?.id);
 
   // Key operational counts
   const occupiedTables = visibleTables.filter((table) => table.status !== 'free');

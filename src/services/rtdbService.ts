@@ -480,7 +480,18 @@ export const syncChainsToRTDB = async (items: ChainBrand[]) => {
 
 export const syncAdminsToRTDB = async (items: AdminUser[]) => {
   if (!firestoreDb || !items || items.length === 0) return;
-  await syncCollectionDifferential('users', items);
+  const isGlobalUser = !scope.tenantId;
+  const itemsToSync = isGlobalUser
+    ? items
+    : items.filter((a) => (a.tenantId || a.brandId) === scope.tenantId && a.roleKey !== 'admin_global');
+
+  if (itemsToSync.length === 0) return;
+
+  await syncCollectionDifferential('users', itemsToSync, (admin) => ({
+    ...admin,
+    tenantId: admin.tenantId || admin.brandId || (admin.roleKey !== 'admin_global' ? scope.tenantId : null),
+    brandId: admin.brandId || admin.tenantId || scope.tenantId
+  }));
 };
 
 export async function syncStaffToRTDB(items: StaffMember[]) {

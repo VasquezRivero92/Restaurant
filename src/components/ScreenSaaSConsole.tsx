@@ -547,6 +547,7 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
       role: 'Administrador de Sede',
       roleKey: 'admin_sede',
       brand: targetChain.name,
+      tenantId: targetChain.id,
       brandId: targetChain.id,
       branchName: newLocation.name,
       branchId: newLocId,

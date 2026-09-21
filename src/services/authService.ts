@@ -43,7 +43,7 @@ export async function authenticateAdmin(
     }
   }
   const profile = availableProfiles.find(
-    (admin) => admin.authUid === credential.user.uid || admin.email.toLowerCase() === credential.user.email?.toLowerCase()
+    (admin) => admin.authUid === credential.user.uid || admin.id === credential.user.uid || admin.email.toLowerCase() === credential.user.email?.toLowerCase()
   );
 
   // El primer administrador global se autoriza con un custom claim emitido por
@@ -101,7 +101,7 @@ export interface ProvisionedAdminIdentity {
 }
 
 export async function provisionAdminIdentity(admin: AdminUser): Promise<ProvisionedAdminIdentity> {
-  if (!auth?.currentUser) throw new Error('La sesión del Administrador Global no está activa.');
+  if (!auth?.currentUser) throw new Error('La sesión administrativa no está activa.');
   const token = await auth.currentUser.getIdToken();
   const response = await fetch('/api/admins/provision', {
     method: 'POST',
