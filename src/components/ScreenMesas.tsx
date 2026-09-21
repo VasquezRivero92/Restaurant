@@ -294,7 +294,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
           <div className="bg-surface-container-low p-2.5 rounded-2xl border border-outline-variant/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shadow-xs">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
-                {currentUserName ? currentUserName.charAt(0) : 'M'}
+                {(currentUserName || 'M').charAt(0)}
               </div>
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -1113,7 +1113,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className={`w-8 h-8 rounded-full ${staff.avatarColor || 'bg-amber-600'} text-white font-black text-xs flex items-center justify-center shrink-0`}>
-                          {staff.name.charAt(0)}
+                          {(staff.name || 'M').charAt(0)}
                         </div>
                         <div className="flex flex-col min-w-0">
                           <span className="font-bold text-xs text-primary truncate">

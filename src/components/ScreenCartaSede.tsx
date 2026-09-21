@@ -1858,7 +1858,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                   <div className="mt-3 bg-amber-500/10 rounded-xl p-3 border border-amber-500/20 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                        {assignedAdmin?.initials || loc.managerName.charAt(0) || 'A'}
+                        {assignedAdmin?.initials || (loc.managerName || 'A').charAt(0).toUpperCase()}
                       </div>
                       <div className="flex flex-col min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -1873,7 +1873,7 @@ export const ScreenCartaSede: React.FC<ScreenCartaSedeProps> = ({
                         </div>
 
                         <span className="font-extrabold text-xs text-on-surface truncate">
-                          {assignedAdmin?.name || loc.managerName}
+                          {assignedAdmin?.name || loc.managerName || 'Admin de Sede'}
                         </span>
                         <span className="text-[10px] text-on-surface-variant truncate">
                           {assignedAdmin?.email || loc.managerEmail || 'admin.sede@restaurante.pe'} • {loc.phone || '+51 1 445-0000'}

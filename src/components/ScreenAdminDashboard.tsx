@@ -853,7 +853,7 @@ export const ScreenAdminDashboard: React.FC<ScreenAdminDashboardProps> = ({
                     <div key={member.id} className="flex items-center justify-between rounded-xl border border-slate-100 p-2.5 text-xs">
                       <div className="flex items-center gap-2.5">
                         <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-50 text-teal-800 font-black text-xs">
-                          {member.name.charAt(0)}
+                          {(member.name || 'P').charAt(0)}
                         </span>
                         <div>
                           <strong className="block text-slate-800">{member.name}</strong>

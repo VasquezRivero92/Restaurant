@@ -1170,7 +1170,7 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                           <div className="bg-surface-container-lowest p-2.5 rounded-lg border border-outline-variant/20 flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
                               <div className="w-7 h-7 rounded-full bg-amber-500/20 text-amber-800 flex items-center justify-center font-bold text-xs shrink-0">
-                                {loc.managerName.charAt(0) || 'S'}
+                                {(loc.managerName || 'S').charAt(0).toUpperCase()}
                               </div>
                               <div className="flex flex-col min-w-0">
                                 <div className="flex items-center gap-1">
@@ -1179,7 +1179,7 @@ export const ScreenSaaSConsole: React.FC<ScreenSaaSConsoleProps> = ({
                                   </span>
                                 </div>
                                 <span className="font-bold text-xs text-on-surface truncate">
-                                  {loc.managerName}
+                                  {loc.managerName || 'Admin de Sede'}
                                 </span>
                               </div>
                             </div>
