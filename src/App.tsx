@@ -113,7 +113,25 @@ export default function App() {
     }
     return 'pin-lock';
   });
-  const [tables, setTables] = useState<TableItem[]>(INITIAL_TABLES);
+  const [tables, setTables] = useState<TableItem[]>(() =>
+    isDemoMode
+      ? INITIAL_TABLES
+      : INITIAL_TABLES.map((t) => ({
+          ...t,
+          status: 'free' as const,
+          statusLabel: 'Libre',
+          waiter: '',
+          diners: 2,
+          timeInSalon: undefined,
+          estRemaining: undefined,
+          progress: undefined,
+          total: 0,
+          notes: 'Mesa desinfectada y lista',
+          dishes: [],
+          drinks: [],
+          canceledItems: []
+        }))
+  );
   
   // Master Cartas SaaS Catalog
   const [masterCartas, setMasterCartas] = useState<MasterCarta[]>(INITIAL_MASTER_CARTAS);
@@ -137,7 +155,7 @@ export default function App() {
   // A new order must always start empty. Preloading products here makes it
   // possible to send a chargeable order without the waiter selecting anything.
   const [cart, setCart] = useState<{ [cartKey: string]: CartItem }>({});
-  const [kdsTickets, setKdsTickets] = useState<KDSTicket[]>(INITIAL_KDS_TICKETS);
+  const [kdsTickets, setKdsTickets] = useState<KDSTicket[]>(() => (isDemoMode ? INITIAL_KDS_TICKETS : []));
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [tenantSales, setTenantSales] = useState<SaleRecord[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>(INITIAL_INVENTORY);
@@ -1468,9 +1486,10 @@ export default function App() {
     setTables((prev) =>
       prev.map((t) => {
         if (t.id === selectedTableId) {
-          const existingDrinks = t.drinks || [];
+          const isCleanOrder = t.status === 'free' || !t.dishes || t.dishes.length === 0;
+          const existingDrinks = isCleanOrder ? [] : (t.drinks || []);
           const combinedDrinks = [...existingDrinks, ...newDrinkOrders];
-          const existingDishes = t.dishes || [];
+          const existingDishes = isCleanOrder ? [] : (t.dishes || []);
           const newDishes = foodItems.map((fi) => ({
             id: fi.id,
             name: `${fi.qty}x ${fi.name}`,
@@ -1838,8 +1857,11 @@ export default function App() {
 
   // 3c. Waiter removes an already ordered drink from the table order view
   const handleRemoveTableDrink = (tableId: string, drinkId: string, reason: string = 'A solicitud del cliente') => {
-    setTables((prev) =>
-      prev.map((tbl) => {
+    let updatedDrinksToPersist: DrinkOrder[] | null = null;
+    let updatedTablesList: TableItem[] = [];
+
+    setTables((prev) => {
+      updatedTablesList = prev.map((tbl) => {
         if (tbl.id !== tableId) return tbl;
         const targetDrink = tbl.drinks?.find((d) => d.id === drinkId);
         if (!targetDrink) return tbl;
@@ -1847,6 +1869,7 @@ export default function App() {
         const deductAmount = (targetDrink.price || 0) * (targetDrink.qty || 1);
         const newTotal = Math.max(0, (tbl.total || 0) - deductAmount);
         const updatedDrinks = (tbl.drinks || []).filter((d) => d.id !== drinkId);
+        updatedDrinksToPersist = updatedDrinks;
 
         const cancelRecord = {
           id: `canc-drk-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
@@ -1864,8 +1887,18 @@ export default function App() {
           drinks: updatedDrinks,
           canceledItems: [...(tbl.canceledItems || []), cancelRecord]
         };
-      })
-    );
+      });
+      return updatedTablesList;
+    });
+
+    if (updatedTablesList.length > 0) {
+      syncTablesToRTDB(updatedTablesList);
+    }
+    if (updatedDrinksToPersist !== null && canUseCloudData && activeChainId && activeBranchId) {
+      persistTableDrinks(activeChainId, activeBranchId, tableId, updatedDrinksToPersist).catch((err) => {
+        console.warn('[Firestore] Error al persistir eliminación de bebida:', err);
+      });
+    }
   };
 
   // 4. Mark all dishes in a ticket ready
@@ -2771,6 +2804,7 @@ export default function App() {
                   onUpdateTableWaiter={handleUpdateTableWaiter}
                   onToggleDrinkServed={handleToggleDrinkServed}
                   onServeAllDrinks={handleServeAllDrinks}
+                  onRemoveTableDrink={handleRemoveTableDrink}
                   onOpenDrinksTray={() => setIsDrinksTrayOpen(true)}
                   currentRole={currentRole}
                   currentUserName={staffUser.name}
@@ -2953,6 +2987,7 @@ export default function App() {
         tables={tablesWithTicketDrinks}
         onToggleDrinkServed={handleToggleDrinkServed}
         onServeAllDrinks={handleServeAllDrinks}
+        onRemoveTableDrink={handleRemoveTableDrink}
         currentRole={currentRole}
         currentUserName={staffUser.name}
       />

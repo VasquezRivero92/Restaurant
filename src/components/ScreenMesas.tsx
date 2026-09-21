@@ -20,6 +20,7 @@ interface ScreenMesasProps {
   onUpdateTableWaiter?: (tableId: string, newWaiterName: string) => void;
   onToggleDrinkServed?: (tableId: string, drinkId: string) => void;
   onServeAllDrinks?: (tableIdOrIds?: string | string[]) => void;
+  onRemoveTableDrink?: (tableId: string, drinkId: string, reason?: string) => void;
   onOpenDrinksTray?: () => void;
   currentRole?: AppRole;
   currentUserName?: string;
@@ -39,6 +40,7 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
   onUpdateTableWaiter,
   onToggleDrinkServed,
   onServeAllDrinks,
+  onRemoveTableDrink,
   onOpenDrinksTray,
   currentRole = 'admin_sede',
   currentUserName = '',
@@ -600,21 +602,38 @@ export const ScreenMesas: React.FC<ScreenMesasProps> = ({
                         </div>
                       </div>
 
-                      {canManageService && onToggleDrinkServed && !isOtherWaiterTable && (
-                        <button
-                          onClick={() => onToggleDrinkServed(table.id, drink.id)}
-                          className={`h-7 px-2.5 rounded-lg font-bold text-[10px] sm:text-[11px] flex items-center gap-1 transition-all active:scale-95 cursor-pointer shrink-0 ${
-                            drink.served
-                              ? 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
-                              : 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs'
-                          }`}
-                        >
-                          <span className="material-symbols-outlined text-[14px]">
-                            {drink.served ? 'undo' : 'check'}
-                          </span>
-                          <span>{drink.served ? 'Revertir' : 'Entregar'}</span>
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {canManageService && onToggleDrinkServed && !isOtherWaiterTable && (
+                          <button
+                            onClick={() => onToggleDrinkServed(table.id, drink.id)}
+                            className={`h-7 px-2.5 rounded-lg font-bold text-[10px] sm:text-[11px] flex items-center gap-1 transition-all active:scale-95 cursor-pointer shrink-0 ${
+                              drink.served
+                                ? 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                                : 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs'
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-[14px]">
+                              {drink.served ? 'undo' : 'check'}
+                            </span>
+                            <span>{drink.served ? 'Revertir' : 'Entregar'}</span>
+                          </button>
+                        )}
+
+                        {canManageService && onRemoveTableDrink && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm(`¿Deseas eliminar "${drink.name}" de la mesa ${table.number}?`)) {
+                                onRemoveTableDrink(table.id, drink.id, 'Eliminado por comensal o mozo');
+                              }
+                            }}
+                            className="h-7 w-7 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 flex items-center justify-center transition-all cursor-pointer shrink-0 border border-red-200"
+                            title="Eliminar esta bebida de la comanda"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">delete</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

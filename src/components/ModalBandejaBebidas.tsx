@@ -8,6 +8,7 @@ interface ModalBandejaBebidasProps {
   tables: TableItem[];
   onToggleDrinkServed: (tableId: string, drinkId: string) => void;
   onServeAllDrinks: (tableIdOrIds?: string | string[]) => void;
+  onRemoveTableDrink?: (tableId: string, drinkId: string) => void;
   currentRole?: AppRole;
   currentUserName?: string;
 }
@@ -18,6 +19,7 @@ export const ModalBandejaBebidas: React.FC<ModalBandejaBebidasProps> = ({
   tables,
   onToggleDrinkServed,
   onServeAllDrinks,
+  onRemoveTableDrink,
   currentRole = 'admin_sede',
   currentUserName = ''
 }) => {
@@ -278,19 +280,36 @@ export const ModalBandejaBebidas: React.FC<ModalBandejaBebidasProps> = ({
                             </div>
                           </div>
 
-                          <button
-                            onClick={() => onToggleDrinkServed(table.id, drink.id)}
-                            className={`h-7 px-2.5 rounded-md font-bold text-xs flex items-center gap-1 active:scale-95 transition-all cursor-pointer ${
-                              drink.served
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm'
-                            }`}
-                          >
-                            <span className="material-symbols-outlined text-[14px]">
-                              {drink.served ? 'check_circle' : 'done'}
-                            </span>
-                            <span>{drink.served ? 'Entregado' : 'Marcar'}</span>
-                          </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => onToggleDrinkServed(table.id, drink.id)}
+                              className={`h-7 px-2.5 rounded-md font-bold text-xs flex items-center gap-1 active:scale-95 transition-all cursor-pointer ${
+                                drink.served
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm'
+                              }`}
+                            >
+                              <span className="material-symbols-outlined text-[14px]">
+                                {drink.served ? 'check_circle' : 'done'}
+                              </span>
+                              <span>{drink.served ? 'Entregado' : 'Marcar'}</span>
+                            </button>
+
+                            {onRemoveTableDrink && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (window.confirm(`¿Eliminar "${drink.name}" de la mesa ${table.number}?`)) {
+                                    onRemoveTableDrink(table.id, drink.id);
+                                  }
+                                }}
+                                className="h-7 w-7 rounded-md bg-red-50 hover:bg-red-100 text-red-600 flex items-center justify-center transition-all cursor-pointer border border-red-200"
+                                title="Eliminar bebida de la mesa"
+                              >
+                                <span className="material-symbols-outlined text-[14px]">delete</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
