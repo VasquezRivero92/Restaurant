@@ -2,7 +2,7 @@ import { signInWithCustomToken, signInWithEmailAndPassword, signOut } from 'fire
 import { auth } from './firebase';
 import { firestoreDb } from './firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { AdminUser, AppRole, PaymentDetails } from '../types';
+import { AdminUser, AppRole, DrinkOrder, PaymentDetails } from '../types';
 
 const ADMIN_ROLES: AppRole[] = ['admin_global', 'admin_general', 'admin_sede'];
 
@@ -18,14 +18,7 @@ export async function authenticateAdmin(
   );
 
   if (!auth) {
-    if (knownProfile && knownProfile.active !== false) {
-      return knownProfile;
-    }
-    if (normalized === 'admin' || normalized === 'admin@ordena.pe' || normalized.includes('admin')) {
-      const globalProfile = safeAdmins.find((a) => a.roleKey === 'admin_global');
-      if (globalProfile) return globalProfile;
-    }
-    throw new Error('Usuario o correo no encontrado en la lista de administradores.');
+    throw new Error('El acceso seguro no está configurado. Contacta al administrador del sistema.');
   }
 
   const email = knownProfile?.email || (normalized.includes('@') ? normalized : '');
@@ -130,6 +123,9 @@ export interface OperatorSession {
 }
 
 export async function authenticateOperator(tenantId: string, branchId: string, pin: string): Promise<OperatorSession> {
+  if (!auth) {
+    throw new Error('El acceso seguro no está configurado. Contacta al administrador del sistema.');
+  }
   const response = await fetch('/api/auth/pin', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -137,14 +133,41 @@ export async function authenticateOperator(tenantId: string, branchId: string, p
   });
   const result = await response.json() as { token?: string; staff?: OperatorSession; error?: string };
   if (!response.ok || !result.staff) throw new Error(result.error || 'No fue posible validar el PIN.');
-  if (auth && result.token) {
-    try {
-      await signInWithCustomToken(auth, result.token);
-    } catch (authErr) {
-      console.warn('Firebase Auth client warning:', authErr);
-    }
-  }
+  if (!result.token) throw new Error('El servidor no entregó una sesión segura.');
+  await signInWithCustomToken(auth, result.token);
   return result.staff;
+}
+
+export async function persistTableDrinks(
+  tenantId: string,
+  branchId: string,
+  tableId: string,
+  drinks: DrinkOrder[]
+): Promise<void> {
+  if (!auth?.currentUser) throw new Error('La sesión del operador no está activa.');
+  const token = await auth.currentUser.getIdToken();
+  const response = await fetch(`/api/tables/${encodeURIComponent(tableId)}/drinks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ tenantId, branchId, drinks })
+  });
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    throw new Error(result.error || 'No fue posible guardar el despacho de bebidas.');
+  }
+}
+
+export async function fetchTableDrinks(
+  tenantId: string,
+  branchId: string
+): Promise<Array<{ id: string; drinks: DrinkOrder[] }>> {
+  if (!auth?.currentUser) throw new Error('La sesión del operador no está activa.');
+  const token = await auth.currentUser.getIdToken();
+  const params = new URLSearchParams({ tenantId, branchId });
+  const response = await fetch(`/api/tables/drinks?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !Array.isArray(result.tables)) throw new Error(result.error || 'No fue posible leer las bebidas.');
+  return result.tables;
 }
 
 export async function recordCompletedSale(
@@ -152,33 +175,32 @@ export async function recordCompletedSale(
   branchId: string,
   tableId: string,
   payment: PaymentDetails
-): Promise<void> {
+): Promise<string> {
   if (!Number.isFinite(payment.tipAmount) || payment.tipAmount < 0) {
     throw new Error('La propina ingresada no es válida.');
   }
 
-  // Si no hay sesión de Firebase Auth activa (ej. mozos/cajeros autenticados por PIN local),
-  // evitamos romper la transacción operativa y permitimos el registro directo en Firestore/RTDB.
   if (!auth?.currentUser) {
-    return;
+    throw new Error('La sesión segura expiró. Vuelve a ingresar antes de cobrar.');
   }
 
-  try {
-    const token = await auth.currentUser.getIdToken();
-    const response = await fetch('/api/sales/complete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      // El servidor obtiene el consumo desde la mesa; el cliente solo informa la
-      // propina opcional para que nunca pueda alterar el importe de una venta.
-      body: JSON.stringify({ tenantId, branchId, tableId, tipAmount: payment.tipAmount, payment })
-    });
-    if (!response.ok) {
-      const result = await response.json().catch(() => ({}));
-      console.warn('[Sales API] El backend no procesó la venta:', result.error || response.statusText);
-    }
-  } catch (apiError) {
-    console.warn('[Sales API Warning] Servidor de ventas no disponible, usando persistencia cliente/Firestore:', apiError);
+  const token = await auth.currentUser.getIdToken();
+  const response = await fetch('/api/sales/complete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    // El servidor obtiene el consumo desde la mesa; el cliente solo informa la
+    // propina opcional para que nunca pueda alterar el importe de una venta.
+    body: JSON.stringify({ tenantId, branchId, tableId, tipAmount: payment.tipAmount, payment })
+  });
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    throw new Error(result.error || 'El servidor no pudo confirmar el cobro. La mesa no fue liberada.');
   }
+  const result = await response.json().catch(() => ({}));
+  if (!result.paymentId) {
+    throw new Error('El servidor no confirmó el identificador del cobro. La mesa no fue liberada.');
+  }
+  return String(result.paymentId);
 }
 
 export async function recordInventoryMovement(

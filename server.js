@@ -12,6 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.disable('x-powered-by');
 const PORT = process.env.PORT || process.env.SERVER_PORT || 10019;
 const keyPath = path.join(__dirname, 'serviceAccountKey.json');
 const credential = fs.existsSync(keyPath)
@@ -24,6 +25,19 @@ const firebaseAdminApp = getApps().length ? getApps()[0] : initializeApp({
 });
 const firestore = getFirestore(firebaseAdminApp);
 const failedPinAttempts = new Map();
+const publicOrderAttempts = new Map();
+
+function consumeWindowLimit(store, key, limit, windowMs) {
+  const now = Date.now();
+  const recent = (store.get(key) || []).filter((timestamp) => now - timestamp < windowMs);
+  if (recent.length >= limit) {
+    store.set(key, recent);
+    return false;
+  }
+  recent.push(now);
+  store.set(key, recent);
+  return true;
+}
 
 async function writeAudit({ tenantId, actorId, action, entityType, entityId, metadata = {} }) {
   if (!tenantId) return;
@@ -34,6 +48,12 @@ async function writeAudit({ tenantId, actorId, action, entityType, entityId, met
 }
 
 app.use(express.json({ limit: '32kb' }));
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
 
 app.get('/api/public/tenant/:slug', async (req, res) => {
   try {
@@ -97,25 +117,40 @@ app.get('/api/public/menu/:slug/:branchId', async (req, res) => {
     if (!branch) return res.status(404).json({ error: 'Sede no disponible.' });
     const branchRef = tenant.ref.collection('branches').doc(req.params.branchId);
     const [menuSnapshot, tablesSnapshot] = await Promise.all([branchRef.collection('menu').get(), branchRef.collection('tables').get()]);
-    return res.json({ branchName: branch.name, menu: menuSnapshot.docs.map(doc => ({ id: Number(doc.id) || doc.data().id, ...doc.data() })).filter(item => item.available !== false), tables: tablesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(table => table.status !== 'bill_requested') });
+    const activeTableStatuses = new Set(['occupied', 'eating', 'cooking', 'ready']);
+    return res.json({ branchName: branch.name, menu: menuSnapshot.docs.map(doc => ({ id: Number(doc.id) || doc.data().id, ...doc.data() })).filter(item => item.available !== false), tables: tablesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(table => activeTableStatuses.has(table.status)) });
   } catch (error) { console.error('Error de carta QR:', error); return res.status(500).json({ error: 'No fue posible abrir la carta.' }); }
 });
 
 app.post('/api/public/order/:slug/:branchId', async (req, res) => {
   try {
     const slugParam = String(req.params.slug || '').toLowerCase().trim();
+    const branchId = String(req.params.branchId || '');
+    const rateLimitKey = `${req.ip || req.socket.remoteAddress || 'unknown'}:${slugParam}:${branchId}`;
+    if (!consumeWindowLimit(publicOrderAttempts, rateLimitKey, 8, 60_000)) {
+      res.setHeader('Retry-After', '60');
+      return res.status(429).json({ error: 'Se alcanzó el límite de pedidos. Espera un minuto e intenta nuevamente.' });
+    }
     const tenantSnapshot = await firestore.collection('restaurants').where('slug', '==', slugParam).limit(1).get();
     const tenant = !tenantSnapshot.empty ? tenantSnapshot.docs[0] : await firestore.collection('restaurants').doc(slugParam).get();
     if (!tenant || !tenant.exists) return res.status(404).json({ error: 'Restaurante no encontrado.' });
-    const branchId = req.params.branchId; const { tableId, items, notes = '' } = req.body || {};
-    if (!tableId || !Array.isArray(items) || items.length === 0 || items.length > 30 || String(notes).length > 300) return res.status(400).json({ error: 'Pedido inválido.' });
+    const branch = (tenant.data().locations || []).find((location) => location.id === branchId && location.active !== false);
+    if (!branch) return res.status(404).json({ error: 'Sede no disponible.' });
+    const { tableId, items, notes = '', requestId } = req.body || {};
+    if (!tableId || !Array.isArray(items) || items.length === 0 || items.length > 30 || String(notes).length > 300 || !/^[a-zA-Z0-9_-]{16,80}$/.test(String(requestId || ''))) return res.status(400).json({ error: 'Pedido inválido.' });
     const branchRef = tenant.ref.collection('branches').doc(branchId); const [tableSnapshot, menuSnapshot] = await Promise.all([branchRef.collection('tables').doc(String(tableId)).get(), branchRef.collection('menu').get()]);
-    if (!tableSnapshot.exists || tableSnapshot.data().status === 'bill_requested') return res.status(400).json({ error: 'La mesa ya no está disponible.' });
+    const activeTableStatuses = new Set(['occupied', 'eating', 'cooking', 'ready']);
+    if (!tableSnapshot.exists || !activeTableStatuses.has(tableSnapshot.data().status)) return res.status(400).json({ error: 'La mesa no está activa para recibir pedidos.' });
     const menu = new Map(menuSnapshot.docs.map(doc => [Number(doc.id) || doc.data().id, doc.data()])); let total = 0;
     const cleanItems = items.map(line => { const dish = menu.get(Number(line.dishId)); const qty = Number(line.qty); if (!dish || dish.available === false || !Number.isInteger(qty) || qty < 1 || qty > 20) throw new Error('Un producto ya no está disponible.'); const price = Number(dish.price); total += price * qty; return { dishId: Number(line.dishId), dishName: String(dish.name), category: dish.category, isDrink: Boolean(dish.isDrink || dish.category === 'bebidas'), price, qty }; });
-    const orderRef = branchRef.collection('customerOrders').doc();
-    await orderRef.create({ id: orderRef.id, branchId, tableId: String(tableId), tableNumber: String(tableSnapshot.data().number || ''), items: cleanItems, total: Number(total.toFixed(2)), notes: String(notes).trim(), status: 'pending_waiter', createdAt: Date.now(), source: 'qr' });
-    return res.status(201).json({ ok: true, id: orderRef.id });
+    const orderRef = branchRef.collection('customerOrders').doc(`qr-${requestId}`);
+    const created = await firestore.runTransaction(async (transaction) => {
+      const existing = await transaction.get(orderRef);
+      if (existing.exists) return false;
+      transaction.create(orderRef, { id: orderRef.id, requestId: String(requestId), branchId, tableId: String(tableId), tableNumber: String(tableSnapshot.data().number || ''), items: cleanItems, total: Number(total.toFixed(2)), notes: String(notes).trim(), status: 'pending_waiter', createdAt: Date.now(), source: 'qr' });
+      return true;
+    });
+    return res.status(created ? 201 : 200).json({ ok: true, id: orderRef.id, duplicate: !created });
   } catch (error) { return res.status(400).json({ error: error.message || 'No fue posible solicitar el pedido.' }); }
 });
 
@@ -313,6 +348,56 @@ app.post('/api/admins/provision', async (req, res) => {
   } catch (error) {
     console.error('Error al provisionar administrador:', error);
     return res.status(500).json({ error: 'No fue posible provisionar la identidad administrativa.' });
+  }
+});
+
+// Persiste el despacho de bebidas en servidor para que el estado no dependa
+// únicamente de la caché local de Firestore del navegador.
+app.get('/api/tables/drinks', async (req, res) => {
+  try {
+    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    const decoded = await getAuth(firebaseAdminApp).verifyIdToken(token);
+    const requestedTenantId = String(req.query.tenantId || '');
+    const branchId = String(req.query.branchId || '');
+    const tenantId = decoded.platformAdmin === true ? requestedTenantId : decoded.tenantId;
+    const branchIds = Array.isArray(decoded.branchIds) ? decoded.branchIds : [];
+    if (!tenantId || !branchId || (!decoded.platformAdmin && (!branchIds.includes(branchId) || !['mesero', 'cocina', 'cajero', 'admin_sede', 'admin_general'].includes(decoded.role)))) {
+      return res.status(403).json({ error: 'Lectura de bebidas no autorizada.' });
+    }
+    const snapshot = await firestore.collection('restaurants').doc(tenantId).collection('branches').doc(branchId).collection('tables').get();
+    return res.json({ tables: snapshot.docs.map((table) => ({ id: table.id, drinks: table.data().drinks || [] })) });
+  } catch (error) {
+    return res.status(400).json({ error: 'No fue posible leer las bebidas.' });
+  }
+});
+
+app.post('/api/tables/:tableId/drinks', async (req, res) => {
+  try {
+    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    const decoded = await getAuth(firebaseAdminApp).verifyIdToken(token);
+    const { tenantId: requestedTenantId, branchId, drinks } = req.body || {};
+    const tenantId = decoded.platformAdmin === true ? requestedTenantId : decoded.tenantId;
+    const branchIds = Array.isArray(decoded.branchIds) ? decoded.branchIds : [];
+    if (!tenantId || !branchId || !Array.isArray(drinks) ||
+      (!decoded.platformAdmin && (!branchIds.includes(branchId) || !['mesero', 'admin_sede', 'admin_general'].includes(decoded.role)))) {
+      return res.status(403).json({ error: 'Actualización de bebidas no autorizada.' });
+    }
+
+    const tableRef = firestore.collection('restaurants').doc(tenantId).collection('branches').doc(branchId).collection('tables').doc(req.params.tableId);
+    await firestore.runTransaction(async (transaction) => {
+      const tableSnapshot = await transaction.get(tableRef);
+      if (!tableSnapshot.exists) throw new Error('Mesa no encontrada.');
+      const safeDrinks = drinks.map((drink) => ({
+        id: String(drink.id || ''), name: String(drink.name || '').slice(0, 160),
+        size: String(drink.size || '').slice(0, 80), qty: Number(drink.qty || 1), price: Number(drink.price || 0),
+        served: drink.served === true, servedAt: drink.served === true ? String(drink.servedAt || '') : undefined
+      })).filter((drink) => drink.id && drink.name && Number.isFinite(drink.qty) && drink.qty > 0 && Number.isFinite(drink.price) && drink.price >= 0);
+      transaction.update(tableRef, { drinks: safeDrinks, updatedAt: Date.now() });
+    });
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error('Error al actualizar bebidas:', error);
+    return res.status(400).json({ error: 'No fue posible actualizar las bebidas.' });
   }
 });
 

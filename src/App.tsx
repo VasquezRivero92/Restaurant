@@ -85,11 +85,10 @@ import {
   syncCashShiftsToFirestore,
   syncReservationsToFirestore,
   syncAttendanceToFirestore,
-  syncSaleRecordToFirestore,
   resetAllDataInRTDB
 } from './services/rtdbService';
 import { loadSession, saveSession, clearSession } from './services/sessionService';
-import { closeAdminSession, recordCashMovement, recordCompletedSale, recordInventoryMovement } from './services/authService';
+import { closeAdminSession, fetchTableDrinks, persistTableDrinks, recordCashMovement, recordCompletedSale, recordInventoryMovement } from './services/authService';
 import { auth } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -98,6 +97,7 @@ export default function App() {
   const isDemoMode = import.meta.env.VITE_ENABLE_DEMO_DATA === 'true';
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => Boolean(initialSession?.isAuthenticated));
+  const [hasFirebaseUser, setHasFirebaseUser] = useState<boolean>(() => Boolean(auth?.currentUser));
   const [adminProfile, setAdminProfile] = useState<AdminUser | undefined>(() => initialSession?.adminProfile);
   const [isGlobalLoginOpen, setIsGlobalLoginOpen] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>(() => {
@@ -328,8 +328,13 @@ export default function App() {
 
   // Escuchar cambios de autenticación de Firebase
   React.useEffect(() => {
-    if (!auth) return;
+    if (!auth) {
+      setHasFirebaseUser(false);
+      setIsAuthenticated(false);
+      return;
+    }
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setHasFirebaseUser(Boolean(firebaseUser));
       if (firebaseUser) {
         setIsAuthenticated(true);
         setCurrentScreen((prev) => {
@@ -338,6 +343,8 @@ export default function App() {
           }
           return prev;
         });
+      } else {
+        setIsAuthenticated(false);
       }
     });
     return () => unsubscribe();
@@ -348,11 +355,37 @@ export default function App() {
     setFirestoreScope(activeChainId, activeBranchId);
   }, [activeChainId, activeBranchId]);
 
+  // Reconcile drink states with the server after authentication. This protects
+  // the operational view when Firestore initially returns an offline cache.
+  const canUseCloudData = isAuthenticated && hasFirebaseUser;
+
   React.useEffect(() => {
+    if (!canUseCloudData || !activeChainId || !activeBranchId) return;
+    let cancelled = false;
+    const refreshDrinks = async () => {
+      try {
+        const remoteTables = await fetchTableDrinks(activeChainId, activeBranchId);
+        if (cancelled) return;
+        const drinksByTable = new Map(remoteTables.map((table) => [table.id, table.drinks]));
+        setTables((previous) => previous.map((table) => ({
+          ...table,
+          drinks: drinksByTable.get(table.id) || table.drinks
+        })));
+      } catch {
+        // The normal Firestore subscription remains available as fallback.
+      }
+    };
+    void refreshDrinks();
+    const retry = window.setTimeout(() => void refreshDrinks(), 1000);
+    return () => { cancelled = true; window.clearTimeout(retry); };
+  }, [activeBranchId, activeChainId, canUseCloudData]);
+
+  React.useEffect(() => {
+    if (!canUseCloudData) { setTenantSales([]); return; }
     if (!['admin_general', 'admin_global'].includes(currentRole)) { setTenantSales([]); return; }
     setFirestoreScope(activeChainId, activeBranchId);
     return subscribeToTenantSales(setTenantSales);
-  }, [activeChainId, activeBranchId, currentRole]);
+  }, [activeChainId, activeBranchId, canUseCloudData, currentRole]);
 
   // Banderas para asegurar que los datos recibidos desde la nube no se reenvíen a la base de datos
   const isRemoteTables = React.useRef(false);
@@ -362,24 +395,63 @@ export default function App() {
   const isRemoteCartas = React.useRef(false);
   const isRemoteStaff = React.useRef(false);
   const isRemoteAdmins = React.useRef(false);
+  // Firestore can serve a stale offline snapshot immediately after a reload.
+  // Keep drink delivery confirmations from the current terminal session so the
+  // UI honours the server-confirmed state while that snapshot is refreshed.
+  const servedDrinkStatesRef = React.useRef<Record<string, Record<string, { served: boolean; servedAt?: string }>>>(
+    (() => {
+      try {
+        return window.sessionStorage ? JSON.parse(window.sessionStorage.getItem('ordena:served-drinks') || '{}') : {};
+      } catch {
+        return {};
+      }
+    })()
+  );
+
+  const rememberDrinkStates = (tableId: string, drinks: DrinkOrder[]) => {
+    servedDrinkStatesRef.current[tableId] = Object.fromEntries(
+      drinks.map((drink) => [drink.id, { served: Boolean(drink.served), servedAt: drink.servedAt }])
+    );
+    try {
+      window.sessionStorage.setItem('ordena:served-drinks', JSON.stringify(servedDrinkStatesRef.current));
+    } catch {
+      // Storage is an enhancement; the server remains the source of truth.
+    }
+  };
 
   // 1. Suscripción a datos de la sede activa (Mesas, KDS, Carta de la sede)
   // Solo se suscribe si existe una sede y tenant activos para evitar lecturas innecesarias
   React.useEffect(() => {
-    if (!activeChainId || !activeBranchId) return;
+    if (!canUseCloudData || !activeChainId || !activeBranchId) return;
     setFirestoreScope(activeChainId, activeBranchId);
 
     const unsubTables = subscribeToTables((cloudTables) => {
       if (cloudTables && cloudTables.length > 0) {
         isRemoteTables.current = true;
         setTables((prevTables) => {
-          if (!prevTables || prevTables.length === 0) return cloudTables;
+          if (!prevTables || prevTables.length === 0) {
+            return cloudTables.map((table) => ({
+              ...table,
+              drinks: (table.drinks || []).map((drink) => ({
+                ...drink,
+                ...(servedDrinkStatesRef.current[table.id]?.[drink.id] || {})
+              }))
+            }));
+          }
           return cloudTables.map((cTable) => {
+            const persistedDrinkStates = servedDrinkStatesRef.current[cTable.id] || {};
+            const persistedCloudTable = {
+              ...cTable,
+              drinks: (cTable.drinks || []).map((drink) => ({
+                ...drink,
+                ...(persistedDrinkStates[drink.id] || {})
+              }))
+            };
             const lTable = prevTables.find((lt) => lt.id === cTable.id);
-            if (!lTable) return cTable;
+            if (!lTable) return persistedCloudTable;
 
             // Merge drinks: once marked served locally, keep it served unless explicitly cleared
-            const mergedDrinks = (cTable.drinks || []).map((cDrink) => {
+            const mergedDrinks = (persistedCloudTable.drinks || []).map((cDrink) => {
               const lDrink = lTable.drinks?.find(
                 (ld) => ld.id === cDrink.id || ld.name.toLowerCase().trim() === cDrink.name.toLowerCase().trim()
               );
@@ -418,7 +490,7 @@ export default function App() {
                 : cTable.status;
 
             return {
-              ...cTable,
+              ...persistedCloudTable,
               status: effectiveStatus,
               drinks: [...mergedDrinks, ...localOnlyDrinks],
               dishes: mergedDishes.length > 0 ? mergedDishes : cTable.dishes
@@ -543,13 +615,12 @@ export default function App() {
       unsubApprovals();
       unsubQrOrders();
     };
-  }, [activeChainId, activeBranchId]);
+  }, [activeChainId, activeBranchId, canUseCloudData]);
 
   // 2. Suscripción a datos organizacionales (Restaurantes, Cartas Maestras, Personal, Admins)
   // No se suscribe si el usuario solo está visitando la landing pública sin tenant
   React.useEffect(() => {
-    const isPublicLanding = currentScreen === 'landing' && !tenantSlug;
-    if (isPublicLanding) return;
+    if (!canUseCloudData) return;
 
     setFirestoreScope(activeChainId, activeBranchId);
 
@@ -591,12 +662,13 @@ export default function App() {
       unsubStaff();
       unsubAdmins();
     };
-  }, [activeChainId, currentScreen, tenantSlug]);
+  }, [activeChainId, canUseCloudData]);
 
   // Sincronización diferencial con debounce y protección contra bucles
   const isInitialMount = React.useRef(true);
 
   React.useEffect(() => {
+    if (!canUseCloudData) return;
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
@@ -609,9 +681,10 @@ export default function App() {
       syncTablesToRTDB(tables);
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [tables]);
+  }, [canUseCloudData, tables]);
 
   React.useEffect(() => {
+    if (!canUseCloudData) return;
     if (isInitialMount.current) return;
     if (isRemoteTickets.current) {
       isRemoteTickets.current = false;
@@ -621,9 +694,10 @@ export default function App() {
       syncKDSTicketsToRTDB(kdsTickets);
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [kdsTickets]);
+  }, [canUseCloudData, kdsTickets]);
 
   React.useEffect(() => {
+    if (!canUseCloudData) return;
     if (isInitialMount.current) return;
     if (isRemoteMenus.current) {
       isRemoteMenus.current = false;
@@ -633,9 +707,10 @@ export default function App() {
       syncBranchMenusToRTDB(branchMenus);
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [branchMenus]);
+  }, [branchMenus, canUseCloudData]);
 
   React.useEffect(() => {
+    if (!canUseCloudData) return;
     if (isInitialMount.current) return;
     if (isRemoteCartas.current) {
       isRemoteCartas.current = false;
@@ -645,9 +720,10 @@ export default function App() {
       syncMasterCartasToRTDB(masterCartas);
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [masterCartas]);
+  }, [canUseCloudData, masterCartas]);
 
   React.useEffect(() => {
+    if (!canUseCloudData) return;
     if (isInitialMount.current) return;
     if (isRemoteChains.current) {
       isRemoteChains.current = false;
@@ -657,9 +733,10 @@ export default function App() {
       syncChainsToRTDB(chains);
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [chains]);
+  }, [canUseCloudData, chains]);
 
   React.useEffect(() => {
+    if (!canUseCloudData) return;
     if (isInitialMount.current) return;
     if (isRemoteStaff.current) {
       isRemoteStaff.current = false;
@@ -669,9 +746,10 @@ export default function App() {
       syncStaffToRTDB(staffMembers);
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [staffMembers]);
+  }, [canUseCloudData, staffMembers]);
 
   React.useEffect(() => {
+    if (!canUseCloudData) return;
     if (isInitialMount.current) return;
     if (isRemoteAdmins.current) {
       isRemoteAdmins.current = false;
@@ -681,7 +759,7 @@ export default function App() {
       syncAdminsToRTDB(admins);
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [admins]);
+  }, [admins, canUseCloudData]);
 
   // Role switching handler with synchronized user profile and destination screen
   const handleSwitchRole = (role: AppRole) => {
@@ -883,18 +961,16 @@ export default function App() {
     // Construcción de los items detallados de la venta
     const lineItems: SaleLineItem[] = [
       ...(currentTbl?.dishes || []).map((d) => ({
-        id: String(d.id),
         name: d.name,
-        quantity: d.qty || 1,
+        qty: d.qty || 1,
         unitPrice: d.price || 0,
         total: (d.price || 0) * (d.qty || 1),
         category: d.category,
         kind: 'dish' as const
       })),
       ...(currentTbl?.drinks || []).map((dr) => ({
-        id: String(dr.id),
         name: dr.name,
-        quantity: dr.qty || 1,
+        qty: dr.qty || 1,
         unitPrice: dr.price || 0,
         total: (dr.price || 0) * (dr.qty || 1),
         category: dr.category,
@@ -927,27 +1003,18 @@ export default function App() {
       status: 'completed'
     };
 
-    // 1. Registro seguro en API backend si está activo
-    try {
-      if (!isDemoMode) {
-        await recordCompletedSale(activeChainId, activeBranchId, tableId, payment);
-      }
-    } catch (apiErr) {
-      console.warn('Backend sale registration fallback:', apiErr);
+    // El servidor ejecuta venta, inventario y liberación de mesa en una única
+    // transacción. Si falla, se propaga el error y no se altera el estado local.
+    if (!isDemoMode) {
+      saleRecord.id = await recordCompletedSale(activeChainId, activeBranchId, tableId, payment);
     }
 
-    // 2. Persistencia directa en Firestore para reportes y auditoría
-    try {
-      await syncSaleRecordToFirestore(saleRecord);
-    } catch (fsErr) {
-      console.warn('Firestore direct sale recording error:', fsErr);
-    }
-
-    // 3. Actualización de estado local de ventas
+    // En modo demo no existe backend transaccional; en producción esta vista
+    // optimista usa el mismo ID confirmado por el servidor.
     setSales((prev) => [saleRecord, ...prev]);
     setTenantSales((prev) => [saleRecord, ...prev]);
 
-    // 4. Liberar la mesa localmente y sincronizar en RTDB / Firestore
+    // Reflejar localmente la liberación ya confirmada por el servidor.
     let updatedTablesList: TableItem[] = [];
     setTables((prev) => {
       updatedTablesList = prev.map((t) =>
@@ -972,7 +1039,7 @@ export default function App() {
       syncTablesToRTDB(updatedTablesList);
     }
 
-    // 5. Completar y cerrar cualquier ticket KDS pendiente de esta mesa
+    // Completar y cerrar cualquier ticket KDS pendiente de esta mesa.
     let updatedTicketsList: KDSTicket[] = [];
     setKdsTickets((prev) => {
       updatedTicketsList = prev.map((tk) => {
@@ -1145,10 +1212,7 @@ export default function App() {
 
     let affectedDrinkName = '';
     let isNowServed = false;
-    let updatedTablesList: TableItem[] = [];
-
-    setTables((prev) => {
-      updatedTablesList = prev.map((t) => {
+    const updatedTablesList = tables.map((t) => {
         if (t.id !== tableId) return t;
         const existingDrinks = t.drinks || [];
         const found = existingDrinks.find((d) => d.id === drinkId);
@@ -1188,14 +1252,12 @@ export default function App() {
           }
         }
         return t;
-      });
-      return updatedTablesList;
     });
+    setTables(updatedTablesList);
 
-    let updatedTicketsList: KDSTicket[] = [];
+    let updatedTicketsList = kdsTickets;
     if (affectedDrinkName) {
-      setKdsTickets((prev) => {
-        updatedTicketsList = prev.map((tk) => {
+      updatedTicketsList = kdsTickets.map((tk) => {
           if (!matchesTable(tk.table, targetTableNum, tableId)) return tk;
           const updatedItems = tk.items.map((item) => {
             if (
@@ -1219,17 +1281,19 @@ export default function App() {
             items: updatedItems,
             status: allCompleted ? ('served' as const) : tk.status
           };
-        });
-        return updatedTicketsList;
       });
+      setKdsTickets(updatedTicketsList);
     }
 
-    // Immediate Firestore persistence
-    if (updatedTablesList.length > 0) {
-      syncTablesToRTDB(updatedTablesList);
-    }
-    if (updatedTicketsList.length > 0) {
-      syncKDSTicketsToRTDB(updatedTicketsList);
+    // Persist the computed state, rather than waiting for React state updates.
+    void syncTablesToRTDB(updatedTablesList);
+    if (affectedDrinkName) void syncKDSTicketsToRTDB(updatedTicketsList);
+    const updatedTable = updatedTablesList.find((table) => table.id === tableId);
+    if (updatedTable) {
+      rememberDrinkStates(tableId, updatedTable.drinks || []);
+      void persistTableDrinks(activeChainId, activeBranchId, tableId, updatedTable.drinks || []).catch((error) => {
+        console.warn('No se pudo persistir el despacho de bebidas:', error);
+      });
     }
   };
 
@@ -1243,9 +1307,7 @@ export default function App() {
       ? null
       : new Set([tableIdOrIds]);
 
-    let updatedTablesList: TableItem[] = [];
-    setTables((prev) => {
-      updatedTablesList = prev.map((t) => {
+    const updatedTablesList = tables.map((t) => {
         if (targetIds && !targetIds.has(t.id)) return t;
         const ticketDrinks = extractDrinksFromTickets(kdsTickets, t.number, t.id);
         const existingDrinks = t.drinks || [];
@@ -1260,20 +1322,16 @@ export default function App() {
           ...t,
           drinks: allDrinks
         };
-      });
-      return updatedTablesList;
     });
+    setTables(updatedTablesList);
 
-    let updatedTicketsList: KDSTicket[] = [];
     // Also mark all drink items in kdsTickets as served
-    setKdsTickets((prev) => {
-      const targetTableNumbers = new Set(
-        tables
-          .filter((t) => !targetIds || targetIds.has(t.id))
-          .map((t) => t.number)
-      );
-
-      updatedTicketsList = prev.map((tk) => {
+    const targetTableNumbers = new Set(
+      tables
+        .filter((t) => !targetIds || targetIds.has(t.id))
+        .map((t) => t.number)
+    );
+    const updatedTicketsList = kdsTickets.map((tk) => {
         const matchesAnyTarget =
           isAll ||
           (targetIds && Array.from(targetIds).some((tid) => matchesTable(tk.table, '', tid))) ||
@@ -1298,17 +1356,19 @@ export default function App() {
           items: updatedItems,
           status: allCompleted ? ('served' as const) : tk.status
         };
-      });
-      return updatedTicketsList;
     });
+    setKdsTickets(updatedTicketsList);
 
-    // Immediate Firestore persistence
-    if (updatedTablesList.length > 0) {
-      syncTablesToRTDB(updatedTablesList);
-    }
-    if (updatedTicketsList.length > 0) {
-      syncKDSTicketsToRTDB(updatedTicketsList);
-    }
+    // Persist the computed state, rather than waiting for React state updates.
+    void syncTablesToRTDB(updatedTablesList);
+    void syncKDSTicketsToRTDB(updatedTicketsList);
+    const tablesToPersist = updatedTablesList.filter((table) => !targetIds || targetIds.has(table.id));
+    tablesToPersist.forEach((table) => {
+      rememberDrinkStates(table.id, table.drinks || []);
+      void persistTableDrinks(activeChainId, activeBranchId, table.id, table.drinks || []).catch((error) => {
+        console.warn('No se pudo persistir el despacho de bebidas:', error);
+      });
+    });
   };
 
   // Send comanda (Kitchen dishes separated from Waiter drinks, with size and exact price applied)

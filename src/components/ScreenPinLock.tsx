@@ -113,6 +113,7 @@ export const ScreenPinLock: React.FC<ScreenPinLockProps> = ({
         {branches && branches.length > 1 ? (
           <div className="mt-3 flex items-center justify-center">
             <select
+              aria-label="Sede de la terminal"
               value={effectiveBranchId}
               onChange={(e) => handleBranchChange(e.target.value)}
               className="rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-teal-100 backdrop-blur focus:outline-none focus:ring-2 focus:ring-[#ffd06f]"

@@ -284,14 +284,14 @@ export const ScreenLanding: React.FC<ScreenLandingProps> = ({ onOpenLogin }) => 
         </div>
       </header>
 
-      <nav aria-label="Navegación rápida" className="sticky top-20 z-30 flex border-b border-slate-200 bg-white/95 px-3 py-2 backdrop-blur lg:hidden overflow-x-auto">
-        <div className="ux-tab-strip mx-auto w-full max-w-xl justify-between gap-1">
-          <button type="button" onClick={() => scrollTo('pantallas')} className="ux-touch-target shrink-0 rounded-xl px-2.5 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Pantallas</button>
-          <button type="button" onClick={() => scrollTo('soluciones')} className="ux-touch-target shrink-0 rounded-xl px-2.5 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Por Negocio</button>
-          <button type="button" onClick={() => scrollTo('calculadora')} className="ux-touch-target shrink-0 rounded-xl px-2.5 text-xs font-black text-amber-700 hover:bg-amber-50">ROI / Ahorro</button>
-          <button type="button" onClick={() => scrollTo('flujo')} className="ux-touch-target shrink-0 rounded-xl px-2.5 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Flujo</button>
-          <button type="button" onClick={() => scrollTo('planes')} className="ux-touch-target shrink-0 rounded-xl px-2.5 text-xs font-black text-[#e46d3f] hover:bg-orange-50">Planes</button>
-          <button type="button" onClick={() => scrollTo('faq')} className="ux-touch-target shrink-0 rounded-xl px-2.5 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Preguntas</button>
+      <nav aria-label="Navegación rápida" className="sticky top-20 z-30 border-b border-slate-200 bg-white/95 px-3 py-2 backdrop-blur lg:hidden">
+        <div className="mx-auto grid w-full max-w-xl grid-cols-3 gap-1">
+          <button type="button" onClick={() => scrollTo('pantallas')} className="ux-touch-target rounded-xl px-1 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Pantallas</button>
+          <button type="button" onClick={() => scrollTo('soluciones')} className="ux-touch-target rounded-xl px-1 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Por Negocio</button>
+          <button type="button" onClick={() => scrollTo('calculadora')} className="ux-touch-target rounded-xl px-1 text-xs font-black text-amber-700 hover:bg-amber-50">ROI / Ahorro</button>
+          <button type="button" onClick={() => scrollTo('flujo')} className="ux-touch-target rounded-xl px-1 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Flujo</button>
+          <button type="button" onClick={() => scrollTo('planes')} className="ux-touch-target rounded-xl px-1 text-xs font-black text-[#e46d3f] hover:bg-orange-50">Planes</button>
+          <button type="button" onClick={() => scrollTo('faq')} className="ux-touch-target rounded-xl px-1 text-xs font-extrabold text-teal-900 hover:bg-teal-50">Preguntas</button>
         </div>
       </nav>
 
